@@ -29,7 +29,7 @@ with sync_playwright() as pw:
     # مراجع جديد
     p.click('.topbar [data-action=new-patient]'); p.wait_for_selector('.dialog')
     p.fill('[name=full_name]', 'خالد إبراهيم الجبوري'); p.fill('[name=phone]', '07901234567'); shot(p, '05_new_patient_modal'); p.click('[data-save]')
-    p.wait_for_selector('.pt-head'); assert 'خالد إبراهيم' in p.inner_text('.pt-head')
+    p.wait_for_selector('.pt-head h1:has-text("خالد إبراهيم")')  # ننتظر صفحة المراجع الجديد لا الصفحة السابقة
     # زيارة بإجراءين
     p.click('.pt-actions [data-action=new-visit]'); p.wait_for_selector('.vform')
     rows = p.locator('.prow'); rows.nth(0).locator('[name=name]').fill('زراعة سن'); rows.nth(0).locator('[data-action=tooth-pick]').click(); p.wait_for_selector('.tooth-panel'); shot(p, '06_visit_modal_tooth')
