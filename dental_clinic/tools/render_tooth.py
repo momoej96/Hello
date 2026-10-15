@@ -187,7 +187,7 @@ def main():
 
     # soft drop shadow so the white tooth stays visible on light wallpapers
     a = tooth_img.split()[3]
-    sh = Image.new('RGBA', tooth_img.size, (10, 40, 80, 0))
+    sh = Image.new('RGBA', tooth_img.size, (2, 30, 30, 0))
     sh.putalpha(a.point(lambda x: x * 0.55))
     sh = sh.filter(ImageFilter.GaussianBlur(N * 0.018))
     canvas = Image.new('RGBA', tooth_img.size, (0, 0, 0, 0))
@@ -196,13 +196,36 @@ def main():
 
     bbox = canvas.getbbox()
     crop = canvas.crop(bbox)
-    side = int(max(crop.size) * 1.04)
-    sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
-    sq.alpha_composite(crop, ((side - crop.size[0]) // 2, (side - crop.size[1]) // 2))
-    big = sq.resize((256, 256), Image.LANCZOS)
-    big.save(OUT + '.png')
-    sq.resize((512, 512), Image.LANCZOS).save(OUT + '_512.png')
-    big.save(OUT + '.ico', sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    big = 1024
+    icon = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    # teal circle in the app's colour (--teal #0e7c7b, darker --teal-d #0a5f5e), lit from top-left
+    yy, xx = np.mgrid[0:big, 0:big] / big
+    cx = cy = 0.5
+    rad = 0.47
+    dist = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
+    g = np.clip(np.sqrt((xx - 0.32) ** 2 + (yy - 0.25) ** 2) / 0.85, 0, 1)[..., None]
+    light, mid, dark = V([0x17, 0x9e, 0x9c]), V([0x0e, 0x7c, 0x7b]), V([0x0a, 0x5f, 0x5e])
+    col = np.where(g < 0.45, light + (mid - light) * (g / 0.45), mid + (dark - mid) * ((g - 0.45) / 0.55))
+    edge = np.clip((rad - dist) * big, 0, 1)  # anti-aliased circle edge
+    rim = np.clip(1 - np.abs(dist - (rad - 0.012)) * big / 6, 0, 1)[..., None] * 0.18  # thin bright rim
+    col = col * (1 - rim) + 255 * rim
+    circle = np.dstack([col, edge * 255]).astype(np.uint8)
+    disc = Image.fromarray(circle, 'RGBA')
+    # soft shadow under the circle itself
+    cs = Image.new('RGBA', (big, big), (6, 40, 40, 0))
+    cs.putalpha(disc.split()[3].point(lambda x: x * 0.35))
+    cs = cs.filter(ImageFilter.GaussianBlur(big * 0.012))
+    icon.alpha_composite(cs, (0, int(big * 0.012)))
+    icon.alpha_composite(disc)
+    # tooth centred inside the circle
+    th = int(big * 0.70)
+    tw = int(crop.size[0] * th / crop.size[1])
+    t = crop.resize((tw, th), Image.LANCZOS)
+    icon.alpha_composite(t, ((big - tw) // 2, (big - th) // 2 + int(big * 0.01)))
+    icon.resize((512, 512), Image.LANCZOS).save(OUT + '_512.png')
+    small = icon.resize((256, 256), Image.LANCZOS)
+    small.save(OUT + '.png')
+    small.save(OUT + '.ico', sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
 
 main()
