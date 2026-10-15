@@ -132,6 +132,9 @@ def migrate(db):
     cols = {r['name'] for r in db.execute('PRAGMA table_info(patients)')}
     if 'doctor' not in cols:   # الطبيب المعالج للمراجع
         db.execute('ALTER TABLE patients ADD COLUMN doctor TEXT')
+    cols = {r['name'] for r in db.execute('PRAGMA table_info(payments)')}
+    if 'doctor' not in cols:   # الطبيب الذي تُنسب له الدفعة (من شيت الطبيب عند الاستيراد)
+        db.execute('ALTER TABLE payments ADD COLUMN doctor TEXT')
 
 
 def get_settings(db):

@@ -127,6 +127,47 @@ class T20_Import(Base):
         self.c.ok('PUT', '/api/procedures/%d' % proc['id'], {'tooth_no': '11'})
         self.assertEqual(self.c.ok('GET', '/api/patients/%d' % p['id'])['visits'][0]['procedures'][0]['tooth_no'], '11')
 
+    def test_sheets_per_doctor(self):
+        """كل شيت يُنسب لطبيبه: الشغل والدفعات والأرصدة معزولة لكل طبيب، والشيت المشترك يبقى «غير محدد»"""
+        import json
+        st = self.c.ok('GET', '/api/settings')['settings']
+        self.c.ok('PUT', '/api/settings', {**st, 'doctors': ['د. مرتضى', 'د. منتظر']})
+        H = ['اسم المراجع', 'التاريخ', 'نوع العمل', 'رقم السن', 'المدفوع', 'المتبقي']
+        data = make_xlsx({
+            '2022-2024': [H, ['علي حسن', D(2023, 1, 15), 'تاج', 'ur6', 100, 400], ['زينب علي', D(2023, 2, 20), 'تنظيف', None, 100, 0]],
+            'مرتضى 2025': [H, ['علي حسن', D(2025, 1, 15), 'حشوة', 'U11', 100, 400],     # يكمل الرصيد المشترك 400 → تكلفة 100
+                           ['علي حسن', D(2025, 1, 20), 'bill', None, 100, None]],        # → 300 عند مرتضى
+            'منتظر 2025': [H, ['علي حسن', D(2025, 1, 18), 'تنظيف', None, 20, 30],      # دفتر منفصل → تكلفة 50
+                           ['سارة كاظم', D(2025, 2, 1), 'تاج', 'll6', 200, 0]]})
+        q = '/api/import/preview?mult=1000&filename=x.xlsx'
+        pre = self.c.ok('POST', q, raw=data)
+        docs = {s['name']: s['doctor'] for s in pre['summary']['sheets']}
+        self.assertEqual(docs, {'2022-2024': '', 'مرتضى 2025': 'د. مرتضى', 'منتظر 2025': 'د. منتظر'})   # مطابقة تلقائية
+        self.assertEqual(pre['summary']['outstanding_total'], (300 + 30) * 1000)
+        self.assertTrue(any('انتقل إلى حساب د. مرتضى' in r['reason'] for r in pre['review']))
+        # اختيار يدوي يلغي المطابقة: نجعل شيت منتظر مشتركاً ثم نعيده
+        pre2 = self.c.ok('POST', q + '&doctors=' + urllib.parse.quote(json.dumps({'منتظر 2025': ''})), raw=data)
+        self.assertEqual({s['name']: s['doctor'] for s in pre2['summary']['sheets']}['منتظر 2025'], '')
+        self.c.ok('POST', '/api/import/commit', {'token': pre['token']})
+        ali = self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('علي حسن'))['patients'][0]
+        full = self.c.ok('GET', '/api/patients/%d' % ali['id'])
+        self.assertEqual(full['patient']['doctor'], 'د. مرتضى')
+        self.assertEqual(full['summary']['remaining'], 330000)
+        procs = {p['name']: (p['doctor'], p['tooth_no']) for v in full['visits'] for p in v['procedures']}
+        self.assertEqual(procs['حشوة'], ('د. مرتضى', '11,21'))
+        self.assertEqual(procs['تنظيف'][0], 'د. منتظر')
+        sara = self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('سارة'))['patients'][0]
+        self.assertEqual(sara['doctor'], 'د. منتظر')
+        zainab = self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('زينب'))['patients'][0]
+        self.assertIsNone(zainab['doctor'])
+        rows = {r['doctor']: r for r in self.c.ok('GET', '/api/reports/period?from=2025-01-01&to=2025-12-31')['by_doctor']}
+        self.assertEqual((rows['د. مرتضى']['executed'], rows['د. مرتضى']['receipts']), (100000, 200000))
+        self.assertEqual((rows['د. منتظر']['executed'], rows['د. منتظر']['receipts']), (250000, 220000))
+        # الشيت المشترك لا يُنسب لمرتضى رغم أن علي صار مراجعه
+        old = {r['doctor']: r for r in self.c.ok('GET', '/api/reports/period?from=2022-01-01&to=2024-12-31')['by_doctor']}
+        self.assertEqual(set(old), {'غير محدد'})
+        self.assertEqual((old['غير محدد']['executed'], old['غير محدد']['receipts']), (600000, 200000))
+
     def test_reimport_is_idempotent_and_merges_with_existing(self):
         existing = self.patient('علي حسن', '07700001111')
         pre = self.preview()

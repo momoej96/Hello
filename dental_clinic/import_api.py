@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """مسارات استيراد Excel: معاينة ثم اعتماد."""
-import time, secrets
-from core import ApiError, norm_ar
+import time, secrets, json
+from core import ApiError, norm_ar, get_settings
 from api import route
 import xlsx_reader, importer
 
@@ -33,7 +33,17 @@ def import_preview(c):
         raise ApiError('تعذّرت قراءة الملف. تأكد أنه Excel بصيغة xlsx (أو CSV) وغير تالف.')
     fps = {r[0] for r in c.db.execute('SELECT fingerprint FROM import_rows')}
     keys = {r['name_norm'].replace(' ', ''): r['id'] for r in c.db.execute('SELECT id,name_norm FROM patients WHERE deleted=0')}
-    plan, preview = importer.build_plan(sheets, mult, year, fps, keys)
+    try:
+        chosen = json.loads(c.q.get('doctors') or '{}')
+        assert isinstance(chosen, dict) and all(isinstance(v, str) for v in chosen.values())
+    except Exception:
+        raise ApiError('اختيار الأطباء للشيتات غير صحيح')
+    try:
+        doctors = [d for d in json.loads(get_settings(c.db).get('doctors') or '[]') if isinstance(d, str) and d.strip()]
+    except ValueError:
+        doctors = []
+    sheet_docs = importer.match_sheet_doctors([n for n, _ in sheets], doctors, chosen)
+    plan, preview = importer.build_plan(sheets, mult, year, fps, keys, sheet_docs)
     plans = c.clinic.import_plans
     _prune(plans)
     token = secrets.token_urlsafe(12)

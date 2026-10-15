@@ -50,13 +50,15 @@ NO_DOCTOR = 'غير محدد'
 
 def by_doctor(db, a, b):
     """عمل كل طبيب في الفترة: الإجراء يُنسب لطبيبه، ثم طبيب الزيارة، ثم الطبيب المعالج للمراجع.
-    المقبوض يُنسب لطبيب الزيارة المرتبطة بالدفعة، وإلا للطبيب المعالج للمراجع."""
+    المقبوض يُنسب لطبيب الدفعة، ثم طبيب الزيارة المرتبطة بها، ثم الطبيب المعالج للمراجع.
+    الطبيب الفارغ صراحةً («» من شيت مشترك عند الاستيراد) يبقى «غير محدد» ولا يُنسب لطبيب المراجع."""
     out = {}
     def row(name):
         return out.setdefault(name or NO_DOCTOR, {'doctor': name or NO_DOCTOR, 'patients': 0, 'visits': 0, 'procedures': 0,
                                                   'executed': 0, 'agreed': 0, 'receipts': 0})
     for r in db.execute(
-            "SELECT COALESCE(NULLIF(TRIM(x.doctor),''), NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) AS doc, "
+            "SELECT CASE WHEN x.doctor IS NOT NULL THEN NULLIF(TRIM(x.doctor),'') "
+            "ELSE COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) END AS doc, "
             "COUNT(DISTINCT v.patient_id) np, COUNT(DISTINCT v.id) nv, COUNT(x.id) nx, "
             "COALESCE(SUM(CASE WHEN x.status='completed' THEN x.cost END),0) executed, COALESCE(SUM(x.cost),0) agreed "
             "FROM procedures x JOIN visits v ON v.id=x.visit_id JOIN patients pt ON pt.id=v.patient_id "
@@ -64,7 +66,8 @@ def by_doctor(db, a, b):
         d = row(r['doc'])
         d.update(patients=r['np'], visits=r['nv'], procedures=r['nx'], executed=r['executed'], agreed=r['agreed'])
     for r in db.execute(
-            "SELECT COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) AS doc, SUM(y.amount) t "
+            "SELECT CASE WHEN y.doctor IS NOT NULL THEN NULLIF(TRIM(y.doctor),'') "
+            "ELSE COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) END AS doc, SUM(y.amount) t "
             "FROM payments y JOIN patients pt ON pt.id=y.patient_id LEFT JOIN visits v ON v.id=y.visit_id AND v.deleted=0 "
             "WHERE y.deleted=0 AND y.kind='payment' AND y.pay_date BETWEEN ? AND ? GROUP BY doc", (a, b)):
         row(r['doc'])['receipts'] = r['t'] or 0

@@ -174,9 +174,31 @@ def fix_dates(items):
     return fixed
 
 
-def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing_keys=None):
+def doctor_core(name):
+    """اسم الطبيب بدون «د.» أو «دكتور» للمطابقة مع اسم الشيت."""
+    t = norm_ar(name)
+    t = re.sub(r'^(الدكتور|دكتور|الطبيب|طبيب|dr\.?|د\s*\.|د\s)\s*', '', t)
+    return t.strip()
+
+
+def match_sheet_doctors(sheet_names, doctors, chosen=None):
+    """طبيب كل شيت: اختيار المستخدم أولاً («» = مشترك/بدون طبيب)، وإلا مطابقة تلقائية إن ورد اسم طبيب واحد في اسم الشيت."""
+    chosen = chosen or {}
+    out = {}
+    for n in sheet_names:
+        if n in chosen:
+            out[n] = (chosen[n] or '').strip()[:100]
+            continue
+        t = norm_ar(n).replace(' ', '')
+        hits = [d for d in doctors if doctor_core(d) and doctor_core(d).replace(' ', '') in t]
+        out[n] = hits[0] if len(hits) == 1 else ''
+    return out
+
+
+def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing_keys=None, sheet_doctors=None):
     existing_fps = existing_fps or set()
     existing_keys = existing_keys or {}
+    sheet_doctors = sheet_doctors or {}
     today = datetime.date.today()
     review, raw_rows, summary = [], [], {'sheets': []}
     for si, (sname, rows) in enumerate(sheets):
@@ -203,7 +225,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
                     review.append({'sheet': sname, 'row': rowno, 'name': name or '', 'reason': 'بدون اسم صالح', 'severity': 'skipped'})
                 continue
             n_rows += 1
-            it = {'sheet': sname, 'si': si, 'row': rowno, 'name': name, 'pkey': pkey_of(name), 'year': year,
+            it = {'sheet': sname, 'si': si, 'row': rowno, 'name': name, 'pkey': pkey_of(name), 'year': year, 'doctor': sheet_doctors.get(sname, ''),
                   'work_raw': g('work'), 'tooth_raw': g('tooth'), 'paid_raw': g('paid'), 'rem_raw': g('remaining'), 'warn': []}
             d = g('date')
             if isinstance(d, datetime.datetime):
@@ -219,7 +241,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
             it['notes'] = ' | '.join(notes)[:1500]
             items.append(it)
         fixed = fix_dates([x for x in items])
-        summary['sheets'].append({'name': sname, 'rows': n_rows, 'date_fixed': fixed})
+        summary['sheets'].append({'name': sname, 'rows': n_rows, 'date_fixed': fixed, 'doctor': sheet_doctors.get(sname, '')})
         raw_rows.extend(items)
     # ---- التحقق وتجهيز السجلات ----
     recs, seen = [], set()
@@ -272,7 +294,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
             pass
         if it['notes']:
             details.append(it['notes'])
-        recs.append({'sheet': it['sheet'], 'si': it['si'], 'row': it['row'], 'name': it['name'], 'pkey': it['pkey'], 'date': d,
+        recs.append({'sheet': it['sheet'], 'si': it['si'], 'row': it['row'], 'name': it['name'], 'pkey': it['pkey'], 'date': d, 'doctor': it['doctor'],
                      'work': work, 'tooth_no': tooth_no, 'details': '\n'.join(details) or None, 'p': p or 0.0, 'r': r, 'fp': fp,
                      'is_pay': is_payment_work(work), 'teeth': teeth if not bad_tooth else [], 'tooth_txt': tooth_txt, 'notes_raw': it['notes'], 'date_fixed': bool(it.get('date_fixed')), 'warn': it['warn']})
         for w in it['warn']:
@@ -285,13 +307,21 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
     merged = [{'names': [n for n, _ in v.most_common()], 'rows': sum(v.values())} for v in variants.values() if len(v) > 1]
     merged.sort(key=lambda m: -m['rows'])
     # ---- حساب الرصيد المتحرك لكل مراجع بترتيب الإدخال (الشيت ثم رقم الصف) ----
+    # لكل طبيب دفتره: «المتبقي» في شيت طبيب يخص حسابه هو فقط، فالرصيد يُتابع لكل (مراجع، طبيب) على حدة.
+    # الرصيد من الشيتات المشتركة (بدون طبيب) ينتقل مرة واحدة لأول طبيب يكمل مع المراجع، حتى لا يُحسب مرتين.
     recs.sort(key=lambda x: (x['si'], x['row']))
     state, total_paid, total_charge, total_disc = collections.defaultdict(int), 0, 0, 0
     first_date, last_date = {}, {}
     for x in recs:
         p = int(round(x['p'] * mult))
         r = None if x['r'] is None else int(round(x['r'] * mult))
-        prev = state[x['pkey']]
+        sk = (x['pkey'], x['doctor'])
+        if x['doctor'] and sk not in state and state.get((x['pkey'], ''), 0):
+            carried = state.pop((x['pkey'], ''))
+            state[sk] = carried
+            review.append({'sheet': x['sheet'], 'row': x['row'], 'name': x['name'], 'severity': 'warn',
+                           'reason': 'رصيد سابق من الشيتات المشتركة (%s) انتقل إلى حساب %s' % (format(carried, ','), x['doctor'])})
+        prev = state[sk]
         disc = 0
         if r is None:
             if x['is_pay']:
@@ -306,7 +336,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
                 review.append({'sheet': x['sheet'], 'row': x['row'], 'name': x['name'], 'severity': 'warn',
                                'reason': 'المتبقي المكتوب أقل من المتوقع؛ سُجّلت تسوية/خصم بقيمة %s' % format(disc, ',')})
             rem = r
-        state[x['pkey']] = rem
+        state[sk] = rem
         x['rem_after'] = rem
         x.update(paid_units=p, charge=charge, discount=disc)
         x['pay_only'] = x['is_pay'] and charge == 0 and not x['tooth_no'] and not x['details']
@@ -314,14 +344,22 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
         k = x['pkey']
         first_date[k] = min(first_date.get(k, x['date']), x['date'])
         last_date[k] = max(last_date.get(k, x['date']), x['date'])
-    new_keys = [k for k in state if k not in existing_keys]
-    debtors = sorted(((display[k], v) for k, v in state.items() if v > 0), key=lambda t: -t[1])
+    balances = collections.defaultdict(int)
+    for (k, _doc), v in state.items():
+        balances[k] += v
+    new_keys = [k for k in balances if k not in existing_keys]
+    debtors = sorted(((display[k], v) for k, v in balances.items() if v > 0), key=lambda t: -t[1])
+    by_doc = {}
+    for x in recs:
+        b = by_doc.setdefault(x['doctor'], {'doctor': x['doctor'], 'rows': 0, 'patients': set(), 'paid': 0, 'charge': 0})
+        b['rows'] += 1; b['patients'].add(x['pkey']); b['paid'] += x['paid_units']; b['charge'] += x['charge']
+    by_doc = [{**b, 'patients': len(b['patients'])} for b in sorted(by_doc.values(), key=lambda b: (b['doctor'] == '', b['doctor']))]
     by_reason = collections.Counter(re.sub(r':.*', '', r['reason']) for r in review if r['severity'] == 'skipped')
     summary.update({
         'rows_total': sum(s['rows'] for s in summary['sheets']), 'rows_imported': len(recs),
         'duplicates_in_file': dup_file, 'duplicates_previous': dup_prev, 'rows_skipped': sum(by_reason.values()),
         'skipped_by_reason': dict(by_reason), 'warnings': sum(1 for r in review if r['severity'] == 'warn'),
-        'patients': len(state), 'patients_new': len(new_keys), 'patients_existing': len(state) - len(new_keys),
+        'patients': len(balances), 'patients_new': len(new_keys), 'patients_existing': len(balances) - len(new_keys), 'by_doctor': by_doc,
         'names_merged_groups': len(merged), 'date_fixed': sum(s['date_fixed'] for s in summary['sheets']),
         'total_paid': total_paid, 'total_charge': total_charge, 'total_discount': total_disc,
         'payment_rows': sum(1 for x in recs if x['is_pay']), 'payment_rows_total': sum(x['paid_units'] for x in recs if x['is_pay']),
@@ -331,19 +369,26 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
     })
     for k in ('date_from', 'date_to'):
         summary[k] = summary[k].isoformat() if summary[k] else None
-    plan = {'recs': recs, 'display': display, 'first_date': first_date, 'balances': dict(state)}
+    plan = {'recs': recs, 'display': display, 'first_date': first_date, 'balances': dict(balances)}
     preview = {'summary': summary, 'merged_names': merged[:150], 'review': review[:5000], 'review_total': len(review),
                'top_debtors': [{'name': n, 'remaining': v} for n, v in debtors[:15]],
                'sample': [{'sheet': x['sheet'], 'row': x['row'], 'name': display[x['pkey']], 'date': x['date'].isoformat(), 'work': x['work'],
-                           'tooth': x['tooth_no'] or '', 'paid': x['paid_units'], 'charge': x['charge'], 'date_fixed': x['date_fixed']} for x in recs[:25]]}
+                           'tooth': x['tooth_no'] or '', 'paid': x['paid_units'], 'charge': x['charge'], 'date_fixed': x['date_fixed'], 'doctor': x['doctor']} for x in recs[:25]]}
     return plan, preview
 
 
 def commit_plan(db, plan, user, filename, backup_name=None):
     now = now_iso()
     existing = {}
-    for r in db.execute('SELECT id, name_norm FROM patients WHERE deleted=0'):
+    no_doctor = set()
+    for r in db.execute('SELECT id, name_norm, doctor FROM patients WHERE deleted=0'):
         existing.setdefault(r['name_norm'].replace(' ', ''), r['id'])
+        if not r['doctor']:
+            no_doctor.add(r['id'])
+    first_doc = {}
+    for x in plan['recs']:
+        if x.get('doctor'):
+            first_doc.setdefault(x['pkey'], x['doctor'])
     max_file = db.execute('SELECT COALESCE(MAX(file_no),1000) FROM patients').fetchone()[0]
     batch = db.execute('INSERT INTO import_batches(ts,filename,user,backup_name) VALUES(?,?,?,?)', (now, filename, user, backup_name)).lastrowid
     pid_of, visit_of = {}, {}
@@ -357,24 +402,28 @@ def commit_plan(db, plan, user, filename, backup_name=None):
                 max_file += 1
                 nm = plan['display'][k]
                 pid_of[k] = db.execute(
-                    'INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,first_visit_date,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
-                    (max_file, nm, norm_ar(nm), None, None, plan['first_date'][k].isoformat(), 'مستورد من Excel', now, now)).lastrowid
+                    'INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,first_visit_date,notes,doctor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                    (max_file, nm, norm_ar(nm), None, None, plan['first_date'][k].isoformat(), 'مستورد من Excel', first_doc.get(k), now, now)).lastrowid
                 new_patients += 1
+            if pid_of[k] in no_doctor and first_doc.get(k):   # مراجع موجود بلا طبيب: نعطيه طبيب الشيت
+                db.execute('UPDATE patients SET doctor=?, updated_at=? WHERE id=?', (first_doc[k], now, pid_of[k]))
+                no_doctor.discard(pid_of[k])
         pid = pid_of[k]
         iso = x['date'].isoformat()
+        doc = x.get('doctor') or ''   # «» صريح = شيت مشترك: يبقى «غير محدد» في التقارير ولا يُنسب لطبيب المراجع
         vid = None
         if not x['pay_only']:
-            vid = visit_of.get((pid, iso))
+            vid = visit_of.get((pid, iso, doc))
             if vid is None:
-                vid = db.execute('INSERT INTO visits(patient_id,visit_date,created_at,updated_at) VALUES(?,?,?,?)', (pid, iso, now, now)).lastrowid
-                visit_of[(pid, iso)] = vid
+                vid = db.execute('INSERT INTO visits(patient_id,visit_date,doctor,created_at,updated_at) VALUES(?,?,?,?,?)', (pid, iso, doc, now, now)).lastrowid
+                visit_of[(pid, iso, doc)] = vid
                 n_visits += 1
-            db.execute('INSERT INTO procedures(visit_id,patient_id,name,tooth_no,details,status,cost,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
-                       (vid, pid, x['work'][:200], x['tooth_no'], x['details'], 'completed', x['charge'], now, now))
+            db.execute('INSERT INTO procedures(visit_id,patient_id,name,tooth_no,details,status,cost,doctor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                       (vid, pid, x['work'][:200], x['tooth_no'], x['details'], 'completed', x['charge'], doc, now, now))
             n_proc += 1
         if x['paid_units'] > 0:
-            db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,idem_key,created_by,created_at) VALUES(?,?,?,?, 'payment','cash',?,?,?,?)",
-                       (pid, vid, iso, x['paid_units'], 'مستورد من Excel (شيت %s، صف %s)' % (x['sheet'], x['row']), 'imp:' + x['fp'], user, now))
+            db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,idem_key,created_by,created_at,doctor) VALUES(?,?,?,?, 'payment','cash',?,?,?,?,?)",
+                       (pid, vid, iso, x['paid_units'], 'مستورد من Excel (شيت %s، صف %s)' % (x['sheet'], x['row']), 'imp:' + x['fp'], user, now, doc))
             n_pay += 1
         if x['discount'] > 0:
             db.execute("INSERT INTO adjustments(patient_id,adj_date,amount,kind,notes,created_by,created_at) VALUES(?,?,?, 'discount',?,?,?)",

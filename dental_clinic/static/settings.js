@@ -84,7 +84,7 @@ ACTIONS['aud-detail'] = b => {
 };
 
 /* ====== استيراد من Excel ====== */
-let IMP = { file: null, data: null };
+let IMP = { file: null, data: null, docs: null };
 async function stImport(host) {
   let hist = []; try { hist = (await api('GET', '/api/import/history')).batches; } catch (e) { }
   host.innerHTML = `<section class="card"><h3>استيراد سجل العيادة من Excel</h3>
@@ -97,19 +97,37 @@ async function stImport(host) {
     <div id="impres"></div>
     ${hist.length ? `<section class="card"><h3>عمليات الاستيراد السابقة</h3>${simpleTable(['#', 'التاريخ', 'الملف', 'المستخدم', 'الصفوف', 'مراجعون جدد', 'نسخة الأمان'], hist.map(b => [b.id, dateH(b.ts), esc(b.filename || ''), esc(b.user || ''), intH(b.rows_imported), intH(b.patients_new), `<bdi dir="ltr">${esc(b.backup_name || '')}</bdi>`]))}</section>` : ''}`;
 }
-ACTIONS['imp-preview'] = async () => {
+async function runImportPreview() {
   const f = $('#impf').files[0]; if (!f) { toast('اختر ملف Excel أولاً', 'err'); return; }
   const btn = $('[data-action=imp-preview]'); btn.disabled = true; $('#impres').innerHTML = '<div class="card muted">جارٍ تحليل الملف… قد يستغرق بضع ثوانٍ للملفات الكبيرة.</div>';
   try {
-    IMP.data = await api('POST', '/api/import/preview?' + qs({ mult: $('#impm').value, year: toLatin($('#impy').value.trim()), filename: f.name }), null, { raw: await f.arrayBuffer() });
+    const q = { mult: $('#impm').value, year: toLatin($('#impy').value.trim()), filename: f.name };
+    if (IMP.docs) q.doctors = JSON.stringify(IMP.docs);
+    IMP.data = await api('POST', '/api/import/preview?' + qs(q), null, { raw: await f.arrayBuffer() });
+    IMP.docs = Object.fromEntries(IMP.data.summary.sheets.map(s => [s.name, s.doctor || '']));
     drawImportPreview();
   } catch (e) { $('#impres').innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
   btn.disabled = false;
-};
+}
+/* ملف جديد أو تحليل من جديد: نبدأ بالمطابقة التلقائية لأسماء الشيتات مع الأطباء */
+ACTIONS['imp-preview'] = () => { IMP.docs = null; runImportPreview(); };
+CHANGES['imp-doc'] = el => { IMP.docs[el.dataset.sheet] = el.value; runImportPreview(); };
+function importSheetsCard(s) {
+  const docs = doctorList();
+  const sel = sh => `<select data-change="imp-doc" data-sheet="${esc(sh.name)}" aria-label="طبيب الشيت ${esc(sh.name)}"><option value="">— مشترك / بدون طبيب —</option>${docs.concat(sh.doctor && !docs.includes(sh.doctor) ? [sh.doctor] : []).map(d => `<option value="${esc(d)}" ${d === sh.doctor ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select>`;
+  const byDoc = (s.by_doctor || []).map(b => [b.doctor ? esc(b.doctor) : '<span class="muted">مشترك / بدون طبيب</span>', intH(b.rows), intH(b.patients), moneyH(b.charge), moneyH(b.paid)]);
+  return `<section class="card"><h3>الشيتات والأطباء</h3>
+    <p class="muted small">اختر الطبيب الذي اشتغل كل شيت. كل زيارات ودفعات الشيت تُسجَّل باسمه، فتظهر في تقرير «عمل الأطباء» لأي فترة. الشيت المشترك (فيه شغل أكثر من طبيب) اتركه «مشترك». الشيت الذي فيه اسم الطبيب يُختار له تلقائياً.</p>
+    ${docs.length ? '' : '<div class="alert warn">لا توجد أسماء أطباء بعد. أضفها من «بيانات العيادة ← أسماء الأطباء» ثم أعد التحليل.</div>'}
+    ${simpleTable(['الشيت', 'الصفوف', 'الطبيب'], s.sheets.map(sh => [esc(sh.name), intH(sh.rows), sel(sh)]))}
+    ${byDoc.length > 1 || (byDoc.length && s.by_doctor[0].doctor) ? '<h4>ملخص حسب الطبيب</h4>' + simpleTable(['الطبيب', 'الصفوف', 'المراجعون', 'قيمة العمل', 'المدفوع'], byDoc) : ''}
+    <p class="muted small">حساب «المتبقي» يُتابع لكل طبيب على حدة، لأن شيت كل طبيب يسجّل حسابه فقط. الرصيد من الشيتات المشتركة ينتقل لأول طبيب يكمل مع المراجع.</p>
+    ${s.duplicates_previous ? `<div class="alert warn">${fmt(s.duplicates_previous)} صف مستورد سابقاً لن يُعاد إدخاله، ولن يتغير طبيبه.</div>` : ''}</section>`;
+}
 function drawImportPreview() {
   const d = IMP.data, s = d.summary, host = $('#impres');
   const sevAr = { skipped: 'تم تخطيه', dup: 'مكرر', warn: 'تنبيه' };
-  host.innerHTML = `<section class="card"><h3>نتيجة التحليل</h3>${statGrid([
+  host.innerHTML = importSheetsCard(s) + `<section class="card"><h3>نتيجة التحليل</h3>${statGrid([
     { label: 'صفوف في الملف', value: intH(s.rows_total) }, { label: 'صفوف ستُستورد', value: intH(s.rows_imported), cls: 'good' },
     { label: 'مراجعون (جدد / موجودون)', value: `${intH(s.patients_new)} / ${intH(s.patients_existing)}` },
     { label: 'صفوف مكررة مُزالة', value: intH(s.duplicates_in_file + s.duplicates_previous), note: `داخل الملف ${s.duplicates_in_file} · مستوردة سابقاً ${s.duplicates_previous}` },
@@ -127,7 +145,7 @@ function drawImportPreview() {
   <section class="card"><h3>أسماء دُمجت لأنها متشابهة <span class="cnt">${s.names_merged_groups}</span></h3><p class="muted small">راجعها: إن كان اسمان لشخصين مختلفين فعلاً فاعلم أنهما سيُدمجان بملف واحد.</p>
     ${simpleTable(['الصيغ المكتوبة', 'الصفوف'], d.merged_names.map(m => [m.names.map(esc).join(' ، '), intH(m.rows)]))}</section>
   <section class="card"><h3>أكبر المبالغ المتبقية</h3>${simpleTable(['المراجع', 'المتبقي'], d.top_debtors.map(t => [esc(t.name), moneyH(t.remaining)]))}</section>
-  <section class="card"><h3>عيّنة من الصفوف التي ستُستورد</h3>${simpleTable(['الشيت', 'صف', 'المراجع', 'التاريخ', 'العمل', 'السن', 'المدفوع', 'التكلفة'], d.sample.map(x => [esc(x.sheet), x.row, esc(x.name), dateH(x.date) + (x.date_fixed ? ' <span class="badge b-no_show">صُحّح</span>' : ''), esc(x.work), teethTags(x.tooth), moneyH(x.paid), moneyH(x.charge)]))}</section>`;
+  <section class="card"><h3>عيّنة من الصفوف التي ستُستورد</h3>${simpleTable(['الشيت', 'صف', 'المراجع', 'الطبيب', 'التاريخ', 'العمل', 'السن', 'المدفوع', 'التكلفة'], d.sample.map(x => [esc(x.sheet), x.row, esc(x.name), esc(x.doctor || '—'), dateH(x.date) + (x.date_fixed ? ' <span class="badge b-no_show">صُحّح</span>' : ''), esc(x.work), teethTags(x.tooth), moneyH(x.paid), moneyH(x.charge)]))}</section>`;
   dataTable($('#impreview'), { rows: d.review, empty: 'لا توجد صفوف تحتاج مراجعة.', cols: [
     { title: 'النوع', val: r => sevAr[r.severity], render: r => `<span class="badge ${r.severity === 'skipped' ? 'b-no_show' : r.severity === 'dup' ? 'b-cancelled' : 'b-planned'}">${sevAr[r.severity]}</span>` },
     { title: 'الشيت', key: 'sheet' }, { title: 'الصف', key: 'row' }, { title: 'المراجع', key: 'name' }, { title: 'السبب', key: 'reason' }] });
