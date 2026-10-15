@@ -36,14 +36,17 @@ ACTIONS['tooth-set'] = b => { const pn = b.closest('.tooth-panel'); $('[name=too
 
 function openVisitModal(v) {
   const isNew = !v, p = PT.patient, money = can('payments');
-  const docs = (() => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } })();
-  v = v || { visit_date: today(), visit_time: nowTime(), procedures: [{}] };
+  const docs = doctorList();
+  v = v || { visit_date: today(), visit_time: nowTime(), doctor: p.doctor || '', procedures: [{}] };
+  const docField = docs.length || v.doctor
+    ? `<label class="fld"><span>الطبيب</span><select name="doctor">${doctorOptions(v.doctor).map(o => `<option value="${esc(o.v)}" ${o.v === (v.doctor || '') ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></label>`
+    : null;
   const f = (n, l, val, type = 'text', extra = '') => `<label class="fld ${extra}"><span>${l}</span><input name="${n}" type="${type}" value="${esc(val || '')}" autocomplete="off" ${n === 'doctor' ? 'list="dl-docs"' : ''}></label>`;
   const m = modal({
     title: isNew ? 'زيارة جديدة — ' + p.full_name : 'تعديل الزيارة', wide: true,
     body: `<form class="vform" novalidate>
       <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
-      <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${f('doctor', 'الطبيب', v.doctor)}</div>
+      <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${docField || f('doctor', 'الطبيب', v.doctor)}</div>
       <h4 class="sec">الإجراءات العلاجية</h4>
       <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? '<span>التكلفة</span>' : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
@@ -144,7 +147,7 @@ async function renderVisitsView(host, def) {
   host.innerHTML = `<section class="card filters"><div class="form-grid c4">
     <label class="fld"><span>من تاريخ</span><input type="date" id="vf" value="${def.from}"></label><label class="fld"><span>إلى تاريخ</span><input type="date" id="vt" value="${def.to}"></label>
     <label class="fld"><span>اسم / هاتف / رقم ملف</span><input type="search" id="vq" autocomplete="off"></label><label class="fld"><span>الطبيب</span><input id="vd" list="dl-docs2" autocomplete="off"></label></div>
-    <datalist id="dl-docs2">${(() => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } })().map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <datalist id="dl-docs2">${doctorList().map(x => `<option value="${esc(x)}">`).join('')}</datalist>
     <div class="presets"><button type="button" class="btn sm" data-p="today">اليوم</button><button type="button" class="btn sm" data-p="yest">أمس</button><button type="button" class="btn sm" data-p="week">هذا الأسبوع</button><button type="button" class="btn sm" data-p="month">هذا الشهر</button><button type="button" class="btn sm" data-p="30">آخر 30 يوماً</button></div></section>
     <div id="vres"></div>`;
   const val = id => $('#' + id, host).value;

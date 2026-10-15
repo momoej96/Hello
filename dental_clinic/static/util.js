@@ -6,6 +6,9 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const S = { user: null, perms: [], settings: {}, demo: false, cats: [] };
 const can = p => S.perms.includes('*') || S.perms.includes(p);
 const ACTIONS = {}, CHANGES = {};
+/* أسماء الأطباء من الإعدادات، وخيارات قائمة اختيار الطبيب (مع إبقاء القيمة الحالية إن لم تعد في القائمة) */
+const doctorList = () => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } };
+const doctorOptions = cur => { const l = doctorList(); if (cur && !l.includes(cur)) l.push(cur); return [{ v: '', t: '— اختر الطبيب —' }].concat(l.map(x => ({ v: x, t: x }))); };
 let RPT = null; // التقرير الحالي (للطباعة والتصدير)
 
 const PROC_ST = { planned: 'مخطط له', in_progress: 'قيد التنفيذ', completed: 'مكتمل', cancelled: 'ملغى' };

@@ -52,6 +52,21 @@ const statsHTML = (s, ex = true) => statGrid([
 ]);
 const statsPrint = s => simpleTable(['البند', 'القيمة'], [['إجمالي المقبوضات الفعلية', fmtMoney(s.receipts)], ['مقبوضات نقدية', fmtMoney(s.receipts_by_method.cash.total)], ['مقبوضات بالتحويل / أخرى', fmtMoney(s.receipts_by_method.transfer.total + s.receipts_by_method.other.total)], ['قيمة العلاجات المنفذة', fmtMoney(s.executed_value)], ['قيمة العلاجات المسجلة / المتفق عليها', fmtMoney(s.agreed_value)], ['الخصومات', fmtMoney(s.discounts)], ['المبالغ المستردة', fmtMoney(s.refunds)], ['عدد الزيارات', fmt(s.visits_count)], ['مراجعون جدد', fmt(s.new_patients)], ['متوسط المقبوض لكل زيارة', fmtMoney(s.avg_per_visit)]].concat(can('expenses') ? [['المصروفات', fmtMoney(s.expenses)], ['صافي التدفق النقدي', fmtMoney(s.net_cash_flow)], ['الربح التقديري (تقريبي)', fmtMoney(s.estimated_profit)]] : []));
 
+/* عمل كل طبيب: الإجراءات المنفذة والمتفق عليها والمقبوض المنسوب له */
+const DOC_HEAD = ['الطبيب', 'المراجعون', 'الزيارات', 'الإجراءات', 'قيمة العمل المنفذ (مكتمل)', 'النسبة من المنفذ', 'العلاجات المسجلة / المتفق عليها', 'المقبوض المنسوب'];
+const DOC_NOTE = '<p class="muted small">يُنسب الإجراء لطبيب الزيارة (أو الطبيب المعالج للمراجع إن لم يُحدد). يُنسب المقبوض لطبيب الزيارة المرتبطة بالدفعة، وإلا للطبيب المعالج للمراجع.</p>';
+function doctorTable(rows, money = moneyH, int = intH) {
+  if (!rows || !rows.length) return '<p class="muted">لا يوجد عمل مسجل للأطباء في هذه الفترة.</p>';
+  const sum = k => rows.reduce((a, r) => a + r[k], 0);
+  return simpleTable(DOC_HEAD, rows.map(r => [esc(r.doctor), int(r.patients), int(r.visits), int(r.procedures), `<b>${money(r.executed)}</b>`, `<bdi>${r.share}%</bdi>`, money(r.agreed), money(r.receipts)]),
+    { foot: `<tr class="tot"><td>المجموع</td><td></td><td>${int(sum('visits'))}</td><td>${int(sum('procedures'))}</td><td>${money(sum('executed'))}</td><td></td><td>${money(sum('agreed'))}</td><td>${money(sum('receipts'))}</td></tr>` });
+}
+const doctorCard = rows => {
+  const chart = rows && rows.length > 1 ? barChart({ labels: rows.map(r => r.doctor), series: [{ name: '', color: '#0e7c7b', values: rows.map(r => r.executed) }], title: 'العمل المنفذ لكل طبيب' }) : '';
+  return `<section class="card"><h3>عمل الأطباء</h3>${chart}${doctorTable(rows)}${DOC_NOTE}</section>`;
+};
+const doctorPrint = rows => '<h3>عمل الأطباء</h3>' + doctorTable(rows, fmtMoney, fmt);
+
 let REP_DATE = today();
 ACTIONS['rep-nav'] = b => { const i = $('#rd'); if (!i) return; i.value = addDays(i.value, +b.dataset.n); i.dispatchEvent(new Event('change')); };
 async function repDaily(host) {
@@ -61,10 +76,10 @@ async function repDaily(host) {
     try {
       const d = await api('GET', '/api/reports/daily?date=' + REP_DATE), s = d.stats;
       const payRows = d.payments.map(p => [dateH(p.pay_date), `<a class="pname" href="#/patient/${p.patient_id}">${esc(p.full_name)}</a>`, p.kind === 'refund' ? 'مسترد' : 'دفعة', moneyH(p.kind === 'refund' ? -p.amount : p.amount), METH[p.method], esc(p.notes || '')]);
-      const body = `${statsHTML(s)}<section class="card"><h3>تفاصيل الدفعات</h3>${simpleTable(['التاريخ', 'المراجع', 'النوع', 'المبلغ', 'الطريقة', 'ملاحظات'], payRows)}</section>
+      const body = `${statsHTML(s)}${doctorCard(d.by_doctor)}<section class="card"><h3>تفاصيل الدفعات</h3>${simpleTable(['التاريخ', 'المراجع', 'النوع', 'المبلغ', 'الطريقة', 'ملاحظات'], payRows)}</section>
         <section class="card"><h3>زيارات اليوم</h3>${simpleTable(['الوقت', 'المراجع', 'الإجراءات', 'تكلفة العلاج'], d.visits.map(v => [`<bdi>${esc(v.visit_time || '')}</bdi>`, `<a class="pname" href="#/patient/${v.patient_id}">${esc(v.full_name)}</a>`, esc(v.procedures.map(p => p.name).join('، ')), moneyH(v.visit_cost)]))}</section>`;
       $('#rb').innerHTML = exportBar() + body;
-      RPT = { title: 'التقرير المالي اليومي', sub: `التاريخ: <bdi>${REP_DATE}</bdi> (${dayName(REP_DATE)})`, html: statsPrint(s) + '<h3>تفاصيل الدفعات</h3>' + simpleTable(['التاريخ', 'المراجع', 'النوع', 'المبلغ', 'الطريقة'], d.payments.map(p => [`<bdi>${p.pay_date}</bdi>`, esc(p.full_name), p.kind === 'refund' ? 'مسترد' : 'دفعة', fmtMoney(p.kind === 'refund' ? -p.amount : p.amount), METH[p.method]])),
+      RPT = { title: 'التقرير المالي اليومي', sub: `التاريخ: <bdi>${REP_DATE}</bdi> (${dayName(REP_DATE)})`, html: statsPrint(s) + doctorPrint(d.by_doctor) + '<h3>تفاصيل الدفعات</h3>' + simpleTable(['التاريخ', 'المراجع', 'النوع', 'المبلغ', 'الطريقة'], d.payments.map(p => [`<bdi>${p.pay_date}</bdi>`, esc(p.full_name), p.kind === 'refund' ? 'مسترد' : 'دفعة', fmtMoney(p.kind === 'refund' ? -p.amount : p.amount), METH[p.method]])),
         headers: ['التاريخ', 'المراجع', 'رقم الملف', 'النوع', 'المبلغ', 'الطريقة', 'ملاحظات'], rows: d.payments.map(p => [p.pay_date, p.full_name, p.file_no, p.kind === 'refund' ? 'مسترد' : 'دفعة', p.kind === 'refund' ? -p.amount : p.amount, METH[p.method], p.notes || '']) };
     } catch (e) { $('#rb').innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
   }
@@ -79,9 +94,9 @@ function periodBody(d, dues) {
     { foot: `<tr class="tot"><td colspan="2">المجموع</td><td>${moneyH(tot('receipts'))}</td><td>${intH(tot('payments_count'))}</td><td>${intH(tot('visits'))}</td><td>${moneyH(tot('refunds'))}</td><td>${moneyH(tot('expenses'))}</td><td>${moneyH(tot('net_cash_flow'))}</td></tr>` });
   const procTbl = simpleTable(['الإجراء', 'العدد', 'المنفذ (مكتمل)', 'المتفق عليه (مسجل)'], d.by_procedure.map(p => [esc(p.name), intH(p.n), moneyH(p.executed), moneyH(p.agreed)]));
   const catTbl = s.expenses_by_category.length ? simpleTable(['تصنيف المصروف', 'العدد', 'المبلغ'], s.expenses_by_category.map(c => [esc(c.category), intH(c.n), moneyH(c.total)])) : '';
-  return { html: `${statGrid([{ label: 'إجمالي المبالغ المستحقة على المراجعين (حالياً)', value: moneyH(dues), cls: 'due' }])}${statsHTML(s)}${chart ? `<section class="card"><h3>تغيّر المقبوضات خلال الفترة</h3>${chart}</section>` : ''}
+  return { html: `${statGrid([{ label: 'إجمالي المبالغ المستحقة على المراجعين (حالياً)', value: moneyH(dues), cls: 'due' }])}${statsHTML(s)}${doctorCard(d.by_doctor)}${chart ? `<section class="card"><h3>تغيّر المقبوضات خلال الفترة</h3>${chart}</section>` : ''}
     <section class="card"><h3>الجدول اليومي</h3>${dayTbl}</section><section class="card"><h3>تفصيل الإيرادات حسب نوع الإجراء</h3>${procTbl}</section>${catTbl ? `<section class="card"><h3>المصروفات حسب التصنيف</h3>${catTbl}</section>` : ''}`,
-    print: statsPrint(s) + `<p>المبالغ المستحقة على المراجعين (حالياً): <b>${fmtMoney(dues)}</b></p>` + chart + '<h3>الجدول اليومي</h3>' + dayTbl + '<h3>حسب نوع الإجراء</h3>' + procTbl + (catTbl ? '<h3>المصروفات حسب التصنيف</h3>' + catTbl : ''),
+    print: statsPrint(s) + `<p>المبالغ المستحقة على المراجعين (حالياً): <b>${fmtMoney(dues)}</b></p>` + doctorPrint(d.by_doctor) + chart + '<h3>الجدول اليومي</h3>' + dayTbl + '<h3>حسب نوع الإجراء</h3>' + procTbl + (catTbl ? '<h3>المصروفات حسب التصنيف</h3>' + catTbl : ''),
     headers: ['التاريخ', 'المقبوضات', 'عدد الدفعات', 'الزيارات', 'المستردات', 'المصروفات', 'صافي التدفق'], rows: days.map(x => [x.date, x.receipts, x.payments_count, x.visits, x.refunds, x.expenses, x.net_cash_flow]) };
 }
 async function loadPeriod(box, from, to, title) {
@@ -121,8 +136,8 @@ async function repYearly(host) {
       const tbl = simpleTable(head, rows, { foot });
       const series = [{ name: 'مقبوضات ' + y, color: '#0e7c7b', values: d.months.map(m => m.receipts) }].concat(cm ? [{ name: 'مقبوضات ' + c, color: '#c9a227', values: cm.months.map(m => m.receipts) }] : []);
       const chart = barChart({ labels: MONTHS_AR.map(m => m.split(' ')[0]), series, title: 'المقارنة الشهرية' });
-      $('#rb').innerHTML = exportBar() + statGrid([{ label: 'إجمالي المبالغ المستحقة على المراجعين (حالياً)', value: moneyH(db.total_dues), cls: 'due' }]) + statsHTML(d.stats) + `<section class="card"><h3>المقارنة بين الأشهر</h3>${chart}</section><section class="card"><h3>الجدول الشهري</h3>${tbl}</section><section class="card"><h3>الإيرادات حسب نوع الإجراء</h3>${simpleTable(['الإجراء', 'العدد', 'المنفذ', 'المتفق عليه'], d.by_procedure.map(p => [esc(p.name), intH(p.n), moneyH(p.executed), moneyH(p.agreed)]))}</section>`;
-      RPT = { title: 'التقرير المالي السنوي ' + y, sub: cm ? 'مقارنة مع سنة ' + c : '', html: statsPrint(d.stats) + chart + '<h3>الجدول الشهري</h3>' + tbl,
+      $('#rb').innerHTML = exportBar() + statGrid([{ label: 'إجمالي المبالغ المستحقة على المراجعين (حالياً)', value: moneyH(db.total_dues), cls: 'due' }]) + statsHTML(d.stats) + doctorCard(d.by_doctor) + `<section class="card"><h3>المقارنة بين الأشهر</h3>${chart}</section><section class="card"><h3>الجدول الشهري</h3>${tbl}</section><section class="card"><h3>الإيرادات حسب نوع الإجراء</h3>${simpleTable(['الإجراء', 'العدد', 'المنفذ', 'المتفق عليه'], d.by_procedure.map(p => [esc(p.name), intH(p.n), moneyH(p.executed), moneyH(p.agreed)]))}</section>`;
+      RPT = { title: 'التقرير المالي السنوي ' + y, sub: cm ? 'مقارنة مع سنة ' + c : '', html: statsPrint(d.stats) + doctorPrint(d.by_doctor) + chart + '<h3>الجدول الشهري</h3>' + tbl,
         headers: head.map(h => h), rows: d.months.map((m, i) => [M(i), m.receipts, m.executed_value, m.visits_count, m.new_patients, m.discounts + m.refunds, m.expenses, m.net_cash_flow].concat(cm ? [cm.months[i].receipts, cm.months[i].executed_value] : [])) };
     } catch (e) { $('#rb').innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
   }

@@ -45,6 +45,36 @@ def by_procedure(db, a, b):
         "AND v.visit_date BETWEEN ? AND ? GROUP BY p.name ORDER BY executed DESC, agreed DESC", (a, b))]
 
 
+NO_DOCTOR = 'غير محدد'
+
+
+def by_doctor(db, a, b):
+    """عمل كل طبيب في الفترة: الإجراء يُنسب لطبيبه، ثم طبيب الزيارة، ثم الطبيب المعالج للمراجع.
+    المقبوض يُنسب لطبيب الزيارة المرتبطة بالدفعة، وإلا للطبيب المعالج للمراجع."""
+    out = {}
+    def row(name):
+        return out.setdefault(name or NO_DOCTOR, {'doctor': name or NO_DOCTOR, 'patients': 0, 'visits': 0, 'procedures': 0,
+                                                  'executed': 0, 'agreed': 0, 'receipts': 0})
+    for r in db.execute(
+            "SELECT COALESCE(NULLIF(TRIM(x.doctor),''), NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) AS doc, "
+            "COUNT(DISTINCT v.patient_id) np, COUNT(DISTINCT v.id) nv, COUNT(x.id) nx, "
+            "COALESCE(SUM(CASE WHEN x.status='completed' THEN x.cost END),0) executed, COALESCE(SUM(x.cost),0) agreed "
+            "FROM procedures x JOIN visits v ON v.id=x.visit_id JOIN patients pt ON pt.id=v.patient_id "
+            "WHERE x.deleted=0 AND v.deleted=0 AND x.status!='cancelled' AND v.visit_date BETWEEN ? AND ? GROUP BY doc", (a, b)):
+        d = row(r['doc'])
+        d.update(patients=r['np'], visits=r['nv'], procedures=r['nx'], executed=r['executed'], agreed=r['agreed'])
+    for r in db.execute(
+            "SELECT COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) AS doc, SUM(y.amount) t "
+            "FROM payments y JOIN patients pt ON pt.id=y.patient_id LEFT JOIN visits v ON v.id=y.visit_id AND v.deleted=0 "
+            "WHERE y.deleted=0 AND y.kind='payment' AND y.pay_date BETWEEN ? AND ? GROUP BY doc", (a, b)):
+        row(r['doc'])['receipts'] = r['t'] or 0
+    rows = sorted(out.values(), key=lambda d: (d['doctor'] == NO_DOCTOR, -d['executed'], -d['agreed'], -d['receipts']))
+    total = sum(d['executed'] for d in rows)
+    for d in rows:
+        d['share'] = round(100 * d['executed'] / total, 1) if total else 0
+    return rows
+
+
 def daily_table(db, a, b):
     d0, d1 = date.fromisoformat(a), date.fromisoformat(b)
     if (d1 - d0).days > 400:
@@ -161,14 +191,15 @@ def report_daily(c):
     d = v_date(c.q, 'date', 'التاريخ')
     s = period_stats(c.db, d, d)
     return {'stats': s, 'payments': payments_in_range(c.db, d, d),
-            'visits': visits_in_range(c.db, d, d),
+            'visits': visits_in_range(c.db, d, d), 'by_doctor': by_doctor(c.db, d, d),
             'expenses': [dict(r) for r in c.db.execute('SELECT * FROM expenses WHERE deleted=0 AND exp_date=? ORDER BY id', (d,))] if can(c.user, 'expenses') else []}
 
 
 @route('GET', '/api/reports/period', perm='reports_full', tx=False)
 def report_period(c):
     a, b = _range(c)
-    return {'stats': period_stats(c.db, a, b), 'daily': daily_table(c.db, a, b), 'by_procedure': by_procedure(c.db, a, b)}
+    return {'stats': period_stats(c.db, a, b), 'daily': daily_table(c.db, a, b), 'by_procedure': by_procedure(c.db, a, b),
+            'by_doctor': by_doctor(c.db, a, b)}
 
 
 @route('GET', '/api/reports/yearly', perm='reports_full', tx=False)
@@ -184,7 +215,8 @@ def report_yearly(c):
                            'new_patients': s['new_patients'], 'discounts': s['discounts'], 'refunds': s['refunds'],
                            'expenses': s['expenses'], 'net_cash_flow': s['net_cash_flow']})
         return {'year': y, 'stats': period_stats(c.db, '%04d-01-01' % y, '%04d-12-31' % y), 'months': months,
-                'by_procedure': by_procedure(c.db, '%04d-01-01' % y, '%04d-12-31' % y)}
+                'by_procedure': by_procedure(c.db, '%04d-01-01' % y, '%04d-12-31' % y),
+                'by_doctor': by_doctor(c.db, '%04d-01-01' % y, '%04d-12-31' % y)}
     try:
         y = int(c.q.get('year'))
         cy = int(c.q['compare']) if c.q.get('compare') else None

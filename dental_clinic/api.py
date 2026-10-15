@@ -240,6 +240,7 @@ def clean_patient(b):
         'age': age, 'gender': gender,
         'first_visit_date': v_date(b, 'first_visit_date', 'تاريخ أول زيارة', required=False, allow_future=False),
         'notes': v_text(b, 'notes', 'الملاحظات', maxlen=3000) or None,
+        'doctor': v_text(b, 'doctor', 'الطبيب', maxlen=100) or None,
     }
 
 
@@ -259,10 +260,10 @@ def patient_create(c):
     now = now_iso()
     file_no = c.db.execute('SELECT COALESCE(MAX(file_no),1000)+1 FROM patients').fetchone()[0]
     cur = c.db.execute(
-        'INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,birth_date,age,gender,first_visit_date,notes,created_at,updated_at) '
-        'VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,birth_date,age,gender,first_visit_date,notes,doctor,created_at,updated_at) '
+        'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
         (file_no, f['full_name'], f['name_norm'], f['phone'], f['phone_norm'], f['birth_date'], f['age'], f['gender'],
-         f['first_visit_date'] or today_iso(), f['notes'], now, now))
+         f['first_visit_date'] or today_iso(), f['notes'], f['doctor'], now, now))
     pid = cur.lastrowid
     audit(c.db, c.user['username'], 'patient', pid, 'create', None, {'file_no': file_no, 'full_name': f['full_name']})
     return {'patient': public_patient(get_patient(c.db, pid))}
@@ -273,9 +274,9 @@ def patient_update(c, pid):
     old = get_patient(c.db, pid)
     f = clean_patient(c.body)
     check_duplicate(c, f, exclude_id=pid)
-    c.db.execute('UPDATE patients SET full_name=?,name_norm=?,phone=?,phone_norm=?,birth_date=?,age=?,gender=?,first_visit_date=?,notes=?,updated_at=? WHERE id=?',
+    c.db.execute('UPDATE patients SET full_name=?,name_norm=?,phone=?,phone_norm=?,birth_date=?,age=?,gender=?,first_visit_date=?,notes=?,doctor=?,updated_at=? WHERE id=?',
                  (f['full_name'], f['name_norm'], f['phone'], f['phone_norm'], f['birth_date'], f['age'], f['gender'],
-                  f['first_visit_date'] or old['first_visit_date'], f['notes'], now_iso(), pid))
+                  f['first_visit_date'] or old['first_visit_date'], f['notes'], f['doctor'], now_iso(), pid))
     audit(c.db, c.user['username'], 'patient', pid, 'update', public_patient(old), public_patient(get_patient(c.db, pid)))
     return {'patient': public_patient(get_patient(c.db, pid))}
 
@@ -371,8 +372,9 @@ def insert_proc(c, vid, pid, p, now):
 
 @route('POST', r'/api/patients/(\d+)/visits', perm='visits')
 def visit_create(c, pid):
-    get_patient(c.db, pid)
+    pat = get_patient(c.db, pid)
     f = clean_visit(c.body)
+    f['doctor'] = f['doctor'] or pat['doctor']   # افتراضياً: الطبيب المعالج للمراجع
     procs = clean_procs(c.body.get('procedures') or [], f['doctor'])
     now = now_iso()
     cur = c.db.execute('INSERT INTO visits(patient_id,visit_date,visit_time,doctor,notes,next_appointment,next_time,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',

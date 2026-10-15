@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """بيانات تجريبية وهمية. تُكتب فقط في مجلد demo_data المنفصل، ولا تلمس بيانات العيادة الحقيقية."""
-import random
+import json, random
 from datetime import date, timedelta
 from core import connect, norm_ar, canon_phone, now_iso, audit
 
@@ -12,6 +12,7 @@ PROCS = [('فحص وتشخيص', 15000, None), ('تنظيف الأسنان', 350
          ('حشوة عصب', 120000, 'tooth'), ('تاج (تلبيس)', 150000, 'tooth'), ('خلع سن', 40000, 'tooth'),
          ('زراعة سن', 700000, 'tooth'), ('تبييض الأسنان', 250000, None), ('تقويم أسنان', 1500000, None)]
 TEETH = [11, 12, 16, 21, 24, 26, 36, 37, 46, 47]
+DOCTORS = ['د. علي حسن', 'د. سارة كريم', 'د. محمد جاسم']
 CATS = ['مواد طب الأسنان', 'أجور المختبر', 'الإيجار', 'الرواتب', 'الكهرباء والإنترنت', 'صيانة الأجهزة']
 
 
@@ -24,12 +25,14 @@ def seed_if_empty(clinic):
         today = date.today()
         db.execute('BEGIN')
         now = now_iso()
+        db.execute("UPDATE settings SET value=? WHERE key='doctors'", (json.dumps(DOCTORS, ensure_ascii=False),))
         for i, name in enumerate(NAMES):
+            doc = DOCTORS[i % len(DOCTORS)]
             first = today - timedelta(days=rnd.randint(20, 420))
             phone = '0770%07d' % rnd.randint(1000000, 9999999)
-            cur = db.execute('INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,age,gender,first_visit_date,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+            cur = db.execute('INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,age,gender,first_visit_date,notes,doctor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                              (1001 + i, name, norm_ar(name), phone, canon_phone(phone), rnd.randint(8, 70),
-                              rnd.choice('MF'), first.isoformat(), 'بيانات تجريبية', now, now))
+                              rnd.choice('MF'), first.isoformat(), 'بيانات تجريبية', doc, now, now))
             pid = cur.lastrowid
             vday = first
             for _ in range(rnd.randint(1, 4)):
@@ -37,14 +40,14 @@ def seed_if_empty(clinic):
                     break
                 v = db.execute('INSERT INTO visits(patient_id,visit_date,visit_time,doctor,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
                                (pid, vday.isoformat(), '%02d:%02d' % (rnd.randint(9, 18), rnd.choice([0, 15, 30, 45])),
-                                'د. تجريبي', 'زيارة تجريبية', now, now)).lastrowid
+                                doc, 'زيارة تجريبية', now, now)).lastrowid
                 total = 0
                 for _ in range(rnd.randint(1, 2)):
                     n, cost, t = rnd.choice(PROCS)
                     total += cost
                     db.execute('INSERT INTO procedures(visit_id,patient_id,name,tooth_no,status,cost,doctor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
                                (v, pid, n, str(rnd.choice(TEETH)) if t else None, rnd.choice(['completed', 'completed', 'in_progress']),
-                                cost, 'د. تجريبي', now, now))
+                                cost, doc, now, now))
                 paid = rnd.choice([total, total, total // 2, total // 3])
                 if paid > 0:
                     db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,created_by,created_at) VALUES(?,?,?,?, 'payment',?,?,?,?)",

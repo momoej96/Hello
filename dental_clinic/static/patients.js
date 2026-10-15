@@ -29,6 +29,7 @@ async function pagePatients(main) {
         { title: 'الاسم', key: 'full_name', render: r => `<a class="pname" href="#/patient/${r.id}">${esc(r.full_name)}</a>` },
         { title: 'الهاتف', key: 'phone', render: r => `<bdi>${esc(r.phone || '')}</bdi>` },
         { title: 'العمر', val: r => ageOf(r), render: r => `<bdi>${ageOf(r)}</bdi>` },
+        { title: 'الطبيب', key: 'doctor', render: r => esc(r.doctor || '') },
         { title: 'أول زيارة', key: 'first_visit_date', render: r => dateH(r.first_visit_date) },
       ];
       if (can('payments')) cols.push({ title: 'الحساب', key: 'remaining', render: r => remBadge(r.remaining), exp: r => r.remaining });
@@ -40,8 +41,11 @@ async function pagePatients(main) {
   await load(); input.focus();
 }
 
-const PATIENT_FIELDS = [
+const patientFields = cur => [
   { name: 'full_name', label: 'الاسم الكامل', required: true, cls: 'full' },
+  doctorList().length || cur
+    ? { name: 'doctor', label: 'الطبيب المعالج', type: 'select', options: doctorOptions(cur) }
+    : { name: 'doctor', label: 'الطبيب المعالج', hint: 'أضف أسماء الأطباء من الإعدادات لتظهر كقائمة اختيار' },
   { name: 'phone', label: 'رقم الهاتف', type: 'tel' },
   { name: 'gender', label: 'الجنس', type: 'select', options: [{ v: '', t: '—' }, { v: 'M', t: 'ذكر' }, { v: 'F', t: 'أنثى' }] },
   { name: 'birth_date', label: 'تاريخ الميلاد', type: 'date' },
@@ -50,11 +54,11 @@ const PATIENT_FIELDS = [
   { name: 'notes', label: 'ملاحظات عامة (حساسية، أمراض مزمنة…)', type: 'textarea', cls: 'full' },
 ];
 ACTIONS['new-patient'] = () => formModal({
-  title: 'إضافة مراجع جديد', fields: PATIENT_FIELDS, values: { first_visit_date: today() }, submit: 'حفظ وفتح الملف',
+  title: 'إضافة مراجع جديد', fields: patientFields(), values: { first_visit_date: today() }, submit: 'حفظ وفتح الملف',
   onSubmit: async (v, force, m) => { const r = await api('POST', '/api/patients', { ...v, force }); m.close(); toast('تم إنشاء ملف رقم ' + r.patient.file_no); location.hash = '#/patient/' + r.patient.id; },
 });
 ACTIONS['edit-patient'] = () => formModal({
-  title: 'تعديل بيانات المراجع', fields: PATIENT_FIELDS, values: PT.patient, submit: 'حفظ التعديلات',
+  title: 'تعديل بيانات المراجع', fields: patientFields(PT.patient.doctor), values: PT.patient, submit: 'حفظ التعديلات',
   onSubmit: async (v, force, m) => { await api('PUT', '/api/patients/' + PT.patient.id, { ...v, force }); m.close(); toast('تم حفظ التعديلات'); reloadPatient(); },
 });
 ACTIONS['del-patient'] = async () => {
@@ -72,7 +76,7 @@ async function pagePatient(main, id, tab) {
   main.innerHTML = `
   <section class="card pt-head">
     <div class="pt-id"><span class="fileno">ملف <bdi>${p.file_no}</bdi></span><h1>${esc(p.full_name)}</h1>
-      <div class="pt-meta">${p.phone ? `<span>${icon('clock', 15)} <bdi>${esc(p.phone)}</bdi></span>` : ''}${age !== '' ? `<span>العمر: <bdi>${age}</bdi></span>` : ''}${p.gender ? `<span>${genderAr(p.gender)}</span>` : ''}<span>أول زيارة: ${dateH(p.first_visit_date)}</span></div>
+      <div class="pt-meta">${p.phone ? `<span>${icon('clock', 15)} <bdi>${esc(p.phone)}</bdi></span>` : ''}${age !== '' ? `<span>العمر: <bdi>${age}</bdi></span>` : ''}${p.gender ? `<span>${genderAr(p.gender)}</span>` : ''}${p.doctor ? `<span>الطبيب: <b>${esc(p.doctor)}</b></span>` : ''}<span>أول زيارة: ${dateH(p.first_visit_date)}</span></div>
       ${p.notes ? `<p class="pt-notes">${nl2br(p.notes)}</p>` : ''}</div>
     <div class="pt-actions">
       ${money ? `<button type="button" class="btn primary lg" data-action="new-payment">${icon('wallet', 18)} تسجيل دفعة جديدة</button>` : ''}
@@ -247,6 +251,7 @@ function patientInfoHTML() {
   const p = PT.patient;
   return `<table class="kv"><tr><th>رقم الملف</th><td><bdi>${p.file_no}</bdi></td><th>الاسم</th><td>${esc(p.full_name)}</td></tr>
   <tr><th>الهاتف</th><td><bdi>${esc(p.phone || '')}</bdi></td><th>العمر / الجنس</th><td>${ageOf(p) !== '' ? '<bdi>' + ageOf(p) + '</bdi>' : ''} ${genderAr(p.gender)}</td></tr>
+  ${p.doctor ? `<tr><th>الطبيب المعالج</th><td colspan="3">${esc(p.doctor)}</td></tr>` : ''}
   <tr><th>أول زيارة</th><td><bdi>${p.first_visit_date || ''}</bdi></td><th>ملاحظات</th><td>${nl2br(p.notes || '')}</td></tr></table>`;
 }
 function treatPrintHTML(withMoney) {

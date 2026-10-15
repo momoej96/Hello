@@ -508,6 +508,84 @@ class T11_Security(Base):
         self.assertEqual(self.c.call('GET', '/api/patients')[0], 401)
 
 
+class T12_Doctors(Base):
+    def test_patient_doctor_and_visit_default(self):
+        """اختيار الطبيب عند إضافة المراجع، والزيارة الجديدة تأخذ طبيبه افتراضياً"""
+        p = self.patient(doctor='د. علي')
+        self.assertEqual(p['doctor'], 'د. علي')
+        self.visit(p['id'], '2025-03-01', [{'name': 'حشوة', 'cost': 50000}])
+        v = self.c.ok('GET', '/api/patients/%d' % p['id'])['visits'][0]
+        self.assertEqual(v['doctor'], 'د. علي')
+        self.assertEqual(v['procedures'][0]['doctor'], 'د. علي')
+        # طبيب مختلف لزيارة معينة يبقى كما اختير
+        self.visit(p['id'], '2025-03-02', [{'name': 'تنظيف', 'cost': 20000}], doctor='د. سارة')
+        docs = sorted(v['doctor'] for v in self.c.ok('GET', '/api/patients/%d' % p['id'])['visits'])
+        self.assertEqual(docs, ['د. سارة', 'د. علي'])
+        # تغيير الطبيب المعالج وإزالته
+        upd = self.c.ok('PUT', '/api/patients/%d' % p['id'], {'full_name': p['full_name'], 'phone': p['phone'], 'doctor': 'د. سارة'})['patient']
+        self.assertEqual(upd['doctor'], 'د. سارة')
+        upd = self.c.ok('PUT', '/api/patients/%d' % p['id'], {'full_name': p['full_name'], 'phone': p['phone'], 'doctor': ''})['patient']
+        self.assertIsNone(upd['doctor'])
+        lst = self.c.ok('GET', '/api/patients')['patients']
+        self.assertIn('doctor', lst[0])
+
+    def test_report_by_doctor(self):
+        """تقرير عمل كل طبيب يطابق مجاميع التقرير العام"""
+        a = self.patient('مراجع أول', '07701111111', doctor='د. علي')
+        b = self.patient('مراجع ثاني', '07702222222', doctor='د. سارة')
+        self.visit(a['id'], '2025-04-02', [{'name': 'تاج', 'cost': 100000, 'status': 'completed'},
+                                          {'name': 'زراعة', 'cost': 50000, 'status': 'planned'},
+                                          {'name': 'ملغى', 'cost': 99000, 'status': 'cancelled'}])
+        vb1 = self.visit(b['id'], '2025-04-03', [{'name': 'حشوة', 'cost': 30000}], doctor='د. علي')['visit']
+        self.visit(b['id'], '2025-04-10', [{'name': 'عصب', 'cost': 200000}])
+        self.visit(b['id'], '2025-05-10', [{'name': 'خارج الفترة', 'cost': 70000}])
+        self.pay(a['id'], '2025-04-02', 60000)
+        self.pay(b['id'], '2025-04-03', 30000, visit_id=vb1['id'])
+        self.pay(b['id'], '2025-04-10', 100000)
+        d = self.c.ok('GET', '/api/reports/period?from=2025-04-01&to=2025-04-30')
+        rows = {r['doctor']: r for r in d['by_doctor']}
+        self.assertEqual(set(rows), {'د. علي', 'د. سارة'})
+        ali, sara = rows['د. علي'], rows['د. سارة']
+        self.assertEqual((ali['executed'], ali['agreed'], ali['receipts']), (130000, 180000, 90000))
+        self.assertEqual((ali['patients'], ali['visits'], ali['procedures']), (2, 2, 3))
+        self.assertEqual((sara['executed'], sara['agreed'], sara['receipts']), (200000, 200000, 100000))
+        self.assertEqual(d['by_doctor'][0]['doctor'], 'د. سارة')   # الأعلى عملاً أولاً
+        self.assertAlmostEqual(ali['share'] + sara['share'], 100, delta=0.2)
+        self.assertEqual(sum(r['executed'] for r in d['by_doctor']), d['stats']['executed_value'])
+        self.assertEqual(sum(r['agreed'] for r in d['by_doctor']), d['stats']['agreed_value'])
+        self.assertEqual(sum(r['receipts'] for r in d['by_doctor']), d['stats']['receipts'])
+        y = self.c.ok('GET', '/api/reports/yearly?year=2025')
+        self.assertEqual(sum(r['executed'] for r in y['by_doctor']), 400000)
+        day = self.c.ok('GET', '/api/reports/daily?date=2025-04-03')
+        self.assertEqual([(r['doctor'], r['executed'], r['receipts']) for r in day['by_doctor']], [('د. علي', 30000, 30000)])
+        # مراجع بلا طبيب: يظهر تحت «غير محدد»
+        c = self.patient('مراجع ثالث', '07703333333')
+        self.visit(c['id'], '2025-04-20', [{'name': 'فحص', 'cost': 10000}])
+        d = self.c.ok('GET', '/api/reports/period?from=2025-04-01&to=2025-04-30')
+        self.assertEqual(d['by_doctor'][-1]['doctor'], 'غير محدد')
+        self.assertEqual(d['by_doctor'][-1]['executed'], 10000)
+
+    def test_old_database_is_upgraded(self):
+        """قاعدة بيانات من الإصدار السابق (بدون عمود الطبيب) تُرقّى تلقائياً دون فقدان البيانات"""
+        import core
+        tmp = tempfile.mkdtemp(prefix='clinic_old_')
+        try:
+            path = os.path.join(tmp, 'clinic.db')
+            db = sqlite3.connect(path)
+            db.executescript(core.SCHEMA)   # الجداول الأساسية كما في الإصدار السابق (العمود يُضاف بالترقية فقط)
+            self.assertNotIn('doctor', [r[1] for r in db.execute('PRAGMA table_info(patients)')])
+            db.execute("INSERT INTO patients(file_no,full_name,name_norm,created_at,updated_at) VALUES(1001,'قديم','قديم','x','x')")
+            db.commit(); db.close()
+            core.init_db(path)
+            core.init_db(path)   # تشغيل ثانٍ لا يسبب خطأ
+            db = sqlite3.connect(path)
+            self.assertIn('doctor', [r[1] for r in db.execute('PRAGMA table_info(patients)')])
+            self.assertEqual(db.execute('SELECT full_name FROM patients').fetchone()[0], 'قديم')
+            db.close()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == '__main__':
     import urllib.parse
     unittest.main(verbosity=2)

@@ -119,11 +119,19 @@ def init_db(path):
     db = connect(path)
     try:
         db.executescript(SCHEMA)
+        migrate(db)
         db.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
         for k, v in DEFAULT_SETTINGS.items():
             db.execute('INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)', (k, v))
     finally:
         db.close()
+
+
+def migrate(db):
+    """ترقية قواعد البيانات القديمة بإضافة الأعمدة الجديدة دون المساس بالبيانات."""
+    cols = {r['name'] for r in db.execute('PRAGMA table_info(patients)')}
+    if 'doctor' not in cols:   # الطبيب المعالج للمراجع
+        db.execute('ALTER TABLE patients ADD COLUMN doctor TEXT')
 
 
 def get_settings(db):
