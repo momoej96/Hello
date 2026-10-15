@@ -1,0 +1,196 @@
+'use strict';
+/* ====== الزيارات والإجراءات، البحث حسب التاريخ، المواعيد ====== */
+const FDI_UP = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
+const FDI_LO = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+const FDI_PU = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65], FDI_PL = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
+const toothBtns = a => a.map((n, i) => `<button type="button" class="tb ${i === a.length / 2 ? 'gap' : ''}" data-action="tooth-set" data-t="${n}">${n}</button>`).join('');
+const toothPanel = () => `<div class="tooth-panel"><div class="tp-note">اختر رقم السن (نظام FDI) — الجهة العلوية للأعلى</div>
+  <div class="tp-row">${toothBtns(FDI_UP)}</div><div class="tp-row">${toothBtns(FDI_LO)}</div>
+  <div class="tp-sub">أسنان الأطفال</div><div class="tp-row s">${toothBtns(FDI_PU)}</div><div class="tp-row s">${toothBtns(FDI_PL)}</div>
+  <button type="button" class="btn sm" data-action="tooth-set" data-t="">بدون سن محدد</button></div>`;
+
+function procRowHTML(p = {}) {
+  const money = can('payments');
+  return `<div class="prow" data-id="${p.id || ''}" data-cost="${p.cost || 0}">
+    <input name="name" list="dl-procs" placeholder="الإجراء أو العلاج" value="${esc(p.name || '')}" autocomplete="off">
+    <div class="tooth-in"><input name="tooth_no" inputmode="numeric" maxlength="2" placeholder="السن" value="${esc(p.tooth_no || '')}" dir="ltr"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div>
+    <select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    ${money ? `<input name="cost" data-money inputmode="numeric" placeholder="التكلفة" value="${p.cost ? fmt(p.cost) : ''}" autocomplete="off">` : ''}
+    <input name="details" class="pdet" placeholder="تفاصيل العلاج" value="${esc(p.details || '')}">
+    <button type="button" class="btn sm danger-o" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button></div>`;
+}
+function procTotal(root) {
+  let t = 0;
+  $$('.prow', root).forEach(r => { const st = $('[name=status]', r).value; if (st === 'cancelled') return; const c = $('[name=cost]', r); t += c ? (parseMoney(c.value) || 0) : 0; });
+  const el = $('.proc-total', root); if (el) el.innerHTML = moneyH(t);
+}
+ACTIONS['add-proc'] = b => { const root = b.closest('.dlg-body'); $('#procRows', root).insertAdjacentHTML('beforeend', procRowHTML()); attachMoneyInputs(root); $$('.prow', root).pop().querySelector('input').focus(); };
+ACTIONS['rm-proc'] = b => { const root = b.closest('.dlg-body'); const row = b.closest('.prow'); const nx = row.nextElementSibling; if (nx && nx.classList.contains('tooth-panel')) nx.remove(); row.remove(); procTotal(root); };
+ACTIONS['tooth-pick'] = b => {
+  const row = b.closest('.prow'), nx = row.nextElementSibling;
+  $$('.tooth-panel').forEach(x => x.remove());
+  if (nx && nx.classList.contains('tooth-panel')) return;
+  row.insertAdjacentHTML('afterend', toothPanel()); row.nextElementSibling._row = row;
+};
+ACTIONS['tooth-set'] = b => { const pn = b.closest('.tooth-panel'); $('[name=tooth_no]', pn._row).value = b.dataset.t; pn.remove(); };
+
+function openVisitModal(v) {
+  const isNew = !v, p = PT.patient, money = can('payments');
+  const docs = (() => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } })();
+  v = v || { visit_date: today(), visit_time: nowTime(), procedures: [{}] };
+  const f = (n, l, val, type = 'text', extra = '') => `<label class="fld ${extra}"><span>${l}</span><input name="${n}" type="${type}" value="${esc(val || '')}" autocomplete="off" ${n === 'doctor' ? 'list="dl-docs"' : ''}></label>`;
+  const m = modal({
+    title: isNew ? 'زيارة جديدة — ' + p.full_name : 'تعديل الزيارة', wide: true,
+    body: `<form class="vform" novalidate>
+      <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${f('doctor', 'الطبيب', v.doctor)}</div>
+      <h4 class="sec">الإجراءات العلاجية</h4>
+      <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? '<span>التكلفة</span>' : ''}<span>تفاصيل</span><span></span></div>
+      <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
+      <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
+      ${money ? '<p class="muted small">الإجراء «مخطط له» لا يدخل في المبلغ المستحق على المراجع حتى تغيّر حالته إلى «قيد التنفيذ» أو «مكتمل».</p>' : ''}
+      <label class="fld full"><span>ملاحظات سريرية</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
+      <div class="form-grid c3">${f('next_appointment', 'موعد الزيارة القادمة', v.next_appointment, 'date')}${f('next_time', 'وقت الموعد القادم', v.next_time, 'time')}</div>
+      <div class="form-err" role="alert"></div></form>`,
+    footer: `<button type="button" class="btn primary" data-save>حفظ الزيارة</button><button type="button" class="btn" data-close>إلغاء</button>`,
+  });
+  const root = m.body, form = $('form', root);
+  root.addEventListener('input', () => procTotal(root)); root.addEventListener('change', () => procTotal(root)); procTotal(root);
+  let busy = false;
+  async function save() {
+    if (busy) return;
+    const err = $('.form-err', root); err.textContent = '';
+    const procs = [];
+    $$('.prow', root).forEach(r => {
+      const g = n => { const e = $(`[name=${n}]`, r); return e ? e.value.trim() : ''; };
+      if (!g('name') && !g('tooth_no') && !g('details') && !(parseMoney(g('cost')) > 0) && !r.dataset.id) return;
+      const costEl = $('[name=cost]', r);
+      procs.push({ id: r.dataset.id ? +r.dataset.id : undefined, name: g('name'), tooth_no: g('tooth_no'), status: g('status'), details: g('details'), cost: costEl ? (parseMoney(costEl.value) || 0) : +r.dataset.cost });
+    });
+    const body = { visit_date: $('[name=visit_date]', root).value, visit_time: $('[name=visit_time]', root).value, doctor: $('[name=doctor]', root).value.trim(), notes: $('[name=notes]', root).value.trim(),
+      next_appointment: $('[name=next_appointment]', root).value, next_time: $('[name=next_time]', root).value, procedures: procs };
+    if (!body.visit_date) { err.textContent = 'تاريخ الزيارة مطلوب'; return; }
+    busy = true; $('[data-save]', m.el).disabled = true;
+    try {
+      if (isNew) await api('POST', `/api/patients/${p.id}/visits`, body);
+      else await withForce(force => api('PUT', '/api/visits/' + v.id, { ...body, force }));
+      m.close(); toast('تم حفظ الزيارة'); reloadPatient();
+    } catch (e) { if (e) err.textContent = e.message; busy = false; $('[data-save]', m.el).disabled = false; }
+  }
+  $('[data-save]', m.el).onclick = save;
+  form.onsubmit = e => { e.preventDefault(); save(); };
+}
+ACTIONS['new-visit'] = () => openVisitModal(null);
+ACTIONS['edit-visit'] = b => openVisitModal(PT.visits.find(x => x.id == b.dataset.id));
+
+/* ====== المواعيد ====== */
+const apptStatusSel = a => `<select class="st-sel a-${a.status}" data-change="appt-status" data-id="${a.id}">${Object.entries(APPT_ST).map(([k, t]) => `<option value="${k}" ${k === a.status ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+CHANGES['appt-status'] = async sel => {
+  try { await api('PUT', '/api/appointments/' + sel.dataset.id, { status: sel.value }); toast('تم تحديث حالة الموعد'); } catch (e) { toast(e.message, 'err'); }
+  window.refreshPage();
+};
+function apptModal(a, patient) {
+  const isNew = !a;
+  a = a || { appt_date: today(), appt_time: '10:00', status: 'confirmed' };
+  const m = modal({ title: isNew ? 'موعد جديد' : 'تعديل الموعد', body: `<form class="form-grid c2" novalidate>
+    <div class="full"><span class="lbl">المراجع *</span><div id="apk"></div></div>
+    <label class="fld"><span>التاريخ *</span><input name="appt_date" type="date" value="${esc(a.appt_date)}"></label>
+    <label class="fld"><span>الوقت *</span><input name="appt_time" type="time" value="${esc(a.appt_time || '')}"></label>
+    <label class="fld full"><span>سبب الموعد</span><input name="reason" value="${esc(a.reason || '')}" autocomplete="off"></label>
+    <label class="fld"><span>الحالة</span><select name="status">${Object.entries(APPT_ST).map(([k, t]) => `<option value="${k}" ${a.status === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="fld full"><span>ملاحظات</span><textarea name="notes" rows="2">${esc(a.notes || '')}</textarea></label><div class="form-err" role="alert"></div></form>`,
+    footer: '<button type="button" class="btn primary" data-save>حفظ الموعد</button><button type="button" class="btn" data-close>إلغاء</button>' });
+  const pk = patientPicker($('#apk', m.el));
+  if (patient) pk.set(patient); else if (a.patient_id) pk.set({ id: a.patient_id, full_name: a.full_name });
+  $('[data-save]', m.el).onclick = async () => {
+    const err = $('.form-err', m.el), g = n => $(`[name=${n}]`, m.el).value.trim();
+    const pt = pk.get() || patient || (a.patient_id ? { id: a.patient_id } : null);
+    if (!pt) { err.textContent = 'اختر المراجع أولاً'; return; }
+    const body = { patient_id: pt.id, appt_date: g('appt_date'), appt_time: g('appt_time'), reason: g('reason'), status: g('status'), notes: g('notes') };
+    try { if (isNew) await api('POST', '/api/appointments', body); else await api('PUT', '/api/appointments/' + a.id, body); m.close(); toast('تم حفظ الموعد'); window.refreshPage(); }
+    catch (e) { err.textContent = e.message; }
+  };
+}
+let APPT = { mode: 'day', date: today() };
+const weekStart = d => addDays(d, -((parseISO(d).getDay() + 1) % 7));   // الأسبوع يبدأ السبت
+async function drawAppointments(host) {
+  const [from, to] = APPT.mode === 'day' ? [APPT.date, APPT.date] : [weekStart(APPT.date), addDays(weekStart(APPT.date), 6)];
+  host.innerHTML = `<div class="toolbar"><div class="seg"><button type="button" data-action="appt-mode" data-m="day" class="${APPT.mode === 'day' ? 'on' : ''}">اليوم</button><button type="button" data-action="appt-mode" data-m="week" class="${APPT.mode === 'week' ? 'on' : ''}">الأسبوع</button></div>
+    <button type="button" class="btn sm" data-action="appt-nav" data-n="-1">‹ السابق</button><input type="date" id="apd" value="${APPT.date}"><button type="button" class="btn sm" data-action="appt-nav" data-n="1">التالي ›</button><button type="button" class="btn sm" data-action="appt-today">اليوم</button>
+    <span class="grow"></span><button type="button" class="btn primary" data-action="new-appt">${icon('plus', 16)} موعد جديد</button></div><div id="apl"><div class="muted pad">جارٍ التحميل…</div></div>`;
+  $('#apd', host).onchange = e => { if (e.target.value) { APPT.date = e.target.value; drawAppointments(host); } };
+  try {
+    const d = await api('GET', '/api/appointments?' + qs({ from, to }));
+    const days = {}; for (let i = 0; i <= (APPT.mode === 'day' ? 0 : 6); i++) days[addDays(from, i)] = [];
+    d.appointments.forEach(a => (days[a.appt_date] = days[a.appt_date] || []).push(a));
+    $('#apl').innerHTML = Object.entries(days).map(([day, list]) => `<section class="card day ${day === today() ? 'is-today' : ''}"><h3>${dayName(day)} <bdi class="num">${day}</bdi> ${day === today() ? '<span class="badge b-confirmed">اليوم</span>' : ''}<span class="cnt">${list.length}</span></h3>
+      ${list.length ? `<div class="alist">${list.map(a => `<div class="appt a-${a.status}"><bdi class="atime">${esc(a.appt_time || '')}</bdi><div class="ainfo"><a class="pname" href="#/patient/${a.patient_id}">${esc(a.full_name)}</a> <span class="muted">ملف <bdi>${a.file_no}</bdi> · <bdi>${esc(a.phone || '')}</bdi></span><div class="muted small">${esc(a.reason || '')}${a.notes ? ' — ' + esc(a.notes) : ''}</div></div>${apptStatusSel(a)}<button type="button" class="btn sm" data-action="edit-appt" data-id="${a.id}">${icon('edit', 14)}</button><button type="button" class="btn sm danger-o" data-action="del-appt" data-id="${a.id}">${icon('trash', 14)}</button></div>`).join('')}</div>` : '<p class="muted">لا توجد مواعيد.</p>'}</section>`).join('');
+    host._appts = d.appointments;
+  } catch (e) { $('#apl').innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
+}
+ACTIONS['appt-mode'] = b => { APPT.mode = b.dataset.m; drawAppointments($('#subpage')); };
+ACTIONS['appt-nav'] = b => { APPT.date = addDays(APPT.date, +b.dataset.n * (APPT.mode === 'week' ? 7 : 1)); drawAppointments($('#subpage')); };
+ACTIONS['appt-today'] = () => { APPT.date = today(); drawAppointments($('#subpage')); };
+ACTIONS['new-appt'] = () => apptModal(null, null);
+ACTIONS['edit-appt'] = b => apptModal($('#subpage')._appts.find(x => x.id == b.dataset.id), null);
+ACTIONS['del-appt'] = async b => {
+  if (!await confirmBox('حذف هذا الموعد؟', { danger: true, ok: 'حذف' })) return;
+  try { await api('DELETE', '/api/appointments/' + b.dataset.id, {}); toast('تم حذف الموعد'); window.refreshPage(); } catch (e) { toast(e.message, 'err'); }
+};
+
+/* ====== الزيارات حسب التاريخ / الفترة ====== */
+async function renderVisitsView(host, def) {
+  const money = can('payments');
+  host.innerHTML = `<section class="card filters"><div class="form-grid c4">
+    <label class="fld"><span>من تاريخ</span><input type="date" id="vf" value="${def.from}"></label><label class="fld"><span>إلى تاريخ</span><input type="date" id="vt" value="${def.to}"></label>
+    <label class="fld"><span>اسم / هاتف / رقم ملف</span><input type="search" id="vq" autocomplete="off"></label><label class="fld"><span>الطبيب</span><input id="vd" list="dl-docs2" autocomplete="off"></label></div>
+    <datalist id="dl-docs2">${(() => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } })().map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <div class="presets"><button type="button" class="btn sm" data-p="today">اليوم</button><button type="button" class="btn sm" data-p="yest">أمس</button><button type="button" class="btn sm" data-p="week">هذا الأسبوع</button><button type="button" class="btn sm" data-p="month">هذا الشهر</button><button type="button" class="btn sm" data-p="30">آخر 30 يوماً</button></div></section>
+    <div id="vres"></div>`;
+  const val = id => $('#' + id, host).value;
+  let seq = 0, t;
+  async function load() {
+    const my = ++seq, from = val('vf'), to = val('vt');
+    if (!from || !to) return;
+    try {
+      const d = await api('GET', '/api/visits_by_date?' + qs({ from, to, q: val('vq'), doctor: val('vd') }));
+      if (my !== seq) return;
+      const rowsOut = [];
+      const cols = [
+        { title: 'التاريخ', key: 'visit_date', render: r => dateH(r.visit_date) },
+        { title: 'الوقت', key: 'visit_time', render: r => `<bdi>${esc(r.visit_time || '')}</bdi>` },
+        { title: 'المراجع', key: 'full_name', render: r => `<a class="pname" href="#/patient/${r.patient_id}">${esc(r.full_name)}</a>` },
+        { title: 'الهاتف', key: 'phone', render: r => `<bdi>${esc(r.phone || '')}</bdi>` },
+        { title: 'الإجراءات', val: r => r.procedures.map(p => p.name).join('، '), render: r => r.procedures.map(p => `${p.tooth_no ? `<span class="tooth-tag">${p.tooth_no}</span> ` : ''}${esc(p.name)}`).join('<br>') || '<span class="muted">—</span>' },
+      ];
+      if (money) cols.push({ title: 'تكلفة العلاج', key: 'visit_cost', render: r => moneyH(r.visit_cost) }, { title: 'المقبوض في ذلك اليوم', key: 'paid_that_day', render: r => r.paid_that_day == null ? '<span class="muted">—</span>' : moneyH(r.paid_that_day) }, { title: 'المتبقي على المراجع', key: 'remaining', render: r => remBadge(r.remaining) });
+      const tbl = $('#vtbl', host);
+      const dt = dataTable(tbl, { cols, rows: d.visits, search: false, empty: 'لا توجد زيارات مسجلة في هذه الفترة.',
+        footer: money ? () => `<tr class="tot"><td colspan="5">المجموع (${d.visits.length} زيارة)</td><td>${moneyH(d.visits.reduce((s, r) => s + r.visit_cost, 0))}</td><td colspan="2"></td></tr>` : null });
+      if (money) $('#vpay', host).innerHTML = `<h3>الدفعات المقبوضة في هذه الفترة <small class="muted">(حسب تاريخ استلام المبلغ، وقد تختلف عن تاريخ العلاج)</small></h3>` + simpleTable(['التاريخ', 'المراجع', 'النوع', 'المبلغ', 'الطريقة'], d.payments.map(p => [dateH(p.pay_date), `<a class="pname" href="#/patient/${p.patient_id}">${esc(p.full_name)}</a>`, p.kind === 'refund' ? 'مسترد' : 'دفعة', moneyH(p.kind === 'refund' ? -p.amount : p.amount), METH[p.method]]), { foot: `<tr class="tot"><td colspan="3">إجمالي المقبوضات (بدون المسترد)</td><td colspan="2">${moneyH(d.receipts_total)}</td></tr>` });
+      RPT = { title: `الزيارات من ${from} إلى ${to}`, headers: dt.headers(), rows: dt.matrix(), html: simpleTable(dt.headers(), dt.matrix().map(r => r.map(c => esc(c)))) };
+    } catch (e) { $('#vtbl', host).innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
+  }
+  $('#vres', host).innerHTML = `${exportBar()}<section class="card"><div id="vtbl"></div></section>${money ? '<section class="card" id="vpay"></section>' : ''}`;
+  ['vf', 'vt', 'vd'].forEach(i => $('#' + i, host).addEventListener('change', load));
+  $('#vq', host).addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 250); });
+  host.addEventListener('click', e => {
+    const b = e.target.closest('[data-p]'); if (!b) return;
+    const td = today(); let f = td, to = td;
+    if (b.dataset.p === 'yest') f = to = addDays(td, -1);
+    else if (b.dataset.p === 'week') { f = weekStart(td); to = addDays(f, 6); }
+    else if (b.dataset.p === 'month') [f, to] = monthRange(td.slice(0, 7));
+    else if (b.dataset.p === '30') f = addDays(td, -29);
+    $('#vf', host).value = f; $('#vt', host).value = to; load();
+  });
+  load();
+}
+async function pageByDate(main) {
+  main.innerHTML = `<div class="page-head"><h1>مراجعو يوم أو فترة محددة</h1></div><div id="subpage"></div>`;
+  renderVisitsView($('#subpage'), { from: today(), to: today() });
+}
+async function pageAppointments(main, tab) {
+  tab = tab || 'appts';
+  main.innerHTML = `<div class="page-head"><h1>المواعيد وسجل الزيارات</h1></div><nav class="tabs"><a href="#/appointments" class="${tab === 'appts' ? 'on' : ''}">المواعيد القادمة</a><a href="#/appointments/log" class="${tab === 'log' ? 'on' : ''}">سجل الزيارات</a></nav><div id="subpage"></div>`;
+  if (tab === 'log') renderVisitsView($('#subpage'), { from: addDays(today(), -29), to: today() }); else drawAppointments($('#subpage'));
+}

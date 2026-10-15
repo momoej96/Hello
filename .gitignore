@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+# بيانات المراجعين والنسخ الاحتياطية لا تُرفع أبداً
+dental_clinic/data/
+dental_clinic/demo_data/
+*.db
+*.db-*
