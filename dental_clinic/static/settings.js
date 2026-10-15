@@ -142,6 +142,8 @@ function drawImportPreview() {
   <section class="card"><h3>صفوف تحتاج مراجعتك <span class="cnt">${d.review_total}</span></h3>
     <p class="muted small">«تم تخطيه»: لم يُستورد (غالباً مبلغ سالب أو بدون تاريخ أو اسم) فصحّحه في الإكسل وأعد الاستيراد لاحقاً؛ التكرار لا يحدث. «تنبيه»: استُورد لكن فيه ملاحظة. «مكرر»: حُذف.</p>
     ${exportBar().replace(/data-action="rpt-/g, 'data-action="imp-rpt-')}<div id="impreview"></div></section>
+  ${d.work_merged && d.work_merged.length ? `<section class="card"><h3>أنواع عمل وُحّدت <span class="cnt">${fmt(s.work_merged_rows)}</span></h3><p class="muted small">الكتابات المختلفة لنفس العمل تُسجَّل تحت اسم إجراء واحد، فتُجمع في التقارير. المكتوب الأصلي يُحفظ في تفاصيل الإجراء.</p>
+    ${simpleTable(['الإجراء في البرنامج', 'الكتابات في الإكسل (عدد الصفوف)', 'الصفوف'], d.work_merged.map(g => [`<b>${esc(g.name)}</b>`, g.variants.map(([w, n]) => `<bdi>${esc(w)}</bdi> (${fmt(n)})`).join('، '), intH(g.rows)]))}</section>` : ''}
   <section class="card"><h3>أسماء دُمجت لأنها متشابهة <span class="cnt">${s.names_merged_groups}</span></h3><p class="muted small">راجعها: إن كان اسمان لشخصين مختلفين فعلاً فاعلم أنهما سيُدمجان بملف واحد.</p>
     ${simpleTable(['الصيغ المكتوبة', 'الصفوف'], d.merged_names.map(m => [m.names.map(esc).join(' ، '), intH(m.rows)]))}</section>
   <section class="card"><h3>أكبر المبالغ المتبقية</h3>${simpleTable(['المراجع', 'المتبقي'], d.top_debtors.map(t => [esc(t.name), moneyH(t.remaining)]))}</section>

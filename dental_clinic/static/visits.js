@@ -14,7 +14,7 @@ const toothPanel = sel => `<div class="tooth-panel"><div class="tp-note">اضغ�
 function procRowHTML(p = {}) {
   const money = can('payments');
   return `<div class="prow" data-id="${p.id || ''}" data-cost="${p.cost || 0}">
-    <input name="name" list="dl-procs" placeholder="الإجراء أو العلاج" value="${esc(p.name || '')}" autocomplete="off">
+    <div class="tooth-in"><input name="name" list="dl-procs" placeholder="الإجراء أو العلاج" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div>
     <div class="tooth-in"><input name="tooth_no" placeholder="السن" value="${esc(teethOf(p.tooth_no).join(', '))}" dir="ltr" title="سن واحد أو أكثر، مثل: 11, 21"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div>
     <select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     ${money ? `<input name="cost" data-money inputmode="numeric" placeholder="التكلفة" value="${p.cost ? fmt(p.cost) : ''}" autocomplete="off">` : ''}
@@ -31,7 +31,7 @@ ACTIONS['rm-proc'] = b => { const root = b.closest('.dlg-body'); const row = b.c
 ACTIONS['tooth-pick'] = b => {
   const row = b.closest('.prow'), nx = row.nextElementSibling;
   $$('.tooth-panel').forEach(x => x.remove());
-  if (nx && nx.classList.contains('tooth-panel')) return;
+  if (nx && nx.classList.contains('tooth-panel') && !nx.classList.contains('proc-panel')) return;
   row.insertAdjacentHTML('afterend', toothPanel(teethOf($('[name=tooth_no]', row).value))); row.nextElementSibling._row = row;
 };
 ACTIONS['tooth-set'] = b => {
@@ -42,6 +42,17 @@ ACTIONS['tooth-set'] = b => {
   b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', String(i < 0));
 };
 ACTIONS['tooth-done'] = b => b.closest('.tooth-panel').remove();
+/* قائمة الإجراءات: الإجراء الذي له أنواع (الحشوة الدائمية والمؤقتة) يظهر مع أنواعه للاختيار */
+const procPanel = cur => `<div class="tooth-panel proc-panel"><div class="tp-note">اختر الإجراء</div><div class="pp-grid">${PROC_TREE.map(([n, subs]) => subs
+  ? `<div class="pp-group"><b>${esc(n)}</b><div>${subs.map(s => { const v = n + ' - ' + s; return `<button type="button" class="btn sm ${cur === v ? 'primary' : ''}" data-action="proc-set" data-v="${esc(v)}">${esc(s)}</button>`; }).join('')}</div></div>`
+  : `<button type="button" class="btn sm ${cur === n ? 'primary' : ''}" data-action="proc-set" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+ACTIONS['proc-pick'] = b => {
+  const row = b.closest('.prow'), nx = row.nextElementSibling, open = nx && nx.classList.contains('proc-panel');
+  $$('.tooth-panel').forEach(x => x.remove());
+  if (open) return;
+  row.insertAdjacentHTML('afterend', procPanel($('[name=name]', row).value)); row.nextElementSibling._row = row;
+};
+ACTIONS['proc-set'] = b => { const pn = b.closest('.proc-panel'), row = pn._row; $('[name=name]', row).value = b.dataset.v; pn.remove(); const c = $('[name=cost]', row); (c || $('[name=details]', row)).focus(); };
 ACTIONS['tooth-clear'] = b => { const pn = b.closest('.tooth-panel'); $('[name=tooth_no]', pn._row).value = ''; pn.remove(); };
 
 function openVisitModal(v) {

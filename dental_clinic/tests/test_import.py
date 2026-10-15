@@ -67,9 +67,9 @@ class T20_Import(Base):
         self.assertEqual(full['summary']['paid'], (100 + 150 + 100 + 50) * 1000)
         teeth = {p['tooth_no'] for v in full['visits'] for p in v['procedures']}
         self.assertIn('46', teeth); self.assertIn('36', teeth)      # LL6 → 36 ، lr6 → 46
-        multi = [p for v in full['visits'] for p in v['procedures'] if p['name'] == 'ضوئية'][0]
+        multi = [p for v in full['visits'] for p in v['procedures'] if p['name'] == 'حشوة دائمية - ضوئية'][0]
         self.assertEqual(multi['tooth_no'], '11,12,13')            # عدة أسنان لنفس الإجراء
-        self.assertTrue(any(p['name'] == 'ج1' and 'mb=20' in (p['details'] or '') for v in full['visits'] for p in v['procedures']))
+        self.assertTrue(any(p['name'] == 'حشوة جذر (عصب)' and 'mb=20' in (p['details'] or '') and 'ج1' in p['details'] for v in full['visits'] for p in v['procedures']))
         self.assertEqual(len(full['payments']), 4)                  # التسديد دفعة بدون زيارة
         self.assertEqual(sorted(v['visit_date'] for v in full['visits'])[0], '2022-01-25')
         # زينب: تاريخ مقلوب صُحّح إلى 3 تموز، وسن الأطفال lre → 85
@@ -167,6 +167,35 @@ class T20_Import(Base):
         old = {r['doctor']: r for r in self.c.ok('GET', '/api/reports/period?from=2022-01-01&to=2024-12-31')['by_doctor']}
         self.assertEqual(set(old), {'غير محدد'})
         self.assertEqual((old['غير محدد']['executed'], old['غير محدد']['receipts']), (600000, 200000))
+
+    def test_work_types_are_merged(self):
+        """توحيد أنواع العمل المكتوبة بأشكال مختلفة تحت إجراء واحد، مع حفظ المكتوب في التفاصيل"""
+        H = ['اسم المراجع', 'التاريخ', 'نوع العمل', 'رقم السن', 'المدفوع', 'المتبقي']
+        works = {'X ray': 'أشعة', 'xray': 'أشعة', 'اشعه': 'أشعة', 'ج1': 'حشوة جذر (عصب)', 'ج 3': 'حشوة جذر (عصب)', 'indo': 'حشوة جذر (عصب)',
+                 'اندو': 'حشوة جذر (عصب)', 'ازالة خيط': 'معالجة بعد القلع', 'رفع خيط': 'معالجة بعد القلع', 'iregation': 'معالجة بعد القلع',
+                 'Dry socket': 'معالجة بعد القلع', 'plupotic': 'حشوة مؤقتة - اعتيادية', 'tf': 'حشوة مؤقتة - اعتيادية',
+                 'مؤقته': 'حشوة مؤقتة - اعتيادية', 'GIC': 'حشوة مؤقتة - علاجية (GIC)', 'prep': 'جسر أسنان', 'impression': 'جسر أسنان',
+                 're impression': 'جسر أسنان', 'طبعة': 'جسر أسنان', 'تحظير': 'جسر أسنان', 'fixation': 'جسر أسنان', 'تثبيت': 'جسر أسنان',
+                 'amalgam': 'حشوة دائمية - معدنية', 'amlgam': 'حشوة دائمية - معدنية', 'بلاتين': 'حشوة دائمية - معدنية',
+                 'ضوئية': 'حشوة دائمية - ضوئية', 'composite': 'حشوة دائمية - ضوئية', 'composet': 'حشوة دائمية - ضوئية',
+                 'exo': 'قلع سن', 'قلع': 'قلع سن', 'تاج': 'تاج'}
+        rows = [H] + [['مراجع %d' % i, D(2024, 1, 1 + i), w, None, 10, 0] for i, w in enumerate(works)]
+        pre = self.preview(make_xlsx({'2024': rows}))
+        groups = {g['name']: dict(g['variants']) for g in pre['work_merged']}
+        self.assertEqual(groups['جسر أسنان'], {w: 1 for w, n in works.items() if n == 'جسر أسنان'})
+        self.assertNotIn('تاج', groups)
+        self.c.ok('POST', '/api/import/commit', {'token': pre['token']})
+        got = {}
+        ids = {p['full_name']: p['id'] for p in self.c.ok('GET', '/api/patients?limit=500')['patients']}
+        for i, w in enumerate(works):
+            pid = ids['مراجع %d' % i]
+            pr = self.c.ok('GET', '/api/patients/%d' % pid)['visits'][0]['procedures'][0]
+            got[w] = pr['name']
+            if pr['name'] != w and w != 'اشعه':
+                self.assertIn(w, pr['details'])                    # المكتوب الأصلي محفوظ
+        self.assertEqual(got, works)
+        names = {p['name'] for p in self.c.ok('GET', '/api/reports/period?from=2024-01-01&to=2024-12-31')['by_procedure']}
+        self.assertEqual(names, set(works.values()))               # التقرير يجمعها تحت أسماء موحدة
 
     def test_reimport_is_idempotent_and_merges_with_existing(self):
         existing = self.patient('علي حسن', '07700001111')

@@ -174,6 +174,56 @@ def fix_dates(items):
     return fixed
 
 
+# ---- توحيد أنواع العمل المكتوبة في الإكسل تحت أسماء الإجراءات في البرنامج ----
+P_LIGHT, P_METAL = 'حشوة دائمية - ضوئية', 'حشوة دائمية - معدنية'
+T_NORMAL, T_GIC = 'حشوة مؤقتة - اعتيادية', 'حشوة مؤقتة - علاجية (GIC)'
+ROOT_CANAL, AFTER_EXT, EXTRACTION, BRIDGE, XRAY = 'حشوة جذر (عصب)', 'معالجة بعد القلع', 'قلع سن', 'جسر أسنان', 'أشعة'
+SURGICAL_EXT = 'قلع جراحي'
+# (الاسم الموحد، كلمات تُبحث في النص بعد حذف المسافات، كلمات لاتينية قصيرة تُطابق ككلمة كاملة). الترتيب مهم: أول قاعدة تنطبق تفوز.
+WORK_RULES = [
+    (AFTER_EXT, ['ازالة خيط', 'إزالة خيط', 'رفع خيط', 'بعد القلع', 'بعد الخلع', 'dry socket', 'drysocket', 'iregation', 'irrigation', 'irregation', 'irigation'], []),
+    (BRIDGE, ['re impression', 'impression', 'طبعة', 'تحضير', 'تحظير', 'fixation', 'تثبيت', 'جسر'], ['prep']),
+    (ROOT_CANAL, ['اندو', 'indo', 'endo', 'حشوة جذر', 'حشوة عصب'], []),
+    (P_METAL, ['amalgam', 'amlgam', 'amalgum', 'بلاتين'], []),
+    (P_LIGHT, ['ضوئية', 'composite', 'composet', 'composit'], []),
+    (T_GIC, [], ['gic']),
+    (T_NORMAL, ['plupotic', 'pulpotic', 'pulpotomy', 'مؤقتة', 'موقتة'], ['tf']),
+    (XRAY, ['x ray', 'xray', 'اشعة', 'أشعة'], []),
+    (EXTRACTION, ['قلع', 'خلع'], ['exo']),
+]
+_RC_SESSION = re.compile(r'(?:^|[^\u0600-\u06ff])ج\s*([1-4])(?![0-9])')
+
+
+def _compact(s):
+    return re.sub(r'[\s\-_./\\]+', '', norm_ar(s))
+
+
+_WORK_RULES_N = [(name, [_compact(w) for w in words], set(short)) for name, words, short in WORK_RULES]
+
+
+def canonical_work(work):
+    """يعيد (الاسم الموحد، ملاحظة) لنوع العمل المكتوب، أو (الاسم كما هو، None) إن لم تنطبق قاعدة."""
+    t, c = norm_ar(work), _compact(work)
+    tokens = set(re.findall(r'[a-z]+', t))
+    m = _RC_SESSION.search(t)
+    for name, words, short in _WORK_RULES_N:
+        hit = any(w in c for w in words) or bool(tokens & short)
+        if name == ROOT_CANAL and m:
+            hit = True
+        if hit:
+            if name == T_NORMAL and 'علاجي' in t:
+                name = T_GIC
+            if name == EXTRACTION and ('جراح' in t or 'surg' in t):
+                name = SURGICAL_EXT
+            if _compact(name) == c:
+                return name, None
+            note = 'نوع العمل في الإكسل: ' + work
+            if name == ROOT_CANAL and m:
+                note += ' (الجلسة %s)' % m.group(1)
+            return name, note
+    return work, None
+
+
 def doctor_core(name):
     """اسم الطبيب بدون «د.» أو «دكتور» للمطابقة مع اسم الشيت."""
     t = norm_ar(name)
@@ -245,6 +295,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
         raw_rows.extend(items)
     # ---- التحقق وتجهيز السجلات ----
     recs, seen = [], set()
+    work_merged = collections.defaultdict(collections.Counter)
     dup_file, dup_prev = 0, 0
     for it in raw_rows:
         reason = None
@@ -284,6 +335,12 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
             continue
         seen.add(fp)
         details = []
+        raw_work = work
+        if work != UNKNOWN_WORK and not is_payment_work(work):
+            work, wnote = canonical_work(work)
+            if wnote:
+                details.append(wnote)
+                work_merged[work][raw_work] += 1
         tooth_no = None
         if teeth and not bad_tooth:
             tooth_no = ','.join(str(t) for t in teeth)      # سن واحد أو عدة أسنان (U11 → 11,21)
@@ -296,7 +353,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
             details.append(it['notes'])
         recs.append({'sheet': it['sheet'], 'si': it['si'], 'row': it['row'], 'name': it['name'], 'pkey': it['pkey'], 'date': d, 'doctor': it['doctor'],
                      'work': work, 'tooth_no': tooth_no, 'details': '\n'.join(details) or None, 'p': p or 0.0, 'r': r, 'fp': fp,
-                     'is_pay': is_payment_work(work), 'teeth': teeth if not bad_tooth else [], 'tooth_txt': tooth_txt, 'notes_raw': it['notes'], 'date_fixed': bool(it.get('date_fixed')), 'warn': it['warn']})
+                     'is_pay': is_payment_work(raw_work), 'teeth': teeth if not bad_tooth else [], 'tooth_txt': tooth_txt, 'notes_raw': it['notes'], 'date_fixed': bool(it.get('date_fixed')), 'warn': it['warn']})
         for w in it['warn']:
             review.append({'sheet': it['sheet'], 'row': it['row'], 'name': it['name'], 'reason': w, 'severity': 'warn'})
     # ---- دمج الأسماء ----
@@ -370,7 +427,9 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
     for k in ('date_from', 'date_to'):
         summary[k] = summary[k].isoformat() if summary[k] else None
     plan = {'recs': recs, 'display': display, 'first_date': first_date, 'balances': dict(balances)}
-    preview = {'summary': summary, 'merged_names': merged[:150], 'review': review[:5000], 'review_total': len(review),
+    work_groups = sorted(({'name': n, 'rows': sum(v.values()), 'variants': [[w, k] for w, k in v.most_common(30)]} for n, v in work_merged.items()), key=lambda g: -g['rows'])
+    summary['work_merged_rows'] = sum(g['rows'] for g in work_groups)
+    preview = {'summary': summary, 'merged_names': merged[:150], 'work_merged': work_groups, 'review': review[:5000], 'review_total': len(review),
                'top_debtors': [{'name': n, 'remaining': v} for n, v in debtors[:15]],
                'sample': [{'sheet': x['sheet'], 'row': x['row'], 'name': display[x['pkey']], 'date': x['date'].isoformat(), 'work': x['work'],
                            'tooth': x['tooth_no'] or '', 'paid': x['paid_units'], 'charge': x['charge'], 'date_fixed': x['date_fixed'], 'doctor': x['doctor']} for x in recs[:25]]}
