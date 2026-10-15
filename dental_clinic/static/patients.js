@@ -62,8 +62,13 @@ ACTIONS['edit-patient'] = () => formModal({
   onSubmit: async (v, force, m) => { await api('PUT', '/api/patients/' + PT.patient.id, { ...v, force }); m.close(); toast('تم حفظ التعديلات'); reloadPatient(); },
 });
 ACTIONS['del-patient'] = async () => {
-  if (!await confirmBox('سيتم أرشفة ملف المراجع وإخفاؤه من القوائم (يبقى أثره المالي محفوظاً). متابعة؟', { danger: true, ok: 'حذف الملف' })) return;
-  try { await api('DELETE', '/api/patients/' + PT.patient.id, {}); toast('تم حذف الملف'); location.hash = '#/patients'; } catch (e) { toast(e.message, 'err'); }
+  const p = PT.patient;
+  let i; try { i = await api('GET', `/api/patients/${p.id}/delete_info`); } catch (e) { toast(e.message, 'err'); return; }
+  const msg = `سيُحذف المراجع «${p.full_name}» مع سجله كاملاً: ${fmt(i.visits)} زيارة، ${fmt(i.payments)} دفعة (مجموع المدفوع ${fmtMoney(i.paid)})، و${fmt(i.appointments)} موعد.`
+    + (i.remaining ? ` المتبقي عليه ${fmtMoney(i.remaining)} سيُحذف أيضاً.` : '')
+    + ' سيختفي من كل التقارير المالية، بما فيها تقارير الأيام والأشهر السابقة. هل أنت متأكد؟';
+  if (!await confirmBox(msg, { danger: true, ok: 'حذف المراجع وسجله', title: 'حذف ملف المراجع' })) return;
+  try { await api('DELETE', '/api/patients/' + p.id, {}); toast('تم حذف المراجع وسجله المالي'); location.hash = '#/patients'; } catch (e) { toast(e.message, 'err'); }
 };
 
 /* ---- صفحة ملف المراجع ---- */
@@ -79,7 +84,7 @@ async function pagePatient(main, id, tab) {
       <div class="pt-meta">${p.phone ? `<span>${icon('clock', 15)} <bdi>${esc(p.phone)}</bdi></span>` : ''}${age !== '' ? `<span>العمر: <bdi>${age}</bdi></span>` : ''}${p.gender ? `<span>${genderAr(p.gender)}</span>` : ''}${p.doctor ? `<span>الطبيب: <b>${esc(p.doctor)}</b></span>` : ''}<span>أول زيارة: ${dateH(p.first_visit_date)}</span></div>
       ${p.notes ? `<p class="pt-notes">${nl2br(p.notes)}</p>` : ''}</div>
     <div class="pt-actions">
-      ${money ? `<button type="button" class="btn primary lg" data-action="new-payment">${icon('wallet', 18)} تسجيل دفعة جديدة</button>` : ''}
+      ${money ? `<button type="button" class="btn primary lg" data-action="new-payment">${icon('wallet', 18)} تسجيل دفعة جديدة</button><button type="button" class="btn lg" data-action="receipts">${icon('print', 18)} طباعة وصل</button>` : ''}
       <button type="button" class="btn lg" data-action="new-visit">${icon('plus', 18)} زيارة جديدة</button>
       <div class="more">
         <button type="button" class="btn sm" data-action="edit-patient">${icon('edit', 15)} تعديل البيانات</button>
@@ -201,19 +206,23 @@ function openPaymentModal(kind) {
       m.close();
       if (r.duplicate) toast('هذه الدفعة سُجّلت سابقاً ولم تُكرَّر', 'warn'); else toast(isRef ? 'تم تسجيل المبلغ المسترد' : 'تم تسجيل الدفعة');
       await reloadPatient();
-      paymentDone(r.payment);
     },
   });
   setTimeout(() => { const a = $('.overlay [name=amount]'); if (a) a.focus(); }, 30);
 }
 ACTIONS['new-payment'] = () => openPaymentModal('payment');
 ACTIONS['new-refund'] = () => openPaymentModal('refund');
-ACTIONS['fill-remaining'] = b => { const i = $('.overlay [name=amount]'); i.value = fmt(b.dataset.v); i.focus(); };
-function paymentDone(pay) {
-  const m = modal({ title: pay.kind === 'refund' ? 'تم تسجيل المبلغ المسترد' : 'تم تسجيل الدفعة', cls: 'small', body: `<p class="confirm-msg ok-msg">${icon('check', 22)} ${moneyH(pay.amount)} — إيصال رقم <bdi>${pay.id}</bdi></p>`,
-    footer: `<button type="button" class="btn primary" data-yes>${icon('print', 16)} طباعة إيصال</button><button type="button" class="btn" data-close>إغلاق</button>` });
-  $('[data-yes]', m.el).onclick = () => { m.close(); printReceipt(pay.id); };
-}
+ACTIONS['fill-remaining'] = b => { const i = $('.overlay [name=amount]'); i.value = moneyIn(+b.dataset.v); i.dispatchEvent(new Event('input')); i.focus(); };
+/* طباعة وصل: قائمة بكل دفعات المراجع، ويختار المستخدم الدفعة التي يريد طباعة وصلها */
+ACTIONS['receipts'] = () => {
+  const pays = (PT.payments || []).slice().sort((a, b) => b.pay_date.localeCompare(a.pay_date) || b.id - a.id);
+  const body = pays.length ? `<p class="muted small">اختر الدفعة التي تريد طباعة وصلها.</p>` + simpleTable(['رقم الوصل', 'التاريخ', 'النوع', 'المبلغ', 'الطريقة', ''],
+    pays.map(r => [`<bdi class="num">${r.id}</bdi>`, dateH(r.pay_date), r.kind === 'refund' ? 'مسترد' : 'دفعة', moneyH(r.amount), METH[r.method],
+      `<button type="button" class="btn sm primary" data-action="receipt-print" data-id="${r.id}">${icon('print', 14)} طباعة</button>`]))
+    : '<p class="muted">لا توجد دفعات مسجلة لهذا المراجع.</p>';
+  modal({ title: 'طباعة وصل — ' + PT.patient.full_name, body, wide: true, footer: '<button type="button" class="btn" data-close>إغلاق</button>' });
+};
+ACTIONS['receipt-print'] = b => { b.closest('.overlay').remove(); printReceipt(b.dataset.id); };
 ACTIONS['edit-payment'] = b => {
   const pay = PT.payments.find(x => x.id == b.dataset.id);
   formModal({ title: 'تعديل الدفعة رقم ' + pay.id, fields: [

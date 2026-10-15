@@ -281,15 +281,37 @@ def patient_update(c, pid):
     return {'patient': public_patient(get_patient(c.db, pid))}
 
 
+def patient_delete_info(db, pid):
+    one = lambda sql: db.execute(sql, (pid,)).fetchone()[0] or 0
+    return {'visits': one('SELECT COUNT(*) FROM visits WHERE patient_id=? AND deleted=0'),
+            'payments': one('SELECT COUNT(*) FROM payments WHERE patient_id=? AND deleted=0'),
+            'paid': one("SELECT SUM(amount) FROM payments WHERE patient_id=? AND deleted=0 AND kind='payment'"),
+            'appointments': one('SELECT COUNT(*) FROM appointments WHERE patient_id=? AND deleted=0'),
+            'remaining': balance(db, pid)['remaining']}
+
+
 @route('DELETE', r'/api/patients/(\d+)', perm='delete')
 def patient_delete(c, pid):
+    """حذف المراجع مع سجله كاملاً (الزيارات، الإجراءات، الدفعات، الخصومات، المواعيد) فيختفي من كل التقارير.
+    السجلات تُعلَّم محذوفة ولا تُمسح من قاعدة البيانات، ويُحفظ ملخص ما حُذف في سجل التدقيق."""
     old = get_patient(c.db, pid)
-    bal = balance(c.db, pid)
-    if bal['remaining'] != 0:
-        raise ApiError('لا يمكن حذف مراجع لديه رصيد غير مسدد أو رصيد دائن. سوِّ حسابه أولاً')
-    c.db.execute('UPDATE patients SET deleted=1, updated_at=? WHERE id=?', (now_iso(), pid))
-    audit(c.db, c.user['username'], 'patient', pid, 'delete', public_patient(old), None, c.body.get('reason'))
-    return {'ok': True}
+    info = patient_delete_info(c.db, pid)
+    now = now_iso()
+    reason = v_text(c.body, 'reason', 'السبب', maxlen=300) or 'حذف ملف المراجع'
+    c.db.execute('UPDATE procedures SET deleted=1, updated_at=? WHERE patient_id=? AND deleted=0', (now, pid))
+    c.db.execute('UPDATE visits SET deleted=1, updated_at=? WHERE patient_id=? AND deleted=0', (now, pid))
+    c.db.execute('UPDATE payments SET deleted=1, void_reason=? WHERE patient_id=? AND deleted=0', ('حُذف مع ملف المراجع: ' + reason, pid))
+    c.db.execute('UPDATE adjustments SET deleted=1 WHERE patient_id=? AND deleted=0', (pid,))
+    c.db.execute('UPDATE appointments SET deleted=1, updated_at=? WHERE patient_id=? AND deleted=0', (now, pid))
+    c.db.execute('UPDATE patients SET deleted=1, updated_at=? WHERE id=?', (now, pid))
+    audit(c.db, c.user['username'], 'patient', pid, 'delete', {**public_patient(old), 'deleted_records': info}, None, reason)
+    return {'ok': True, 'deleted': info}
+
+
+@route('GET', r'/api/patients/(\d+)/delete_info', perm='delete', tx=False)
+def patient_delete_preview(c, pid):
+    get_patient(c.db, pid)
+    return patient_delete_info(c.db, pid)
 
 
 def visit_with_procs(db, vrow):

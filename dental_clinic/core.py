@@ -95,6 +95,7 @@ DEFAULT_SETTINGS = {
     'clinic_name': 'عيادة الأسنان', 'clinic_phone': '', 'clinic_address': '',
     'currency_code': 'IQD', 'currency_label': 'دينار عراقي', 'currency_symbol': 'د.ع',
     'idle_minutes': '15', 'doctors': '[]', 'receipt_footer': 'شكراً لزيارتكم',
+    'money_thousands': '1',   # إدخال المبالغ بالألف في الواجهة: 25 تعني 25,000 (التخزين دائماً بالمبلغ الكامل)
 }
 PUBLIC_SETTING_KEYS = list(DEFAULT_SETTINGS.keys())
 

@@ -34,17 +34,22 @@ with sync_playwright() as pw:
     p.click('.pt-actions [data-action=new-visit]'); p.wait_for_selector('.vform')
     rows = p.locator('.prow'); rows.nth(0).locator('[name=name]').fill('زراعة سن'); rows.nth(0).locator('[data-action=tooth-pick]').click(); p.wait_for_selector('.tooth-panel'); shot(p, '06_visit_modal_tooth')
     p.click('.tooth-panel [data-t="36"]'); assert rows.nth(0).locator('[name=tooth_no]').input_value() == '36'
-    rows.nth(0).locator('[name=status]').select_option('in_progress'); rows.nth(0).locator('[name=cost]').fill('500000'); assert rows.nth(0).locator('[name=cost]').input_value() == '500,000'
-    p.click('[data-action=add-proc]'); rows.nth(1).locator('[name=name]').fill('فحص وتشخيص'); rows.nth(1).locator('[name=cost]').fill('١٥٠٠٠')
+    rows.nth(0).locator('[name=status]').select_option('in_progress'); rows.nth(0).locator('[name=cost]').fill('500'); assert rows.nth(0).locator('[name=cost]').input_value() == '500'   # بالألف: 500 = 500,000
+    p.click('[data-action=add-proc]'); rows.nth(1).locator('[name=name]').fill('فحص وتشخيص'); rows.nth(1).locator('[name=cost]').fill('١٥')
     p.fill('[name=notes]', 'ملاحظة سريرية تجريبية'); p.wait_for_timeout(100); assert '515,000' in p.inner_text('.proc-total'), p.inner_text('.proc-total')
     p.click('[data-save]'); p.wait_for_selector('.visit'); assert '515,000' in p.inner_text('.strip'), p.inner_text('.strip')
     # دفعتان
-    for amt in ('150000', '100000'):
-        p.click('.pt-actions [data-action=new-payment]'); p.wait_for_selector('[name=amount]'); p.fill('[name=amount]', amt); p.click('[data-save]')
-        p.wait_for_selector('.ok-msg'); 
-        if amt == '150000': shot(p, '07_payment_done')
-        p.click('.dialog [data-close]:not(.x)')
+    for amt in ('150', '100'):     # بالألف، ولا تظهر نافذة طباعة بعد الدفعة
+        p.click('.pt-actions [data-action=new-payment]'); p.wait_for_selector('[name=amount]'); p.fill('[name=amount]', amt)
+        assert p.inner_text('.money-hint') == '= %s,000 د.ع' % amt, p.inner_text('.money-hint')
+        if amt == '150': shot(p, '07_payment_modal')
+        p.click('[data-save]'); p.wait_for_selector('.overlay', state='detached'); p.wait_for_timeout(300)
     s = p.inner_text('.strip'); assert '250,000' in s and '265,000' in s, s; shot(p, '08_patient_after_payments')
+    # زر «طباعة وصل»: قائمة بكل الدفعات واختيار واحدة
+    p.click('.pt-actions [data-action=receipts]'); p.wait_for_selector('.dialog [data-action=receipt-print]')
+    assert p.locator('.dialog [data-action=receipt-print]').count() == 2; shot(p, '08b_receipts')
+    p.evaluate("window.print = () => {}"); p.click('.dialog [data-action=receipt-print] >> nth=1'); p.wait_for_timeout(200)
+    assert 'إيصال قبض' in p.inner_text('#printRoot') and '150,000' in p.inner_text('#printRoot'); p.evaluate("window.dispatchEvent(new Event('afterprint'))")
     p.click('[data-tab=fin]'); p.wait_for_selector('#payTbl table'); shot(p, '09_financial_tab')
     # طباعة كشف الحساب (التحقق من محتوى منطقة الطباعة)
     p.evaluate("window.print = () => {}"); p.click('[data-action=print-statement]'); p.wait_for_timeout(200)
@@ -67,7 +72,7 @@ with sync_playwright() as pw:
     p.goto(base + '#/reports/yearly'); p.wait_for_selector('.chart'); shot(p, '12_report_yearly')
     p.goto(base + '#/reports/dues'); p.wait_for_selector('.stats'); p.goto(base + '#/reports/debtors'); p.wait_for_selector('#dtb table'); shot(p, '13_debtors')
     # مصروف
-    p.goto(base + '#/expenses'); p.wait_for_selector('#eb .stats'); p.click('[data-action=new-exp]'); p.fill('[name=amount]', '50000'); p.fill('[name=description]', 'مواد'); p.click('[data-save]'); p.wait_for_selector('#etb table'); p.wait_for_timeout(300)
+    p.goto(base + '#/expenses'); p.wait_for_selector('#eb .stats'); p.click('[data-action=new-exp]'); p.fill('[name=amount]', '50'); p.fill('[name=description]', 'مواد'); p.click('[data-save]'); p.wait_for_selector('#etb table'); p.wait_for_timeout(300)
     assert '50,000' in p.inner_text('#eb'); shot(p, '14_expenses')
     # مواعيد + بحث حسب التاريخ
     p.goto(base + '#/appointments'); p.wait_for_selector('#apl'); p.click('[data-action=appt-mode][data-m=week]'); p.wait_for_selector('.card.day'); shot(p, '15_appointments_week')

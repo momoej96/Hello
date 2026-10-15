@@ -88,6 +88,8 @@ def settings_put(c):
         raise ApiError('قائمة الأطباء غير صحيحة')
     new['doctors'] = json.dumps([str(x).strip()[:100] for x in docs if str(x).strip()], ensure_ascii=False)
     old = get_settings(c.db)
+    if 'money_thousands' in b:
+        new['money_thousands'] = '1' if str(b.get('money_thousands')) in ('1', 'true', 'True') else '0'
     for k, v in new.items():
         c.db.execute('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', (k, v))
     audit(c.db, c.user['username'], 'settings', None, 'update', {k: old.get(k) for k in new}, new)

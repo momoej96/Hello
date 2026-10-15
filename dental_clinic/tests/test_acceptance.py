@@ -362,6 +362,37 @@ class T08_Integrity(Base):
         upd = [r for r in self.c.ok('GET', '/api/audit?entity=payment&entity_id=%d' % pay2['id'])['rows'] if r['action'] == 'update'][0]
         self.assertIn('30000', upd['old_json']); self.assertIn('35000', upd['new_json'])
 
+    def test_delete_patient_with_financial_record(self):
+        """حذف المراجع يحذف زياراته ودفعاته وخصوماته ومواعيده، فيختفي من التقارير، والأثر في سجل التدقيق"""
+        keep = self.patient('مراجع باقٍ', '07709999999')
+        self.visit(keep['id'], '2025-05-02', [{'name': 'تنظيف', 'cost': 40000}])
+        self.pay(keep['id'], '2025-05-02', 40000)
+        p = self.patient()
+        self.visit(p['id'], '2025-05-01', [{'name': 'تاج', 'cost': 300000}], next_appointment='2099-01-01')
+        self.pay(p['id'], '2025-05-01', 100000)
+        self.c.ok('POST', '/api/patients/%d/adjustments' % p['id'], {'adj_date': '2025-05-01', 'amount': 20000, 'kind': 'discount', 'notes': 'خصم'})
+        info = self.c.ok('GET', '/api/patients/%d/delete_info' % p['id'])
+        self.assertEqual((info['visits'], info['payments'], info['paid'], info['remaining']), (1, 1, 100000, 180000))
+        r = self.c.ok('DELETE', '/api/patients/%d' % p['id'], {})          # يُحذف رغم وجود مبلغ متبقٍ
+        self.assertEqual(r['deleted']['payments'], 1)
+        self.assertEqual(self.c.call('GET', '/api/patients/%d' % p['id'])[0], 404)
+        st = self.c.ok('GET', '/api/reports/period?from=2025-05-01&to=2025-05-31')['stats']
+        self.assertEqual((st['receipts'], st['agreed_value'], st['discounts'], st['visits_count']), (40000, 40000, 0, 1))
+        self.assertEqual(self.c.ok('GET', '/api/reports/debtors')['total_dues'], 0)
+        self.assertEqual(self.c.ok('GET', '/api/dashboard')['total_dues'], 0)
+        self.assertEqual(len(self.c.ok('GET', '/api/appointments?from=2099-01-01&to=2099-01-31')['appointments']), 0)
+        self.assertEqual(self.summary(keep['id'])['remaining'], 0)           # المراجع الآخر لم يتأثر
+        aud = self.c.ok('GET', '/api/audit?entity=patient&entity_id=%d' % p['id'])['rows']
+        d = [x for x in aud if x['action'] == 'delete'][0]
+        self.assertIn('deleted_records', d['old_json'])
+        db = sqlite3.connect(os.path.join(self.tmp, 'clinic.db'))      # السجلات معلَّمة محذوفة وليست ممسوحة
+        self.assertEqual(db.execute('select count(*), sum(deleted) from payments where patient_id=?', (p['id'],)).fetchone(), (1, 1))
+        db.close()
+        # المستخدم غير المدير لا يستطيع الحذف
+        self.c.ok('POST', '/api/users', {'username': 'rec7', 'password': PW, 'role': 'reception'})
+        rec = Client(self.srv.server_address[1]); rec.login('rec7')
+        self.assertEqual(rec.call('DELETE', '/api/patients/%d' % keep['id'], {})[0], 403)
+
     def test_validation(self):
         p = self.patient()
         pid = p['id']

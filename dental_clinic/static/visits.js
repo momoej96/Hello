@@ -17,7 +17,7 @@ function procRowHTML(p = {}) {
     <div class="tooth-in"><input name="name" list="dl-procs" placeholder="الإجراء أو العلاج" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div>
     <div class="tooth-in"><input name="tooth_no" placeholder="السن" value="${esc(teethOf(p.tooth_no).join(', '))}" dir="ltr" title="سن واحد أو أكثر، مثل: 11, 21"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div>
     <select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    ${money ? `<input name="cost" data-money inputmode="numeric" placeholder="التكلفة" value="${p.cost ? fmt(p.cost) : ''}" autocomplete="off">` : ''}
+    ${money ? `<input name="cost" data-money inputmode="decimal" placeholder="التكلفة${MONEY_UNIT()}" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off">` : ''}
     <input name="details" class="pdet" placeholder="تفاصيل العلاج" value="${esc(p.details || '')}">
     <button type="button" class="btn sm danger-o" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button></div>`;
 }
@@ -69,7 +69,7 @@ function openVisitModal(v) {
       <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${docField || f('doctor', 'الطبيب', v.doctor)}</div>
       <h4 class="sec">الإجراءات العلاجية</h4>
-      <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? '<span>التكلفة</span>' : ''}<span>تفاصيل</span><span></span></div>
+      <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? `<span>التكلفة${MONEY_UNIT()}</span>` : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
       <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
       ${money ? '<p class="muted small">الإجراء «مخطط له» لا يدخل في المبلغ المستحق على المراجع حتى تغيّر حالته إلى «قيد التنفيذ» أو «مكتمل».</p>' : ''}

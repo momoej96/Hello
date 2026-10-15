@@ -70,7 +70,19 @@ const cur = () => S.settings.currency_symbol || '';
 const fmtMoney = n => `${fmt(n)} ${cur()}`.trim();
 const moneyH = (n, cls = '') => `<bdi class="num ${cls}">${fmt(n)}</bdi> <small class="cur">${esc(cur())}</small>`;
 const dateH = d => d ? `<bdi class="num">${esc(d)}</bdi>` : '<span class="muted">—</span>';
-const parseMoney = s => { const t = toLatin(s).replace(/[^\d]/g, ''); return t === '' ? '' : Number(t); };
+/* إدخال المبالغ: في وضع «بالألف» يكتب المستخدم 25 فتُسجَّل 25,000 (و2.5 تعني 2,500). التخزين والعرض دائماً بالمبلغ الكامل. */
+const kMode = () => S.settings.money_thousands !== '0';
+const MONEY_UNIT = () => kMode() ? ' (بالألف)' : '';
+const parseMoney = s => {
+  let t = toLatin(s).replace(/[٫]/g, '.').replace(/[^\d.]/g, '');
+  if (!kMode()) t = t.replace(/\./g, '');
+  if (t === '' || t === '.') return '';
+  const n = Number(t.replace(/(\..*)\./g, '$1'));
+  return kMode() ? Math.round(n * 1000) : n;
+};
+/* قيمة الحقل كما يراها المستخدم لمبلغ مخزَّن (25000 ← «25» في وضع الألف) */
+const moneyIn = v => v === '' || v == null ? '' : kMode() ? fmtK(v / 1000) : fmt(v);
+const fmtK = x => { const [i, d] = String(+x.toFixed(3)).split('.'); return fmt(i) + (d ? '.' + d : ''); };
 const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'k' + Date.now() + Math.random().toString(16).slice(2);
 const normQ = s => toLatin(String(s).toLowerCase()).replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
 const nl2br = s => esc(s).replace(/\n/g, '<br>');
@@ -150,9 +162,9 @@ function fieldHTML(f, v) {
   let input;
   if (f.type === 'select') input = `<select id="${id}" name="${f.name}">${f.options.map(o => `<option value="${esc(o.v)}" ${String(o.v) === String(v ?? '') ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`;
   else if (f.type === 'textarea') input = `<textarea id="${id}" name="${f.name}" rows="${f.rows || 3}">${esc(v ?? '')}</textarea>`;
-  else if (f.type === 'money') input = `<input id="${id}" name="${f.name}" inputmode="numeric" data-money autocomplete="off" value="${v !== '' && v != null ? fmt(v) : ''}"${req} placeholder="${f.placeholder || ''}">`;
+  else if (f.type === 'money') input = `<input id="${id}" name="${f.name}" inputmode="decimal" data-money autocomplete="off" value="${moneyIn(v)}"${req} placeholder="${f.placeholder || (kMode() ? 'مثال: 25 = 25,000' : '')}">`;
   else input = `<input id="${id}" name="${f.name}" type="${f.type || 'text'}" ${f.list ? `list="${f.list}"` : ''} value="${esc(v ?? '')}" ${f.type === 'tel' ? 'inputmode="tel" dir="ltr"' : ''} autocomplete="off"${req}>`;
-  return `<label class="fld ${f.cls || ''}"><span>${esc(f.label)}${f.required ? ' <b>*</b>' : ''}</span>${input}${f.hint ? `<em>${f.hint}</em>` : ''}</label>`;
+  return `<label class="fld ${f.cls || ''}"><span>${esc(f.label)}${f.type === 'money' ? MONEY_UNIT() : ''}${f.required ? ' <b>*</b>' : ''}</span>${input}${f.type === 'money' ? '<em class="money-hint"></em>' : ''}${f.hint ? `<em>${f.hint}</em>` : ''}</label>`;
 }
 function readForm(root, fields) {
   const o = {};
@@ -165,7 +177,16 @@ function readForm(root, fields) {
 function attachMoneyInputs(root) {
   $$('[data-money]', root).forEach(el => {
     if (el._m) return; el._m = 1;
-    el.addEventListener('input', () => { const n = parseMoney(el.value); el.value = n === '' ? '' : fmt(n); });
+    const hint = el.parentElement && el.parentElement.querySelector('.money-hint');
+    const show = () => { if (hint) { const n = parseMoney(el.value); hint.textContent = kMode() && n !== '' ? '= ' + fmtMoney(n) : ''; } };
+    el.addEventListener('input', () => {
+      if (kMode()) {   // نسمح بالكسر العشري (2.5 = 2,500) ونضع فواصل الآلاف للجزء الصحيح
+        const raw = toLatin(el.value).replace(/[٫]/g, '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+        const [i, d] = raw.split('.'); el.value = raw === '' ? '' : (i ? fmt(i) : '0') + (d !== undefined ? '.' + d.slice(0, 3) : '');
+      } else { const n = parseMoney(el.value); el.value = n === '' ? '' : fmt(n); }
+      show();
+    });
+    show();
   });
 }
 

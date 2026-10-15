@@ -16,11 +16,12 @@ async function stClinic(host) {
   host.innerHTML = `<section class="card"><form id="cf" class="form-grid c2" novalidate>
     ${['clinic_name|اسم العيادة (يظهر في رأس التقارير)|full', 'clinic_phone|هاتف العيادة|', 'clinic_address|العنوان|', 'currency_label|اسم العملة|', 'currency_symbol|رمز العملة المعروض|', 'currency_code|رمز العملة (ISO)|', 'receipt_footer|عبارة أسفل الإيصالات والتقارير|full'].map(x => { const [n, l, c] = x.split('|'); return `<label class="fld ${c}"><span>${l}</span><input name="${n}" value="${esc(s[n])}" autocomplete="off"></label>`; }).join('')}
     <label class="fld"><span>القفل التلقائي بعد (دقائق من عدم الاستخدام، 0 = معطّل)</span><input name="idle_minutes" inputmode="numeric" value="${esc(s.idle_minutes)}"></label>
+    <label class="fld"><span>طريقة كتابة المبالغ</span><select name="money_thousands"><option value="1" ${s.money_thousands !== '0' ? 'selected' : ''}>بالألف: أكتب 25 فتُسجَّل 25,000</option><option value="0" ${s.money_thousands === '0' ? 'selected' : ''}>كاملة: أكتب 25000 فتُسجَّل 25,000</option></select></label>
     <label class="fld full"><span>أسماء الأطباء (اسم في كل سطر — تظهر كقائمة اختيار عند إضافة مراجع أو زيارة، وفي تقرير عمل الأطباء)</span><textarea name="doctors" rows="3">${esc(docs.join('\n'))}</textarea></label>
     <div class="form-err" role="alert"></div><div class="full"><button type="submit" class="btn primary">حفظ الإعدادات</button></div></form></section>`;
   $('#cf').onsubmit = async e => {
     e.preventDefault();
-    const f = e.target, body = {}; $$('input,textarea', f).forEach(i => body[i.name] = i.value.trim());
+    const f = e.target, body = {}; $$('input,textarea,select', f).forEach(i => body[i.name] = i.value.trim());
     body.doctors = body.doctors.split('\n'); body.idle_minutes = parseInt(toLatin(body.idle_minutes), 10);
     try { const r = await api('PUT', '/api/settings', body); Object.assign(S.settings, r.settings); renderSide(); toast('تم حفظ الإعدادات'); } catch (er) { $('.form-err', f).textContent = er.message; }
   };
