@@ -255,12 +255,22 @@ def v_choice(b, key, label, choices, default=None):
 
 
 def v_tooth(v):
-    if v in (None, ''):
+    """سن واحد أو عدة أسنان لنفس الإجراء (مثل «11، 21» أو قائمة). تُحفظ مفصولة بفواصل: «11,21»."""
+    if v in (None, '') or v == []:
         return None
-    s = str(v).translate(AR_DIGITS).strip()
-    if not s.isdigit() or int(s) not in FDI:
-        raise ApiError('رقم السن غير صحيح (نظام FDI): ' + str(v))
-    return s
+    parts = v if isinstance(v, list) else re.split(r'[\s,،؛;+/\-]+', str(v).translate(AR_DIGITS))
+    teeth = []
+    for t in parts:
+        t = str(t).translate(AR_DIGITS).strip()
+        if not t:
+            continue
+        if not t.isdigit() or int(t) not in FDI:
+            raise ApiError('رقم السن غير صحيح (نظام FDI): ' + t)
+        if t not in teeth:
+            teeth.append(t)
+    if len(teeth) > 32:
+        raise ApiError('عدد الأسنان كبير جداً لإجراء واحد')
+    return ','.join(teeth) or None
 
 
 # ---------- الحسابات المالية ----------

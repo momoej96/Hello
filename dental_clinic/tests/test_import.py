@@ -68,7 +68,7 @@ class T20_Import(Base):
         teeth = {p['tooth_no'] for v in full['visits'] for p in v['procedures']}
         self.assertIn('46', teeth); self.assertIn('36', teeth)      # LL6 → 36 ، lr6 → 46
         multi = [p for v in full['visits'] for p in v['procedures'] if p['name'] == 'ضوئية'][0]
-        self.assertIsNone(multi['tooth_no']); self.assertIn('11، 12، 13', multi['details'])
+        self.assertEqual(multi['tooth_no'], '11,12,13')            # عدة أسنان لنفس الإجراء
         self.assertTrue(any(p['name'] == 'ج1' and 'mb=20' in (p['details'] or '') for v in full['visits'] for p in v['procedures']))
         self.assertEqual(len(full['payments']), 4)                  # التسديد دفعة بدون زيارة
         self.assertEqual(sorted(v['visit_date'] for v in full['visits'])[0], '2022-01-25')
@@ -79,6 +79,7 @@ class T20_Import(Base):
         self.assertNotIn('2022-03-07', [v['visit_date'] for v in zf['visits']])
         self.assertIn('2022-07-05', [v['visit_date'] for v in zf['visits']])
         self.assertIn('85', {p['tooth_no'] for v in zf['visits'] for p in v['procedures']})
+        self.assertIn('11,21', {p['tooth_no'] for v in zf['visits'] for p in v['procedures']})   # u11 → 11 و 21
         self.assertEqual(zf['summary']['remaining'], 0)
         # اسم يبدأ بـ «اسم» استُورد كمراجع، وسن غير مفهوم حُفظ نصاً
         a = self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('اسماء'))['patients'][0]
@@ -88,6 +89,43 @@ class T20_Import(Base):
         rep = self.c.ok('GET', '/api/reports/period?from=2022-01-01&to=2023-12-31')['stats']
         self.assertEqual(rep['receipts'], s['total_paid'])
         self.assertEqual(self.c.ok('GET', '/api/audit?entity=import')['rows'][0]['action'], 'import')
+
+    def test_bill_rows_reduce_balance_and_upper_lower_teeth(self):
+        """صفوف «bill» و«تسديد» تُطرح من حساب المراجع، وU11/L66 تُفهم كعدة أسنان"""
+        rows = [HDR1,
+                ['حيدر كاظم', '2/3', 'تاج', 'U11', 100, 400, None, None],     # تكلفة 500، متبقي 400
+                ['حيدر كاظم', '9/3', 'bill', None, 150, None, None, None],     # يُطرح → 250
+                ['حيدر كاظم', '16/3', 'Bill', None, 200, None, None, None],    # يُطرح → 50
+                ['حيدر كاظم', '20/3', 'تسديد', None, 50, None, None, None],    # يُطرح → 0
+                ['حيدر كاظم', '25/3', 'حشوة', 'L66', 60, 0, None, None],       # عمل جديد مدفوع بالكامل
+                ['حيدر كاظم', '26/3', 'billing', None, 10, None, None, None]]   # ليس تسديداً: عمل جديد
+        pre = self.preview(make_xlsx({'2024': rows}))
+        s = pre['summary']
+        self.assertEqual((s['payment_rows'], s['payment_rows_total']), (3, 400000))
+        self.assertEqual(s['outstanding_total'], 0)
+        self.c.ok('POST', '/api/import/commit', {'token': pre['token']})
+        pid = self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('حيدر'))['patients'][0]['id']
+        full = self.c.ok('GET', '/api/patients/%d' % pid)
+        self.assertEqual(full['summary']['remaining'], 0)
+        self.assertEqual(full['summary']['total_cost'], (500 + 60 + 10) * 1000)    # التسديدات لم تُحسب أعمالاً
+        self.assertEqual(full['summary']['paid'], (100 + 150 + 200 + 50 + 60 + 10) * 1000)
+        names = sorted(p['name'] for v in full['visits'] for p in v['procedures'])
+        self.assertEqual(names, ['billing', 'تاج', 'حشوة'])
+        teeth = {p['name']: p['tooth_no'] for v in full['visits'] for p in v['procedures']}
+        self.assertEqual((teeth['تاج'], teeth['حشوة']), ('11,21', '46,36'))
+
+    def test_visit_with_several_teeth(self):
+        """اختيار أكثر من سن لنفس الإجراء داخل الزيارة"""
+        p = self.patient()
+        v = self.visit(p['id'], '2025-02-01', [{'name': 'تبييض', 'tooth_no': '11, 21 ،22', 'cost': 90000},
+                                               {'name': 'خلع', 'tooth_no': ['48', '38'], 'cost': 40000},
+                                               {'name': 'حشوة', 'tooth_no': '١٦', 'cost': 30000}])['visit']
+        self.assertEqual([x['tooth_no'] for x in v['procedures']], ['11,21,22', '48,38', '16'])
+        s, d = self.c.call('POST', '/api/patients/%d/visits' % p['id'], {'visit_date': '2025-02-02', 'procedures': [{'name': 'x', 'tooth_no': '11,19'}]})
+        self.assertEqual(s, 400); self.assertIn('19', d['error'])
+        proc = v['procedures'][0]
+        self.c.ok('PUT', '/api/procedures/%d' % proc['id'], {'tooth_no': '11'})
+        self.assertEqual(self.c.ok('GET', '/api/patients/%d' % p['id'])['visits'][0]['procedures'][0]['tooth_no'], '11')
 
     def test_reimport_is_idempotent_and_merges_with_existing(self):
         existing = self.patient('علي حسن', '07700001111')

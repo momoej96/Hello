@@ -7,6 +7,9 @@ const S = { user: null, perms: [], settings: {}, demo: false, cats: [] };
 const can = p => S.perms.includes('*') || S.perms.includes(p);
 const ACTIONS = {}, CHANGES = {};
 /* أسماء الأطباء من الإعدادات، وخيارات قائمة اختيار الطبيب (مع إبقاء القيمة الحالية إن لم تعد في القائمة) */
+/* عرض سن أو عدة أسنان مخزنة بصيغة «11,21» */
+const teethTags = s => String(s || '').split(',').filter(Boolean).map(t => `<span class="tooth-tag">${esc(t)}</span>`).join(' ');
+const teethText = s => String(s || '').split(',').filter(Boolean).join('، ');
 const doctorList = () => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } };
 const doctorOptions = cur => { const l = doctorList(); if (cur && !l.includes(cur)) l.push(cur); return [{ v: '', t: '— اختر الطبيب —' }].concat(l.map(x => ({ v: x, t: x }))); };
 let RPT = null; // التقرير الحالي (للطباعة والتصدير)

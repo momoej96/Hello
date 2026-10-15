@@ -121,7 +121,7 @@ function drawPatientTab() {
 function visitCard(v, withActions = true) {
   const cp = v.procedures.find(x => x.status !== 'cancelled' && careKind(x.name));
   const procs = v.procedures.length ? `<div class="tbl-wrap"><table class="tbl compact"><thead><tr><th>السن</th><th>الإجراء</th><th>الحالة</th><th>التكلفة</th></tr></thead><tbody>${v.procedures.map(x => `<tr class="${x.status === 'cancelled' ? 'cancelled' : ''}">
-    <td>${x.tooth_no ? `<span class="tooth-tag">${x.tooth_no}</span>` : '<span class="muted">—</span>'}</td>
+    <td>${x.tooth_no ? teethTags(x.tooth_no) : '<span class="muted">—</span>'}</td>
     <td><b>${esc(x.name)}</b>${x.details ? `<div class="muted small">${nl2br(x.details)}</div>` : ''}</td>
     <td>${withActions && can('visits') ? `<select class="st-sel b-${x.status}" data-change="proc-status" data-id="${x.id}">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${k === x.status ? 'selected' : ''}>${t}</option>`).join('')}</select>` : badge(PROC_ST, x.status)}</td>
     <td>${can('payments') ? moneyH(x.cost) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">لا توجد إجراءات مسجلة في هذه الزيارة.</p>';
@@ -166,7 +166,7 @@ function drawFinTab(host) {
     <button type="button" class="btn" data-action="print-statement">${icon('print', 16)} طباعة كشف حساب المراجع</button></div>
   <section class="card"><h3>الدفعات</h3><div id="payTbl"></div></section>
   <section class="card"><h3>الخصومات والتعديلات المالية</h3>${simpleTable(['التاريخ', 'النوع', 'المبلغ', 'السبب', ''], adjustments.map(a => [dateH(a.adj_date), a.kind === 'discount' ? 'خصم' : 'تعديل مدين (زيادة)', moneyH(a.amount), esc(a.notes), can('finance_edit') ? `<button type="button" class="btn sm danger-o" data-action="del-adj" data-id="${a.id}">${icon('trash', 14)}</button>` : '']))}</section>
-  <section class="card"><h3>تفصيل التكاليف</h3>${simpleTable(['التاريخ', 'السن', 'الإجراء', 'الحالة', 'التكلفة', 'محتسبة؟'], costRows().map(x => [dateH(x.date), x.tooth_no || '—', esc(x.name), badge(PROC_ST, x.status), moneyH(x.cost), x.status === 'planned' ? '<span class="muted">لا (مخطط له)</span>' : x.status === 'cancelled' ? '<span class="muted">لا (ملغى)</span>' : 'نعم']))}</section>`;
+  <section class="card"><h3>تفصيل التكاليف</h3>${simpleTable(['التاريخ', 'السن', 'الإجراء', 'الحالة', 'التكلفة', 'محتسبة؟'], costRows().map(x => [dateH(x.date), x.tooth_no ? teethTags(x.tooth_no) : '—', esc(x.name), badge(PROC_ST, x.status), moneyH(x.cost), x.status === 'planned' ? '<span class="muted">لا (مخطط له)</span>' : x.status === 'cancelled' ? '<span class="muted">لا (ملغى)</span>' : 'نعم']))}</section>`;
   dataTable($('#payTbl', host), {
     search: false, empty: 'لا توجد دفعات مسجلة بعد.',
     cols: [
@@ -256,7 +256,7 @@ function patientInfoHTML() {
 }
 function treatPrintHTML(withMoney) {
   return sortedVisits().slice().sort((a, b) => a.visit_date.localeCompare(b.visit_date)).map(v => `<div class="pv"><h4>زيارة <bdi>${v.visit_date}</bdi> ${v.visit_time ? '<bdi>' + v.visit_time + '</bdi>' : ''} ${v.doctor ? '— ' + esc(v.doctor) : ''}</h4>
-    ${simpleTable(['السن', 'الإجراء', 'الحالة'].concat(withMoney ? ['التكلفة'] : []), v.procedures.map(x => [x.tooth_no || '—', esc(x.name) + (x.details ? '<br><small>' + esc(x.details) + '</small>' : ''), PROC_ST[x.status]].concat(withMoney ? [fmtMoney(x.cost)] : [])))}
+    ${simpleTable(['السن', 'الإجراء', 'الحالة'].concat(withMoney ? ['التكلفة'] : []), v.procedures.map(x => [teethText(x.tooth_no) || '—', esc(x.name) + (x.details ? '<br><small>' + esc(x.details) + '</small>' : ''), PROC_ST[x.status]].concat(withMoney ? [fmtMoney(x.cost)] : [])))}
     ${v.notes ? `<p><b>ملاحظات:</b> ${nl2br(v.notes)}</p>` : ''}${v.next_appointment ? `<p><b>الموعد القادم:</b> <bdi>${v.next_appointment}</bdi></p>` : ''}</div>`).join('') || '<p>لا توجد زيارات.</p>';
 }
 ACTIONS['print-treat'] = () => printDoc('السجل العلاجي', patientInfoHTML() + treatPrintHTML(can('payments')));
@@ -267,7 +267,7 @@ ACTIONS['print-file'] = () => {
 ACTIONS['print-statement'] = () => {
   const { summary: s, payments, adjustments } = PT;
   const rows = costRows().filter(x => x.status !== 'cancelled');
-  const html = patientInfoHTML() + '<h3>التكاليف</h3>' + simpleTable(['التاريخ', 'السن', 'الإجراء', 'الحالة', 'التكلفة', 'محتسبة'], rows.map(x => [`<bdi>${x.date}</bdi>`, x.tooth_no || '—', esc(x.name), PROC_ST[x.status], fmtMoney(x.cost), x.status === 'planned' ? 'لا (مخطط)' : 'نعم']))
+  const html = patientInfoHTML() + '<h3>التكاليف</h3>' + simpleTable(['التاريخ', 'السن', 'الإجراء', 'الحالة', 'التكلفة', 'محتسبة'], rows.map(x => [`<bdi>${x.date}</bdi>`, teethText(x.tooth_no) || '—', esc(x.name), PROC_ST[x.status], fmtMoney(x.cost), x.status === 'planned' ? 'لا (مخطط)' : 'نعم']))
     + '<h3>الخصومات والتعديلات</h3>' + simpleTable(['التاريخ', 'النوع', 'المبلغ', 'السبب'], adjustments.map(a => [`<bdi>${a.adj_date}</bdi>`, a.kind === 'discount' ? 'خصم' : 'تعديل مدين', fmtMoney(a.amount), esc(a.notes)]))
     + '<h3>الدفعات</h3>' + simpleTable(['إيصال', 'التاريخ', 'النوع', 'المبلغ', 'الطريقة', 'ملاحظات'], payments.slice().reverse().map(r => [`<bdi>${r.id}</bdi>`, `<bdi>${r.pay_date}</bdi>`, r.kind === 'refund' ? 'مسترد' : 'دفعة', fmtMoney(r.kind === 'refund' ? -r.amount : r.amount), METH[r.method], esc(r.notes || '')]))
     + `<table class="kv total"><tr><th>إجمالي التكاليف المحتسبة</th><td>${fmtMoney(s.total_cost)}</td></tr><tr><th>الخصومات</th><td>${fmtMoney(-s.discounts)}</td></tr>${s.debits ? `<tr><th>التعديلات المدينة</th><td>${fmtMoney(s.debits)}</td></tr>` : ''}<tr><th>إجمالي المدفوع (بعد المسترد)</th><td>${fmtMoney(s.net_paid)}</td></tr><tr class="grand"><th>${s.remaining < 0 ? 'رصيد دائن للمراجع' : 'المبلغ المتبقي'}</th><td>${fmtMoney(Math.abs(s.remaining))}</td></tr></table>`;
@@ -340,7 +340,7 @@ const CARE = {
 function printCare(item, kind, extra) {
   const c = CARE[kind], p = PT.patient;
   const html = `<table class="kv"><tr><th>المراجع</th><td>${esc(p.full_name)}</td><th>رقم الملف</th><td><bdi>${p.file_no}</bdi></td></tr>
-    <tr><th>السن</th><td>${item.tooth ? `<bdi>${esc(item.tooth)}</bdi>` : '—'}</td><th>التاريخ</th><td><bdi>${esc(item.date)}</bdi></td></tr></table>
+    <tr><th>السن</th><td>${item.tooth ? `<bdi>${esc(teethText(item.tooth))}</bdi>` : '—'}</td><th>التاريخ</th><td><bdi>${esc(item.date)}</bdi></td></tr></table>
     <div class="care">${c.sections.map(([h, li]) => `<h3>${esc(h)}</h3><ul>${li.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}
     ${extra ? `<div class="care-extra"><b>ملاحظات الطبيب:</b> ${nl2br(extra)}</div>` : ''}
     <div class="care-warn"><b>راجع العيادة فوراً إذا:</b><ul>${c.warn.map(x => `<li>${esc(x)}</li>`).join('')}</ul>${S.settings.clinic_phone ? `<div>هاتف العيادة: <bdi dir="ltr"><b>${esc(S.settings.clinic_phone)}</b></bdi></div>` : ''}</div></div>`;
@@ -351,7 +351,7 @@ function openCareSheet(item) {
   if (!items.length) { toast('لا يوجد إجراء قلع أو زراعة لهذا المراجع', 'err'); return; }
   item = item || items[0];
   const m = modal({ title: 'طباعة تعليمات القلع / الزراعة', cls: 'small', body: `<form class="form-grid c1" novalidate>
-    <label class="fld"><span>الإجراء</span><select name="i">${items.map((x, i) => `<option value="${i}" ${x.id === item.id ? 'selected' : ''}>${esc(x.date)} — ${esc(x.name)}${x.tooth ? ' (سن ' + esc(x.tooth) + ')' : ''}</option>`).join('')}</select></label>
+    <label class="fld"><span>الإجراء</span><select name="i">${items.map((x, i) => `<option value="${i}" ${x.id === item.id ? 'selected' : ''}>${esc(x.date)} — ${esc(x.name)}${x.tooth ? ' (سن ' + esc(teethText(x.tooth)) + ')' : ''}</option>`).join('')}</select></label>
     <label class="fld"><span>نوع التعليمات</span><select name="k"><option value="extract">بعد القلع</option><option value="implant">بعد الزراعة</option></select></label>
     <label class="fld"><span>ملاحظات إضافية من الطبيب (اختياري)</span><textarea name="x" rows="3"></textarea></label></form>`,
     footer: `<button type="button" class="btn primary" data-print>${icon('print', 16)} طباعة</button><button type="button" class="btn" data-close>إلغاء</button>` });

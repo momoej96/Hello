@@ -7,7 +7,14 @@ HEADER_KEYS = [('name', ['اسم']), ('date', ['تاريخ']), ('work', ['عمل
                ('paid', ['مدفوع']), ('remaining', ['متبق', 'باقي']), ('notes', ['ملاحظ'])]
 DEFAULT_POS = {'name': 0, 'date': 1, 'work': 2, 'tooth': 3, 'paid': 4, 'remaining': 5}
 QUAD = {'ur': 1, 'ul': 2, 'll': 3, 'lr': 4}
-PAY_WORDS = ('تسديد', 'سداد', 'قسط', 'دفعه')   # بعد norm_ar (ة -> ه)
+PAY_WORDS = ('تسديد', 'سداد', 'قسط', 'دفعه', 'واصل')   # بعد norm_ar (ة -> ه)
+PAY_LATIN = re.compile(r'(?<![a-z])(bills?|pay|paid|payment)(?![a-z])')
+
+
+def is_payment_work(work):
+    """صف «تسديد» أو «bill»: مبلغ مدفوع يُطرح من حساب المراجع وليس عملاً جديداً."""
+    t = norm_ar(work)
+    return any(w in t for w in PAY_WORDS) or bool(PAY_LATIN.search(t))
 UNKNOWN_WORK = 'غير محدد'
 
 
@@ -256,10 +263,8 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
         seen.add(fp)
         details = []
         tooth_no = None
-        if len(teeth) == 1 and not bad_tooth:
-            tooth_no = str(teeth[0])
-        elif teeth and not bad_tooth:
-            details.append('الأسنان: ' + '، '.join(str(t) for t in teeth) + ' (المكتوب: %s)' % tooth_txt)
+        if teeth and not bad_tooth:
+            tooth_no = ','.join(str(t) for t in teeth)      # سن واحد أو عدة أسنان (U11 → 11,21)
         elif tooth_txt:
             details.append('السن (كما في الإكسل): ' + tooth_txt)
             it['warn'].append('رقم السن غير مفهوم: ' + tooth_txt)
@@ -269,7 +274,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
             details.append(it['notes'])
         recs.append({'sheet': it['sheet'], 'si': it['si'], 'row': it['row'], 'name': it['name'], 'pkey': it['pkey'], 'date': d,
                      'work': work, 'tooth_no': tooth_no, 'details': '\n'.join(details) or None, 'p': p or 0.0, 'r': r, 'fp': fp,
-                     'is_pay': any(w in norm_ar(work) for w in PAY_WORDS), 'teeth': teeth if not bad_tooth else [], 'tooth_txt': tooth_txt, 'notes_raw': it['notes'], 'date_fixed': bool(it.get('date_fixed')), 'warn': it['warn']})
+                     'is_pay': is_payment_work(work), 'teeth': teeth if not bad_tooth else [], 'tooth_txt': tooth_txt, 'notes_raw': it['notes'], 'date_fixed': bool(it.get('date_fixed')), 'warn': it['warn']})
         for w in it['warn']:
             review.append({'sheet': it['sheet'], 'row': it['row'], 'name': it['name'], 'reason': w, 'severity': 'warn'})
     # ---- دمج الأسماء ----
@@ -319,6 +324,7 @@ def build_plan(sheets, mult=1000, default_year=None, existing_fps=None, existing
         'patients': len(state), 'patients_new': len(new_keys), 'patients_existing': len(state) - len(new_keys),
         'names_merged_groups': len(merged), 'date_fixed': sum(s['date_fixed'] for s in summary['sheets']),
         'total_paid': total_paid, 'total_charge': total_charge, 'total_discount': total_disc,
+        'payment_rows': sum(1 for x in recs if x['is_pay']), 'payment_rows_total': sum(x['paid_units'] for x in recs if x['is_pay']),
         'outstanding_total': sum(v for _, v in debtors), 'debtors_count': len(debtors),
         'date_from': min((x['date'] for x in recs), default=None), 'date_to': max((x['date'] for x in recs), default=None),
         'multiplier': mult,

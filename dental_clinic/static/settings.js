@@ -116,6 +116,7 @@ function drawImportPreview() {
     { label: 'صفوف مُتخطّاة (للمراجعة)', value: intH(s.rows_skipped), cls: s.rows_skipped ? 'due' : '' },
     { label: 'تواريخ صُحّحت تلقائياً', value: intH(s.date_fixed), note: 'يوم/شهر مقلوب' },
     { label: 'مجموع المدفوع المستورد', value: moneyH(s.total_paid) }, { label: 'مجموع التكاليف المحسوبة', value: moneyH(s.total_charge) },
+    { label: 'صفوف تسديد / bill', value: intH(s.payment_rows || 0), note: `${fmtMoney(s.payment_rows_total || 0)} — تُطرح من حساب المراجع ولا تُحسب عملاً جديداً` },
     { label: 'إجمالي المتبقي على المراجعين بعد الاستيراد', value: moneyH(s.outstanding_total), cls: 'due', note: `${intH(s.debtors_count)} مراجع` },
     { label: 'الفترة', value: `<bdi class="num">${esc(s.date_from || '')}</bdi><br><bdi class="num">${esc(s.date_to || '')}</bdi>` }])}
     <p class="muted small">قارن مجموع المدفوع مع حساباتك. إن كان الفرق كبيراً فغالباً معامل المبالغ (بالألف/كاملة) غير مناسب؛ غيّره وأعد التحليل.</p>
@@ -126,7 +127,7 @@ function drawImportPreview() {
   <section class="card"><h3>أسماء دُمجت لأنها متشابهة <span class="cnt">${s.names_merged_groups}</span></h3><p class="muted small">راجعها: إن كان اسمان لشخصين مختلفين فعلاً فاعلم أنهما سيُدمجان بملف واحد.</p>
     ${simpleTable(['الصيغ المكتوبة', 'الصفوف'], d.merged_names.map(m => [m.names.map(esc).join(' ، '), intH(m.rows)]))}</section>
   <section class="card"><h3>أكبر المبالغ المتبقية</h3>${simpleTable(['المراجع', 'المتبقي'], d.top_debtors.map(t => [esc(t.name), moneyH(t.remaining)]))}</section>
-  <section class="card"><h3>عيّنة من الصفوف التي ستُستورد</h3>${simpleTable(['الشيت', 'صف', 'المراجع', 'التاريخ', 'العمل', 'السن', 'المدفوع', 'التكلفة'], d.sample.map(x => [esc(x.sheet), x.row, esc(x.name), dateH(x.date) + (x.date_fixed ? ' <span class="badge b-no_show">صُحّح</span>' : ''), esc(x.work), esc(x.tooth), moneyH(x.paid), moneyH(x.charge)]))}</section>`;
+  <section class="card"><h3>عيّنة من الصفوف التي ستُستورد</h3>${simpleTable(['الشيت', 'صف', 'المراجع', 'التاريخ', 'العمل', 'السن', 'المدفوع', 'التكلفة'], d.sample.map(x => [esc(x.sheet), x.row, esc(x.name), dateH(x.date) + (x.date_fixed ? ' <span class="badge b-no_show">صُحّح</span>' : ''), esc(x.work), teethTags(x.tooth), moneyH(x.paid), moneyH(x.charge)]))}</section>`;
   dataTable($('#impreview'), { rows: d.review, empty: 'لا توجد صفوف تحتاج مراجعة.', cols: [
     { title: 'النوع', val: r => sevAr[r.severity], render: r => `<span class="badge ${r.severity === 'skipped' ? 'b-no_show' : r.severity === 'dup' ? 'b-cancelled' : 'b-planned'}">${sevAr[r.severity]}</span>` },
     { title: 'الشيت', key: 'sheet' }, { title: 'الصف', key: 'row' }, { title: 'المراجع', key: 'name' }, { title: 'السبب', key: 'reason' }] });

@@ -122,6 +122,9 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
 .tooth-panel{background:#f5f9f9;border:1px solid var(--line);border-radius:10px;padding:.7rem;margin:.3rem 0;direction:ltr}
 .tp-row{display:flex;gap:3px;justify-content:center;margin:3px 0}.tp-row.s .tb{width:34px}.tp-note,.tp-sub{text-align:center;color:var(--muted);font-size:.8rem;direction:rtl}
 .tb{width:38px;height:38px;border:1px solid #b9cccc;background:#fff;border-radius:7px 7px 14px 14px;font:inherit;font-weight:700;cursor:pointer;color:var(--ink)}.tb:hover{background:var(--teal);color:#fff;border-color:var(--teal)}.tb.gap{margin-inline-start:14px}
+.tb.on{background:var(--teal);color:#fff;border-color:var(--teal-d);box-shadow:inset 0 -3px 0 var(--teal-d)}
+.tp-act{display:flex;gap:.5rem;justify-content:center;margin-top:.5rem;direction:rtl}
+.tooth-tag+.tooth-tag{margin-inline-start:2px}
 .picker{position:relative}.pk-res{border:1px solid var(--line);border-radius:8px;margin-top:2px;overflow:hidden}.pk-res:empty{display:none}.pk-item{display:block;width:100%;text-align:start;padding:.5rem .8rem;border:0;border-bottom:1px solid var(--line);background:#fff;font:inherit;cursor:pointer}.pk-item:hover{background:var(--mint)}
 .kv th{text-align:right;color:var(--muted)}pre.json{background:#f4f7f7;border:1px solid var(--line);border-radius:8px;padding:.6rem;max-height:340px;overflow:auto;font-size:.8rem;white-space:pre-wrap;word-break:break-word;text-align:left}
 /* دخول */
