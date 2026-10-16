@@ -86,6 +86,7 @@ async function pagePatient(main, id, tab) {
     <div class="pt-actions">
       ${money ? `<button type="button" class="btn primary lg" data-action="new-payment">${icon('wallet', 18)} تسجيل دفعة جديدة</button><button type="button" class="btn lg" data-action="receipts">${icon('print', 18)} طباعة وصل</button>` : ''}
       <button type="button" class="btn lg" data-action="new-visit">${icon('plus', 18)} زيارة جديدة</button>
+      ${can('visits') ? `<button type="button" class="btn lg" data-action="xray-capture">${icon('tooth', 18)} استقبال أشعة</button>` : ''}
       <div class="more">
         <button type="button" class="btn sm" data-action="edit-patient">${icon('edit', 15)} تعديل البيانات</button>
         <button type="button" class="btn sm" data-action="print-file">${icon('print', 15)} طباعة الملف</button>
@@ -98,6 +99,7 @@ async function pagePatient(main, id, tab) {
     <button type="button" data-action="pt-tab" data-tab="treat" class="${PT_TAB === 'treat' ? 'on' : ''}">السجل العلاجي <span class="cnt">${d.visits.length}</span></button>
     ${money ? `<button type="button" data-action="pt-tab" data-tab="fin" class="${PT_TAB === 'fin' ? 'on' : ''}">السجل المالي <span class="cnt">${d.payments.length}</span></button>` : ''}
     <button type="button" data-action="pt-tab" data-tab="appt" class="${PT_TAB === 'appt' ? 'on' : ''}">المواعيد <span class="cnt">${d.appointments.length}</span></button>
+    <button type="button" data-action="pt-tab" data-tab="xray" class="${PT_TAB === 'xray' ? 'on' : ''}">الأشعة <span class="cnt">${(d.xrays || []).length}</span></button>
   </nav>
   <div id="ptab"></div>`;
   if (PT_TAB === 'fin' && !money) PT_TAB = 'treat';
@@ -119,6 +121,7 @@ function drawPatientTab() {
   const host = $('#ptab');
   if (PT_TAB === 'treat') drawTreatTab(host);
   else if (PT_TAB === 'fin') drawFinTab(host);
+  else if (PT_TAB === 'xray') drawXrayTab(host);
   else drawApptTab(host);
 }
 

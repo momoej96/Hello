@@ -9,7 +9,7 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP_DIR)
 from core import ApiError, connect
 from clinic import Clinic
-import api, reports, admin_api, import_api   # تسجيل المسارات
+import api, reports, admin_api, import_api, xray_api   # تسجيل المسارات
 import ipaddress
 from netutil import lan_ips, host_allowed
 from api import ROUTES, Ctx, Response, can
@@ -82,7 +82,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(403, {'error': 'طلب غير مصرّح به'})
         q = {k: v[0] for k, v in parse_qs(u.query, keep_blank_values=True).items()}
         length = int(self.headers.get('Content-Length') or 0)
-        is_upload = path in UPLOAD_PATHS
+        is_upload = path in UPLOAD_PATHS or bool(re.fullmatch(r'/api/patients/\d+/xrays', path)) and method == 'POST'
         if length > (MAX_UPLOAD if is_upload else MAX_JSON):
             return self._json(413, {'error': 'حجم الطلب كبير جداً'})
         raw = self.rfile.read(length) if length else b''

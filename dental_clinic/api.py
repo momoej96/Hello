@@ -303,6 +303,7 @@ def patient_delete(c, pid):
     c.db.execute('UPDATE payments SET deleted=1, void_reason=? WHERE patient_id=? AND deleted=0', ('حُذف مع ملف المراجع: ' + reason, pid))
     c.db.execute('UPDATE adjustments SET deleted=1 WHERE patient_id=? AND deleted=0', (pid,))
     c.db.execute('UPDATE appointments SET deleted=1, updated_at=? WHERE patient_id=? AND deleted=0', (now, pid))
+    c.db.execute('UPDATE xrays SET deleted=1 WHERE patient_id=? AND deleted=0', (pid,))
     c.db.execute('UPDATE patients SET deleted=1, updated_at=? WHERE id=?', (now, pid))
     audit(c.db, c.user['username'], 'patient', pid, 'delete', {**public_patient(old), 'deleted_records': info}, None, reason)
     return {'ok': True, 'deleted': info}
@@ -328,7 +329,7 @@ def patient_merge(c, pid):
     notes = '\n'.join(dict.fromkeys(notes)) or None
     firsts = [d for d in (keep['first_visit_date'], other['first_visit_date']) if d]
     moved = {}
-    for t, extra in (('visits', ', updated_at=?'), ('procedures', ', updated_at=?'), ('appointments', ', updated_at=?'), ('payments', ''), ('adjustments', '')):
+    for t, extra in (('visits', ', updated_at=?'), ('procedures', ', updated_at=?'), ('appointments', ', updated_at=?'), ('payments', ''), ('adjustments', ''), ('xrays', '')):
         args = (pid, now, oid) if extra else (pid, oid)
         moved[t] = c.db.execute('UPDATE %s SET patient_id=?%s WHERE patient_id=? AND deleted=0' % (t, extra), args).rowcount
     phone = pick('phone')
@@ -366,6 +367,8 @@ def patient_get(c, pid):
         'SELECT * FROM visits WHERE patient_id=? AND deleted=0 ORDER BY visit_date DESC, id DESC', (pid,))]
     out['appointments'] = [dict(r) for r in c.db.execute(
         'SELECT * FROM appointments WHERE patient_id=? AND deleted=0 ORDER BY appt_date DESC, appt_time DESC', (pid,))]
+    out['xrays'] = [dict(r) for r in c.db.execute(
+        'SELECT id,visit_id,taken_at,source,tooth_no,notes FROM xrays WHERE patient_id=? AND deleted=0 ORDER BY taken_at DESC, id DESC', (pid,))]
     if can(c.user, 'payments'):
         out['payments'] = [dict(r) for r in c.db.execute(
             'SELECT * FROM payments WHERE patient_id=? AND deleted=0 ORDER BY pay_date DESC, id DESC', (pid,))]

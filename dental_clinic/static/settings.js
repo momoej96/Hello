@@ -16,6 +16,8 @@ async function stClinic(host) {
   host.innerHTML = `<section class="card"><form id="cf" class="form-grid c2" novalidate>
     ${['clinic_name|اسم العيادة (يظهر في رأس التقارير)|full', 'clinic_phone|هاتف العيادة|', 'clinic_address|العنوان|', 'currency_label|اسم العملة|', 'currency_symbol|رمز العملة المعروض|', 'currency_code|رمز العملة (ISO)|', 'receipt_footer|عبارة أسفل الإيصالات والتقارير|full'].map(x => { const [n, l, c] = x.split('|'); return `<label class="fld ${c}"><span>${l}</span><input name="${n}" value="${esc(s[n])}" autocomplete="off"></label>`; }).join('')}
     <label class="fld"><span>القفل التلقائي بعد (دقائق من عدم الاستخدام، 0 = معطّل)</span><input name="idle_minutes" inputmode="numeric" value="${esc(s.idle_minutes)}"></label>
+    <label class="fld full"><span>مجلد صور الأشعة (نفس «Image Path» في برنامج السنسر Woodpecker، على الجهاز الرئيسي)</span>
+      <div class="tooth-in"><input name="xray_folder" dir="ltr" value="${esc(s.xray_folder || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="xray-folder-check">فحص المجلد</button></div><em id="xfres"></em></label>
     <label class="fld"><span>طريقة كتابة المبالغ</span><select name="money_thousands"><option value="1" ${s.money_thousands !== '0' ? 'selected' : ''}>بالألف: أكتب 25 فتُسجَّل 25,000</option><option value="0" ${s.money_thousands === '0' ? 'selected' : ''}>كاملة: أكتب 25000 فتُسجَّل 25,000</option></select></label>
     <label class="fld full"><span>أسماء الأطباء (اسم في كل سطر — تظهر كقائمة اختيار عند إضافة مراجع أو زيارة، وفي تقرير عمل الأطباء)</span><textarea name="doctors" rows="3">${esc(docs.join('\n'))}</textarea></label>
     <div class="form-err" role="alert"></div><div class="full"><button type="submit" class="btn primary">حفظ الإعدادات</button></div></form></section>`;
@@ -26,6 +28,14 @@ async function stClinic(host) {
     try { const r = await api('PUT', '/api/settings', body); Object.assign(S.settings, r.settings); renderSide(); toast('تم حفظ الإعدادات'); } catch (er) { $('.form-err', f).textContent = er.message; }
   };
 }
+
+ACTIONS['xray-folder-check'] = async () => {
+  const out = $('#xfres');
+  try {
+    const r = await api('GET', '/api/xray_folder_check?' + qs({ folder: $('[name=xray_folder]').value }));
+    out.textContent = r.ok ? `المجلد موجود: ${fmt(r.count)} صورة${r.last ? '، آخرها ' + r.last : ''}. لا تنسَ «حفظ الإعدادات».` : r.message;
+  } catch (e) { out.textContent = e.message; }
+};
 
 function stAccount(host) {
   host.innerHTML = `<section class="card narrow"><h3>تغيير كلمة المرور</h3><p class="muted">المستخدم الحالي: <b>${esc(S.user.username)}</b> (${ROLE_AR[S.user.role]})</p><form id="pf" class="form-grid c1" novalidate>

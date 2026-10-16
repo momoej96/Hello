@@ -88,6 +88,8 @@ def settings_put(c):
         raise ApiError('قائمة الأطباء غير صحيحة')
     new['doctors'] = json.dumps([str(x).strip()[:100] for x in docs if str(x).strip()], ensure_ascii=False)
     old = get_settings(c.db)
+    if 'xray_folder' in b:
+        new['xray_folder'] = v_text(b, 'xray_folder', 'مجلد صور الأشعة', maxlen=400)
     if 'money_thousands' in b:
         new['money_thousands'] = '1' if str(b.get('money_thousands')) in ('1', 'true', 'True') else '0'
     for k, v in new.items():

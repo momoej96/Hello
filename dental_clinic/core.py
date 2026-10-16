@@ -95,7 +95,8 @@ DEFAULT_SETTINGS = {
     'clinic_name': 'عيادة الأسنان', 'clinic_phone': '', 'clinic_address': '',
     'currency_code': 'IQD', 'currency_label': 'دينار عراقي', 'currency_symbol': 'د.ع',
     'idle_minutes': '15', 'doctors': '[]', 'receipt_footer': 'شكراً لزيارتكم',
-    'money_thousands': '1',   # إدخال المبالغ بالألف في الواجهة: 25 تعني 25,000 (التخزين دائماً بالمبلغ الكامل)
+    'money_thousands': '1',
+    'xray_folder': r'C:\ai-dental-images\patients',   # مجلد حفظ الصور في برنامج السنسر (Image Path في Woodpecker)   # إدخال المبالغ بالألف في الواجهة: 25 تعني 25,000 (التخزين دائماً بالمبلغ الكامل)
 }
 PUBLIC_SETTING_KEYS = list(DEFAULT_SETTINGS.keys())
 
@@ -133,6 +134,11 @@ def migrate(db):
     cols = {r['name'] for r in db.execute('PRAGMA table_info(patients)')}
     if 'doctor' not in cols:   # الطبيب المعالج للمراجع
         db.execute('ALTER TABLE patients ADD COLUMN doctor TEXT')
+    db.execute('''CREATE TABLE IF NOT EXISTS xrays(
+        id INTEGER PRIMARY KEY, patient_id INTEGER NOT NULL REFERENCES patients(id), visit_id INTEGER REFERENCES visits(id),
+        taken_at TEXT NOT NULL, file_name TEXT NOT NULL, source TEXT, original_path TEXT, tooth_no TEXT, notes TEXT,
+        size INTEGER, deleted INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TEXT NOT NULL)''')
+    db.execute('CREATE INDEX IF NOT EXISTS ix_xray_pat ON xrays(patient_id, taken_at)')
     # أسماء قديمة لمراجعين دُمجت ملفاتهم، حتى يتعرف عليها الاستيراد من Excel لاحقاً
     db.execute('CREATE TABLE IF NOT EXISTS patient_aliases(name_key TEXT PRIMARY KEY, patient_id INTEGER NOT NULL REFERENCES patients(id))')
     cols = {r['name'] for r in db.execute('PRAGMA table_info(payments)')}
