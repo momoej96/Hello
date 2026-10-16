@@ -308,6 +308,42 @@ def patient_delete(c, pid):
     return {'ok': True, 'deleted': info}
 
 
+@route('POST', r'/api/patients/(\d+)/merge', perm='delete')
+def patient_merge(c, pid):
+    """دمج ملف مراجع مكرر في هذا الملف: تنتقل كل الزيارات والإجراءات والدفعات والخصومات والمواعيد،
+    ويُعتمد الاسم الأطول، ويُحذف الملف المكرر (يبقى أثره في سجل التدقيق)."""
+    keep = get_patient(c.db, pid)
+    try:
+        oid = int(c.body.get('other_id'))
+    except (TypeError, ValueError):
+        raise ApiError('اختر الملف المكرر')
+    if oid == pid:
+        raise ApiError('لا يمكن دمج الملف مع نفسه')
+    other = get_patient(c.db, oid)
+    now = now_iso()
+    names = [keep['full_name'], other['full_name']]
+    name = max(names, key=lambda n: (len(norm_ar(n).split()), len(norm_ar(n))))   # الأطول (عدد الكلمات ثم الأحرف)
+    pick = lambda k: keep[k] if keep[k] not in (None, '') else other[k]
+    notes = [n for n in (keep['notes'], other['notes']) if n]
+    notes = '\n'.join(dict.fromkeys(notes)) or None
+    firsts = [d for d in (keep['first_visit_date'], other['first_visit_date']) if d]
+    moved = {}
+    for t, extra in (('visits', ', updated_at=?'), ('procedures', ', updated_at=?'), ('appointments', ', updated_at=?'), ('payments', ''), ('adjustments', '')):
+        args = (pid, now, oid) if extra else (pid, oid)
+        moved[t] = c.db.execute('UPDATE %s SET patient_id=?%s WHERE patient_id=? AND deleted=0' % (t, extra), args).rowcount
+    phone = pick('phone')
+    c.db.execute('UPDATE patients SET full_name=?, name_norm=?, phone=?, phone_norm=?, birth_date=?, age=?, gender=?, doctor=?, notes=?, first_visit_date=?, updated_at=? WHERE id=?',
+                 (name, norm_ar(name), phone, canon_phone(phone) or None, pick('birth_date'), pick('age'), pick('gender'), pick('doctor'),
+                  notes, min(firsts) if firsts else None, now, pid))
+    c.db.execute('UPDATE patients SET deleted=1, updated_at=? WHERE id=?', (now, oid))
+    for n in names:
+        c.db.execute('INSERT OR REPLACE INTO patient_aliases(name_key, patient_id) VALUES(?,?)', (norm_ar(n).replace(' ', ''), pid))
+    c.db.execute('UPDATE patient_aliases SET patient_id=? WHERE patient_id=?', (pid, oid))
+    audit(c.db, c.user['username'], 'patient', pid, 'merge', {'kept': public_patient(keep), 'merged': public_patient(other)},
+          {'full_name': name, 'moved': moved}, 'دمج الملف رقم %d في الملف رقم %d' % (other['file_no'], keep['file_no']))
+    return {'patient': public_patient(get_patient(c.db, pid)), 'moved': moved, 'summary': balance(c.db, pid)}
+
+
 @route('GET', r'/api/patients/(\d+)/delete_info', perm='delete', tx=False)
 def patient_delete_preview(c, pid):
     get_patient(c.db, pid)
@@ -407,6 +443,16 @@ def visit_create(c, pid):
     sync_next_appt(c, vid, pid, f['next_appointment'], f['next_time'])
     audit(c.db, c.user['username'], 'visit', vid, 'create', None, {'visit': f, 'procedures': procs})
     out = {'visit': visit_with_procs(c.db, c.db.execute('SELECT * FROM visits WHERE id=?', (vid,)).fetchone())}
+    if c.body.get('paid_cash') and can(c.user, 'payments'):
+        # «تم الدفع نقداً»: تُسجَّل دفعة نقدية بتكلفة الزيارة المحتسبة (المخطط له والملغى لا يُحتسبان)
+        amount = sum(p['cost'] for p in procs if p['status'] in ('in_progress', 'completed'))
+        if amount > 0:
+            cur = c.db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,idem_key,created_by,created_at) "
+                               "VALUES(?,?,?,?, 'payment','cash',?,?,?,?)",
+                               (pid, vid, f['visit_date'], amount, 'دُفع نقداً مع الزيارة', 'visit:%d' % vid, c.user['username'], now))
+            row = dict(c.db.execute('SELECT * FROM payments WHERE id=?', (cur.lastrowid,)).fetchone())
+            audit(c.db, c.user['username'], 'payment', row['id'], 'create', None, row)
+            out['payment'] = row
     if can(c.user, 'payments'):
         out['summary'] = balance(c.db, pid)
     return out

@@ -179,3 +179,4 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
  body.print-small #printRoot .care-note,body.print-small #printRoot .sign{display:none}
 }
 .money-hint{color:var(--teal-d)!important;font-weight:700}
+.paid-cash{display:flex;align-items:center;gap:.45rem;margin:.6rem 0;padding:.55rem .75rem;border:1px solid var(--line);border-radius:8px;background:var(--mint);cursor:pointer}.paid-cash input{width:1.15rem;height:1.15rem;accent-color:var(--teal)}

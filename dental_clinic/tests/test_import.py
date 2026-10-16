@@ -197,6 +197,56 @@ class T20_Import(Base):
         names = {p['name'] for p in self.c.ok('GET', '/api/reports/period?from=2024-01-01&to=2024-12-31')['by_procedure']}
         self.assertEqual(names, set(works.values()))               # التقرير يجمعها تحت أسماء موحدة
 
+    def test_merge_duplicate_patients(self):
+        """دمج ملفين لنفس المراجع: ينتقل السجل كاملاً، يُعتمد الاسم الأطول، والاستيراد اللاحق يتعرف على الاسم القديم"""
+        a = self.patient('زينب وليد', '07701112222')
+        b = self.patient('زينب وليد مجيد', None, doctor='د. علي', notes='حساسية بنسلين')
+        self.visit(a['id'], '2024-02-01', [{'name': 'تاج', 'cost': 300000}])
+        self.pay(a['id'], '2024-02-01', 100000)
+        self.visit(b['id'], '2024-03-01', [{'name': 'حشوة', 'cost': 50000}], next_appointment='2099-01-05')
+        self.pay(b['id'], '2024-03-01', 20000)
+        self.c.ok('POST', '/api/patients/%d/adjustments' % b['id'], {'adj_date': '2024-03-01', 'amount': 10000, 'kind': 'discount', 'notes': 'خصم'})
+        self.assertEqual(self.c.call('POST', '/api/patients/%d/merge' % a['id'], {'other_id': a['id']})[0], 400)
+        r = self.c.ok('POST', '/api/patients/%d/merge' % a['id'], {'other_id': b['id']})
+        p = r['patient']
+        self.assertEqual((p['full_name'], p['phone'], p['doctor'], p['notes'], p['file_no']), ('زينب وليد مجيد', '07701112222', 'د. علي', 'حساسية بنسلين', a['file_no']))
+        self.assertEqual((r['moved']['visits'], r['moved']['payments'], r['moved']['adjustments']), (1, 1, 1))
+        full = self.c.ok('GET', '/api/patients/%d' % a['id'])
+        self.assertEqual((len(full['visits']), len(full['payments']), len(full['appointments'])), (2, 2, 1))
+        self.assertEqual(full['summary']['remaining'], 300000 + 50000 - 10000 - 120000)
+        self.assertEqual(self.c.call('GET', '/api/patients/%d' % b['id'])[0], 404)
+        self.assertEqual(len(self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('زينب'))['patients']), 1)
+        st = self.c.ok('GET', '/api/reports/period?from=2024-01-01&to=2024-12-31')['stats']
+        self.assertEqual((st['receipts'], st['agreed_value']), (120000, 350000))       # التقارير لا تتغير بالدمج
+        self.assertTrue(any(x['action'] == 'merge' for x in self.c.ok('GET', '/api/audit?entity=patient&entity_id=%d' % a['id'])['rows']))
+        # الاستيراد لاحقاً: «زينب وليد» تُعرف كمراجع موجود ولا يُنشأ ملف مكرر جديد
+        H = ['اسم المراجع', 'التاريخ', 'نوع العمل', 'رقم السن', 'المدفوع', 'المتبقي']
+        pre = self.preview(make_xlsx({'2024': [H, ['زينب وليد', D(2024, 5, 1), 'تنظيف', None, 25, 0]]}))
+        self.assertEqual((pre['summary']['patients_new'], pre['summary']['patients_existing']), (0, 1))
+        self.c.ok('POST', '/api/import/commit', {'token': pre['token']})
+        self.assertEqual(len(self.c.ok('GET', '/api/patients?q=' + urllib.parse.quote('زينب'))['patients']), 1)
+        self.assertEqual(len(self.c.ok('GET', '/api/patients/%d' % a['id'])['visits']), 3)
+        # الاستقبال لا يستطيع الدمج
+        self.c.ok('POST', '/api/users', {'username': 'rec8', 'password': PW, 'role': 'reception'})
+        rec = Client(self.srv.server_address[1]); rec.login('rec8')
+        c2 = self.patient('مراجع آخر', '07705550000')
+        self.assertEqual(rec.call('POST', '/api/patients/%d/merge' % a['id'], {'other_id': c2['id']})[0], 403)
+
+    def test_visit_paid_in_cash(self):
+        """«تم الدفع نقداً» مع الزيارة الجديدة يسجّل دفعة نقدية بالمبلغ المحتسب فوراً"""
+        p = self.patient()
+        r = self.visit(p['id'], '2025-06-01', [{'name': 'حشوة', 'cost': 100000, 'status': 'completed'},
+                                              {'name': 'تاج', 'cost': 400000, 'status': 'planned'},
+                                              {'name': 'فحص', 'cost': 15000, 'status': 'cancelled'}], paid_cash=True)
+        self.assertEqual((r['payment']['amount'], r['payment']['method'], r['payment']['pay_date'], r['payment']['visit_id']), (100000, 'cash', '2025-06-01', r['visit']['id']))
+        self.assertEqual(self.summary(p['id'])['remaining'], 0)
+        self.assertEqual(self.c.ok('GET', '/api/reports/daily?date=2025-06-01')['stats']['receipts'], 100000)
+        r2 = self.visit(p['id'], '2025-06-02', [{'name': 'تنظيف', 'cost': 30000}])          # بدون الاختيار: لا دفعة
+        self.assertNotIn('payment', r2)
+        r3 = self.visit(p['id'], '2025-06-03', [{'name': 'فحص', 'cost': 0}], paid_cash=True)  # مبلغ صفر: لا دفعة
+        self.assertNotIn('payment', r3)
+        self.assertEqual(len(self.c.ok('GET', '/api/patients/%d' % p['id'])['payments']), 1)
+
     def test_reimport_is_idempotent_and_merges_with_existing(self):
         existing = self.patient('علي حسن', '07700001111')
         pre = self.preview()

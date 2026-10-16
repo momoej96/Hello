@@ -33,6 +33,8 @@ def import_preview(c):
         raise ApiError('تعذّرت قراءة الملف. تأكد أنه Excel بصيغة xlsx (أو CSV) وغير تالف.')
     fps = {r[0] for r in c.db.execute('SELECT fingerprint FROM import_rows')}
     keys = {r['name_norm'].replace(' ', ''): r['id'] for r in c.db.execute('SELECT id,name_norm FROM patients WHERE deleted=0')}
+    for r in c.db.execute('SELECT a.name_key, a.patient_id FROM patient_aliases a JOIN patients p ON p.id=a.patient_id WHERE p.deleted=0'):
+        keys.setdefault(r['name_key'], r['patient_id'])
     try:
         chosen = json.loads(c.q.get('doctors') or '{}')
         assert isinstance(chosen, dict) and all(isinstance(v, str) for v in chosen.values())

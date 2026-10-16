@@ -444,6 +444,8 @@ def commit_plan(db, plan, user, filename, backup_name=None):
         existing.setdefault(r['name_norm'].replace(' ', ''), r['id'])
         if not r['doctor']:
             no_doctor.add(r['id'])
+    for r in db.execute('SELECT a.name_key, a.patient_id FROM patient_aliases a JOIN patients p ON p.id=a.patient_id WHERE p.deleted=0'):
+        existing.setdefault(r['name_key'], r['patient_id'])     # اسم قديم لمراجع دُمج ملفه
     first_doc = {}
     for x in plan['recs']:
         if x.get('doctor'):

@@ -133,6 +133,8 @@ def migrate(db):
     cols = {r['name'] for r in db.execute('PRAGMA table_info(patients)')}
     if 'doctor' not in cols:   # الطبيب المعالج للمراجع
         db.execute('ALTER TABLE patients ADD COLUMN doctor TEXT')
+    # أسماء قديمة لمراجعين دُمجت ملفاتهم، حتى يتعرف عليها الاستيراد من Excel لاحقاً
+    db.execute('CREATE TABLE IF NOT EXISTS patient_aliases(name_key TEXT PRIMARY KEY, patient_id INTEGER NOT NULL REFERENCES patients(id))')
     cols = {r['name'] for r in db.execute('PRAGMA table_info(payments)')}
     if 'doctor' not in cols:   # الطبيب الذي تُنسب له الدفعة (من شيت الطبيب عند الاستيراد)
         db.execute('ALTER TABLE payments ADD COLUMN doctor TEXT')

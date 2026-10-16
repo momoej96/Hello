@@ -72,6 +72,7 @@ function openVisitModal(v) {
       <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? `<span>التكلفة${MONEY_UNIT()}</span>` : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
       <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
+      ${money && isNew ? `<label class="paid-cash"><input type="checkbox" name="paid_cash"> <b>تم الدفع نقداً</b> <span class="muted small">— تُسجَّل دفعة نقدية بمبلغ الزيارة مباشرة (بدون «المخطط له»)</span></label>` : ''}
       ${money ? '<p class="muted small">الإجراء «مخطط له» لا يدخل في المبلغ المستحق على المراجع حتى تغيّر حالته إلى «قيد التنفيذ» أو «مكتمل».</p>' : ''}
       <label class="fld full"><span>ملاحظات سريرية</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
       <div class="form-grid c3">${f('next_appointment', 'موعد الزيارة القادمة', v.next_appointment, 'date')}${f('next_time', 'وقت الموعد القادم', v.next_time, 'time')}</div>
@@ -93,12 +94,14 @@ function openVisitModal(v) {
     });
     const body = { visit_date: $('[name=visit_date]', root).value, visit_time: $('[name=visit_time]', root).value, doctor: $('[name=doctor]', root).value.trim(), notes: $('[name=notes]', root).value.trim(),
       next_appointment: $('[name=next_appointment]', root).value, next_time: $('[name=next_time]', root).value, procedures: procs };
+    const pc = $('[name=paid_cash]', root); if (pc && pc.checked) body.paid_cash = true;
     if (!body.visit_date) { err.textContent = 'تاريخ الزيارة مطلوب'; return; }
     busy = true; $('[data-save]', m.el).disabled = true;
     try {
-      if (isNew) await api('POST', `/api/patients/${p.id}/visits`, body);
+      let r;
+      if (isNew) r = await api('POST', `/api/patients/${p.id}/visits`, body);
       else await withForce(force => api('PUT', '/api/visits/' + v.id, { ...body, force }));
-      m.close(); toast('تم حفظ الزيارة'); reloadPatient();
+      m.close(); toast(r && r.payment ? `تم حفظ الزيارة وتسجيل دفعة نقدية ${fmtMoney(r.payment.amount)}` : 'تم حفظ الزيارة'); reloadPatient();
     } catch (e) { if (e) err.textContent = e.message; busy = false; $('[data-save]', m.el).disabled = false; }
   }
   $('[data-save]', m.el).onclick = save;

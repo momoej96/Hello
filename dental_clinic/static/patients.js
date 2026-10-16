@@ -90,7 +90,7 @@ async function pagePatient(main, id, tab) {
         <button type="button" class="btn sm" data-action="edit-patient">${icon('edit', 15)} تعديل البيانات</button>
         <button type="button" class="btn sm" data-action="print-file">${icon('print', 15)} طباعة الملف</button>
         ${careItems().length ? `<button type="button" class="btn sm" data-action="care-sheet">${icon('print', 15)} تعليمات القلع / الزراعة</button>` : ''}
-        ${can('delete') ? `<button type="button" class="btn sm danger-o" data-action="del-patient">${icon('trash', 15)} حذف الملف</button>` : ''}
+        ${can('delete') ? `<button type="button" class="btn sm" data-action="merge-patient">${icon('users', 15)} دمج مع ملف مكرر</button><button type="button" class="btn sm danger-o" data-action="del-patient">${icon('trash', 15)} حذف الملف</button>` : ''}
       </div></div>
   </section>
   ${money ? summaryStrip(s) : ''}
@@ -213,6 +213,39 @@ function openPaymentModal(kind) {
 ACTIONS['new-payment'] = () => openPaymentModal('payment');
 ACTIONS['new-refund'] = () => openPaymentModal('refund');
 ACTIONS['fill-remaining'] = b => { const i = $('.overlay [name=amount]'); i.value = moneyIn(+b.dataset.v); i.dispatchEvent(new Event('input')); i.focus(); };
+/* دمج ملف مكرر (مثل «زينب وليد» و«زينب وليد مجيد»): بحث عن الملف المكرر ثم نقل كل سجله إلى هذا الملف */
+ACTIONS['merge-patient'] = () => {
+  const p = PT.patient, money = can('payments');
+  const m = modal({ title: 'دمج ملف مكرر مع «' + p.full_name + '»', wide: true,
+    body: `<p class="muted small">ابحث عن الملف المكرر لنفس المراجع. عند الدمج تنتقل كل زياراته وإجراءاته ودفعاته وخصوماته ومواعيده إلى هذا الملف، ويُعتمد الاسم الأطول، ثم يُحذف الملف المكرر.</p>
+      <div class="searchbar">${icon('search', 20)}<input id="mq" type="search" value="${esc(p.full_name.split(' ').slice(0, 2).join(' '))}" autocomplete="off" placeholder="اسم أو هاتف أو رقم ملف"></div><div id="mres" class="mt"></div>`,
+    footer: '<button type="button" class="btn" data-close>إغلاق</button>' });
+  const inp = $('#mq', m.el); let t, seq = 0;
+  async function load() {
+    const my = ++seq;
+    try {
+      const rows = (await api('GET', '/api/patients?' + qs({ q: inp.value, limit: 30 }))).patients.filter(r => r.id !== p.id);
+      if (my !== seq) return;
+      $('#mres', m.el).innerHTML = rows.length ? simpleTable(['رقم الملف', 'الاسم', 'الهاتف', 'الطبيب', 'أول زيارة'].concat(money ? ['الحساب'] : []).concat(['']), rows.map(r => [`<bdi class="num">${r.file_no}</bdi>`, esc(r.full_name), `<bdi>${esc(r.phone || '')}</bdi>`, esc(r.doctor || ''), dateH(r.first_visit_date)]
+        .concat(money ? [remBadge(r.remaining)] : []).concat([`<button type="button" class="btn sm primary" data-action="merge-do" data-id="${r.id}" data-name="${esc(r.full_name)}" data-file="${r.file_no}">دمج</button>`])))
+        : '<p class="muted">لا يوجد ملف مطابق. جرّب جزءاً من الاسم.</p>';
+    } catch (e) { $('#mres', m.el).innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
+  }
+  inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 200); });
+  load(); inp.select();
+};
+ACTIONS['merge-do'] = async b => {
+  const p = PT.patient, other = b.dataset.name;
+  const words = n => normQ(n).split(' ').filter(Boolean);
+  const longer = words(other).length > words(p.full_name).length || (words(other).length === words(p.full_name).length && normQ(other).length > normQ(p.full_name).length) ? other : p.full_name;
+  if (!await confirmBox(`سيُنقل كل سجل «${other}» (ملف ${b.dataset.file}) إلى ملف «${p.full_name}» (ملف ${p.file_no})، ويصير الاسم «${longer}»، ثم يُحذف الملف المكرر. متابعة؟`, { ok: 'دمج الملفين', title: 'تأكيد الدمج' })) return;
+  try {
+    const r = await api('POST', `/api/patients/${p.id}/merge`, { other_id: +b.dataset.id }), mv = r.moved;
+    b.closest('.overlay').remove();
+    toast(`تم الدمج: ${fmt(mv.visits)} زيارة و${fmt(mv.payments)} دفعة انتقلت إلى هذا الملف`);
+    reloadPatient();
+  } catch (e) { toast(e.message, 'err'); }
+};
 /* طباعة وصل: قائمة بكل دفعات المراجع، ويختار المستخدم الدفعة التي يريد طباعة وصلها */
 ACTIONS['receipts'] = () => {
   const pays = (PT.payments || []).slice().sort((a, b) => b.pay_date.localeCompare(a.pay_date) || b.id - a.id);
