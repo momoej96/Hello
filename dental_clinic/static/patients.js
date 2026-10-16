@@ -135,9 +135,10 @@ function visitCard(v, withActions = true) {
     <td>${can('payments') ? moneyH(x.cost) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">لا توجد إجراءات مسجلة في هذه الزيارة.</p>';
   return `<article class="visit">
     <header><div class="vh"><b><bdi>${v.visit_date}</bdi></b> <span class="muted">${dayName(v.visit_date)}${v.visit_time ? ' · ' + `<bdi>${v.visit_time}</bdi>` : ''}${v.doctor ? ' · ' + esc(v.doctor) : ''}</span></div>
-    ${withActions && can('visits') ? `<div class="vact">${cp ? `<button type="button" class="btn sm" data-action="care-sheet" data-proc="${cp.id}">${icon('print', 15)} ${careKind(cp.name) === 'implant' ? 'تعليمات الزراعة' : 'تعليمات القلع'}</button>` : ''}<button type="button" class="btn sm" data-action="edit-visit" data-id="${v.id}">${icon('edit', 15)} تعديل</button>${can('delete') ? `<button type="button" class="btn sm danger-o" data-action="del-visit" data-id="${v.id}">${icon('trash', 15)}</button>` : ''}</div>` : ''}</header>
+    ${withActions && can('visits') ? `<div class="vact"><button type="button" class="btn sm" data-action="xray-capture" data-visit="${v.id}" title="استقبال أشعة لهذه الزيارة">${icon('tooth', 15)} أشعة</button>${cp ? `<button type="button" class="btn sm" data-action="care-sheet" data-proc="${cp.id}">${icon('print', 15)} ${careKind(cp.name) === 'implant' ? 'تعليمات الزراعة' : 'تعليمات القلع'}</button>` : ''}<button type="button" class="btn sm" data-action="edit-visit" data-id="${v.id}">${icon('edit', 15)} تعديل</button>${can('delete') ? `<button type="button" class="btn sm danger-o" data-action="del-visit" data-id="${v.id}">${icon('trash', 15)}</button>` : ''}</div>` : ''}</header>
     ${procs}
     ${v.notes ? `<p class="vnotes"><b>ملاحظات سريرية:</b> ${nl2br(v.notes)}</p>` : ''}
+    ${withActions ? visitXrays(v.id) : ''}
     ${v.next_appointment ? `<p class="vnext">${icon('calendar', 15)} الموعد القادم: <bdi>${v.next_appointment}</bdi>${v.next_time ? ' <bdi>' + v.next_time + '</bdi>' : ''}</p>` : ''}
     ${can('payments') && v.procedures.length ? `<footer>إجمالي تكلفة الزيارة: ${moneyH(v.visit_total)}</footer>` : ''}</article>`;
 }

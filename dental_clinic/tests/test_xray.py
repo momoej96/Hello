@@ -88,6 +88,40 @@ class T30_Xray(Base):
         self.c.ok('DELETE', '/api/xrays/%d' % x['id'], {})
         self.assertEqual(self.c.call('GET', '/api/xrays/%d/image' % x['id'])[0], 404)
 
+    def test_xrays_linked_to_visits(self):
+        """الصورة تُربط بالزيارة: المحددة عند الاستقبال، أو زيارة نفس اليوم، ويمكن تغيير الربط"""
+        import datetime
+        p = self.patient()
+        q = self.patient('مراجع آخر', '07700000009')
+        today = datetime.date.today().isoformat()
+        old = self.visit(p['id'], '2024-01-10', [{'name': 'حشوة جذر (عصب)', 'tooth_no': '16', 'cost': 130000}])['visit']
+        # استقبال من زيارة محددة (قديمة): الصورة تذهب لها رغم أن التاريخ مختلف
+        st = self.c.ok('POST', '/api/patients/%d/xray_capture' % p['id'], {'visit_id': old['id']})
+        write(os.path.join(self.sensor, '1', 'a.png'), png(shade=1))
+        x1 = self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})['new'][0]
+        self.assertEqual(x1['visit_id'], old['id'])
+        # استقبال من رأس الملف: يُربط بزيارة اليوم إن وُجدت (حتى لو أُضيفت الزيارة بعد بدء الاستقبال)
+        st = self.c.ok('POST', '/api/patients/%d/xray_capture' % p['id'], {})
+        write(os.path.join(self.sensor, '1', 'b.png'), png(shade=2))
+        self.assertIsNone(self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})['new'][0]['visit_id'])
+        now_v = self.visit(p['id'], today, [{'name': 'أشعة', 'cost': 0}])['visit']
+        write(os.path.join(self.sensor, '1', 'c.png'), png(shade=3))
+        self.assertEqual(self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})['new'][0]['visit_id'], now_v['id'])
+        # زيارة مراجع آخر مرفوضة
+        self.assertEqual(self.c.call('POST', '/api/patients/%d/xray_capture' % p['id'], {'visit_id': self.visit(q['id'], today, [])['visit']['id']})[0], 400)
+        # الرفع اليدوي بتاريخ زيارة يُربط بها؛ وتغيير الربط من العارض
+        up = self.c.ok('POST', '/api/patients/%d/xrays?filename=x.png&date=2024-01-10' % p['id'], raw=png())['xray']
+        self.assertEqual(up['visit_id'], old['id'])
+        self.c.ok('PUT', '/api/xrays/%d' % up['id'], {'visit_id': now_v['id']})
+        self.c.ok('PUT', '/api/xrays/%d' % x1['id'], {'visit_id': ''})
+        xs = {x['id']: x['visit_id'] for x in self.c.ok('GET', '/api/patients/%d' % p['id'])['xrays']}
+        self.assertEqual((xs[up['id']], xs[x1['id']]), (now_v['id'], None))
+        # حذف الزيارة لا يحذف صورها، بل يفك الربط فقط
+        self.c.ok('DELETE', '/api/visits/%d' % now_v['id'], {})
+        xs = self.c.ok('GET', '/api/patients/%d' % p['id'])['xrays']
+        self.assertEqual(len(xs), 4)
+        self.assertEqual([x['visit_id'] for x in xs], [None] * 4)      # كانت مرتبطة بزيارة اليوم المحذوفة أو بلا ربط
+
     def test_merge_and_delete_patient_carry_xrays(self):
         a = self.patient('زينب وليد', '07701112222')
         b = self.patient('زينب وليد مجيد')

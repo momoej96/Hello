@@ -79,6 +79,25 @@ def xray_row(db, xid):
     return dict(r)
 
 
+def check_visit(db, pid, vid):
+    """زيارة محددة يجب أن تكون لنفس المراجع؛ «» أو None = بدون ربط بزيارة."""
+    if vid in (None, '', 0, '0'):
+        return None
+    try:
+        vid = int(vid)
+    except (TypeError, ValueError):
+        raise ApiError('زيارة غير صحيحة')
+    if not db.execute('SELECT 1 FROM visits WHERE id=? AND patient_id=? AND deleted=0', (vid, pid)).fetchone():
+        raise ApiError('الزيارة المحددة لا تتبع هذا المراجع')
+    return vid
+
+
+def same_day_visit(db, pid, day):
+    """زيارة المراجع في يوم التقاط الصورة (الأحدث إن وُجد أكثر من واحدة)."""
+    r = db.execute('SELECT id FROM visits WHERE patient_id=? AND visit_date=? AND deleted=0 ORDER BY id DESC LIMIT 1', (pid, day)).fetchone()
+    return r['id'] if r else None
+
+
 def folder_setting(c):
     f = (get_settings(c.db).get('xray_folder') or '').strip()
     if not f:
@@ -120,8 +139,9 @@ def xray_upload(c, pid):
     if not c.raw:
         raise ApiError('لم يتم إرسال صورة')
     taken = v_date(c.q, 'date', 'تاريخ الصورة', required=False, allow_future=False)
+    vid = check_visit(c.db, pid, c.q.get('visit_id')) if c.q.get('visit_id') else same_day_visit(c.db, pid, taken or today_iso())
     x = store_image(c, pid, c.raw, 'upload', (c.q.get('filename') or '')[:200] or None,
-                    (taken + ' 00:00:00') if taken else None, v_tooth(c.q.get('tooth')))
+                    (taken + ' 00:00:00') if taken else None, v_tooth(c.q.get('tooth')), visit_id=vid)
     return {'xray': x}
 
 
@@ -130,8 +150,9 @@ def xray_update(c, xid):
     old = xray_row(c.db, xid)
     tooth = v_tooth(c.body.get('tooth_no'))
     notes = v_text(c.body, 'notes', 'الملاحظات', maxlen=1000) or None
-    c.db.execute('UPDATE xrays SET tooth_no=?, notes=? WHERE id=?', (tooth, notes, xid))
-    audit(c.db, c.user['username'], 'xray', xid, 'update', old, {'tooth_no': tooth, 'notes': notes})
+    vid = check_visit(c.db, old['patient_id'], c.body.get('visit_id')) if 'visit_id' in c.body else old['visit_id']
+    c.db.execute('UPDATE xrays SET tooth_no=?, notes=?, visit_id=? WHERE id=?', (tooth, notes, vid, xid))
+    audit(c.db, c.user['username'], 'xray', xid, 'update', old, {'tooth_no': tooth, 'notes': notes, 'visit_id': vid})
     return {'xray': xray_row(c.db, xid)}
 
 
@@ -153,6 +174,7 @@ def _sessions(clinic):
 @route('POST', r'/api/patients/(\d+)/xray_capture', perm='visits', tx=False)
 def capture_start(c, pid):
     p = get_patient(c.db, pid)
+    vid = check_visit(c.db, pid, c.body.get('visit_id'))
     folder = folder_setting(c)
     sessions = _sessions(c.clinic)
     with c.clinic.lock:
@@ -160,9 +182,9 @@ def capture_start(c, pid):
         replaced = [dict(full_name=s['patient_name'], user=s['user']) for s in sessions.values() if time.time() < s['until']]
         sessions.clear()
         tok = secrets.token_urlsafe(12)
-        sessions[tok] = {'patient_id': pid, 'patient_name': p['full_name'], 'user': c.user['username'], 'folder': folder,
+        sessions[tok] = {'patient_id': pid, 'patient_name': p['full_name'], 'visit_id': vid, 'user': c.user['username'], 'folder': folder,
                          'since': time.time(), 'until': time.time() + SESSION_MINUTES * 60, 'known': scan(folder), 'imported': []}
-    return {'token': tok, 'folder': folder, 'minutes': SESSION_MINUTES, 'replaced': replaced}
+    return {'token': tok, 'folder': folder, 'minutes': SESSION_MINUTES, 'replaced': replaced, 'visit_id': vid}
 
 
 @route('POST', r'/api/xray_capture/([\w\-]+)/poll', perm='visits', tx=False)
@@ -189,7 +211,12 @@ def capture_poll(c, tok):
                 continue
             c.db.execute('BEGIN IMMEDIATE')
             try:
-                x = store_image(c, s['patient_id'], data, 'sensor', path, time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime)))
+                taken = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+                vid = s['visit_id']
+                if vid and not c.db.execute('SELECT 1 FROM visits WHERE id=? AND deleted=0', (vid,)).fetchone():
+                    vid = None                                        # حُذفت الزيارة أثناء الاستقبال
+                vid = vid or same_day_visit(c.db, s['patient_id'], taken[:10])   # وإلا: زيارة نفس اليوم
+                x = store_image(c, s['patient_id'], data, 'sensor', path, taken, visit_id=vid)
                 c.db.execute('COMMIT')
             except BaseException:
                 c.db.execute('ROLLBACK')

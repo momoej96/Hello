@@ -517,6 +517,7 @@ def visit_delete(c, vid):
     c.db.execute('UPDATE visits SET deleted=1, updated_at=? WHERE id=?', (now, vid))
     c.db.execute('UPDATE procedures SET deleted=1, updated_at=? WHERE visit_id=?', (now, vid))
     c.db.execute("UPDATE appointments SET deleted=1, updated_at=? WHERE source_visit_id=? AND status='confirmed'", (now, vid))
+    c.db.execute('UPDATE xrays SET visit_id=NULL WHERE visit_id=?', (vid,))   # صور الأشعة تبقى في ملف المراجع
     guard_overpay(c, pid, before)
     audit(c.db, c.user['username'], 'visit', vid, 'delete', old_full, None, c.body.get('reason'))
     return {'ok': True, 'summary': balance(c.db, pid)}

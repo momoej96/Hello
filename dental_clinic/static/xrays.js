@@ -1,6 +1,12 @@
 'use strict';
 /* ====== صور الأشعة: استقبال من السنسر، رفع يدوي، عرض ====== */
 const xrayUrl = id => `/api/xrays/${id}/image`;
+const visitLabel = v => `${v.visit_date} — ${v.procedures.map(p => p.name).join('، ') || 'زيارة'}`;
+/* صور أشعة الزيارة داخل بطاقتها في السجل العلاجي */
+function visitXrays(vid) {
+  const xs = (PT && PT.xrays || []).filter(x => x.visit_id === vid);
+  return xs.length ? `<div class="vxr"><span class="muted small">${icon('tooth', 14)} الأشعة (${xs.length}):</span>${xs.map(x => `<button type="button" class="vxr-t" data-action="xray-view" data-id="${x.id}" title="فتح الصورة"><img src="${xrayUrl(x.id)}" alt="أشعة" loading="lazy">${x.tooth_no ? `<span>${esc(teethText(x.tooth_no))}</span>` : ''}</button>`).join('')}</div>` : '';
+}
 
 function drawXrayTab(host) {
   const xs = PT.xrays || [];
@@ -11,6 +17,7 @@ function drawXrayTab(host) {
     ${xs.length ? `<div class="xgrid">${xs.map(x => `<button type="button" class="xcard" data-action="xray-view" data-id="${x.id}">
         <img src="${xrayUrl(x.id)}" alt="صورة أشعة ${esc(x.taken_at)}" loading="lazy">
         <span class="xmeta"><bdi class="num">${esc(x.taken_at.slice(0, 16))}</bdi>${x.tooth_no ? ' ' + teethTags(x.tooth_no) : ''}</span>
+        ${(() => { const v = PT.visits.find(i => i.id === x.visit_id); return v ? `<span class="xnote">الزيارة: ${esc(visitLabel(v))}</span>` : '<span class="xnote muted">غير مرتبطة بزيارة</span>'; })()}
         ${x.notes ? `<span class="xnote">${esc(x.notes)}</span>` : ''}</button>`).join('')}</div>`
       : `<div class="empty-state">${icon('tooth', 34)}<p>لا توجد صور أشعة لهذا المراجع.</p></div>`}`;
   const f = $('#xrayFile', host);
@@ -27,20 +34,21 @@ async function uploadXrays(files) {
 }
 
 /* استقبال تلقائي: يراقب البرنامج مجلد حفظ الصور في برنامج السنسر، وكل صورة جديدة تُضاف لهذا المراجع */
-ACTIONS['xray-capture'] = async () => {
-  const p = PT.patient;
+ACTIONS['xray-capture'] = async b => {
+  const p = PT.patient, visit = b && b.dataset.visit ? PT.visits.find(v => v.id == b.dataset.visit) : null;
   let st;
-  try { st = await api('POST', `/api/patients/${p.id}/xray_capture`, {}); } catch (e) { toast(e.message, 'err'); return; }
+  try { st = await api('POST', `/api/patients/${p.id}/xray_capture`, { visit_id: visit ? visit.id : null }); } catch (e) { toast(e.message, 'err'); return; }
+  const backTab = visit ? PT_TAB : 'xray';
   if (st.replaced && st.replaced.length) toast(`أُوقف استقبال الأشعة للمراجع «${st.replaced[0].full_name}»`, 'warn');
   let active = true, timer = null, got = 0;
   const stop = async () => {
     if (!active) return; active = false; clearTimeout(timer);
     try { await api('POST', `/api/xray_capture/${st.token}/stop`, {}); } catch (e) { }
-    if (got) { PT_TAB = 'xray'; reloadPatient(); }
+    if (got) { PT_TAB = backTab; reloadPatient(); }
   };
-  const m = modal({ title: 'استقبال أشعة — ' + p.full_name, wide: true, onClose: stop,
+  const m = modal({ title: 'استقبال أشعة — ' + p.full_name + (visit ? ' — زيارة ' + visit.visit_date : ''), wide: true, onClose: stop,
     body: `<div class="xwait"><div class="pulse"></div><div><b>بانتظار صورة الأشعة…</b><br>
-      <span class="muted">صوّر الآن ببرنامج السنسر (Woodpecker) كالعادة. كل صورة يحفظها تُضاف مباشرة لملف هذا المراجع.</span><br>
+      <span class="muted">صوّر الآن ببرنامج السنسر (Woodpecker) كالعادة. كل صورة يحفظها تُضاف مباشرة ${visit ? 'لزيارة ' + esc(visitLabel(visit)) : 'لملف هذا المراجع (ولزيارة اليوم إن وُجدت)'}.</span><br>
       <small class="muted">المجلد المراقَب: <bdi dir="ltr">${esc(st.folder)}</bdi> · يتوقف تلقائياً بعد <span id="xleft">${st.minutes}</span> دقيقة</small></div></div>
       <div id="xgot" class="xgrid mt"></div>`,
     footer: `<button type="button" class="btn primary" data-close>إنهاء الاستقبال</button>` });
@@ -78,10 +86,11 @@ ACTIONS['xray-view'] = b => {
         <button type="button" class="btn sm" data-inv>عكس الألوان</button>
         <label>السطوع <input type="range" min="40" max="220" value="100" data-k="br"></label>
         <label>التباين <input type="range" min="40" max="300" value="100" data-k="ct"></label></div>
-      <div class="form-grid c3 mt"><label class="fld"><span>السن</span><input name="tooth_no" dir="ltr" value="${esc(teethOf(x.tooth_no).join(', '))}" placeholder="مثال: 36 أو 11, 21"></label>
+      <div class="form-grid c3 mt"><label class="fld full"><span>الزيارة</span><select name="visit_id"><option value="">— غير مرتبطة بزيارة —</option>${PT.visits.map(v => `<option value="${v.id}" ${v.id === x.visit_id ? 'selected' : ''}>${esc(visitLabel(v))}</option>`).join('')}</select></label>
+        <label class="fld"><span>السن</span><input name="tooth_no" dir="ltr" value="${esc(teethOf(x.tooth_no).join(', '))}" placeholder="مثال: 36 أو 11, 21"></label>
         <label class="fld" style="grid-column:span 2"><span>ملاحظات</span><input name="notes" value="${esc(x.notes || '')}"></label></div>
       <p class="muted small">التاريخ: <bdi class="num">${esc(x.taken_at)}</bdi> · ${x.source === 'sensor' ? 'من السنسر' : 'رفع يدوي'}</p>`,
-    footer: `${can('visits') ? '<button type="button" class="btn primary" data-save>حفظ السن والملاحظات</button>' : ''}<button type="button" class="btn" data-print>${icon('print', 15)} طباعة</button>
+    footer: `${can('visits') ? '<button type="button" class="btn primary" data-save>حفظ</button>' : ''}<button type="button" class="btn" data-print>${icon('print', 15)} طباعة</button>
       <a class="btn" href="${xrayUrl(x.id)}" download="xray-${PT.patient.file_no}-${x.id}">تنزيل</a>
       ${can('delete') ? '<button type="button" class="btn danger-o" data-del>حذف</button>' : ''}<button type="button" class="btn" data-close>إغلاق</button>` });
   const img = $('#ximg', m.el), stage = $('.xstage', m.el);
@@ -99,7 +108,7 @@ ACTIONS['xray-view'] = b => {
   stage.addEventListener('pointerup', () => { drag = null; });
   const save = $('[data-save]', m.el);
   if (save) save.onclick = async () => {
-    try { await api('PUT', '/api/xrays/' + x.id, { tooth_no: $('[name=tooth_no]', m.el).value, notes: $('[name=notes]', m.el).value }); m.close(); toast('تم الحفظ'); PT_TAB = 'xray'; reloadPatient(); }
+    try { await api('PUT', '/api/xrays/' + x.id, { tooth_no: $('[name=tooth_no]', m.el).value, notes: $('[name=notes]', m.el).value, visit_id: $('[name=visit_id]', m.el).value }); m.close(); toast('تم الحفظ'); reloadPatient(); }
     catch (e) { toast(e.message, 'err'); }
   };
   $('[data-print]', m.el).onclick = () => {
@@ -112,6 +121,6 @@ ACTIONS['xray-view'] = b => {
   const del = $('[data-del]', m.el);
   if (del) del.onclick = async () => {
     if (!await confirmBox('حذف صورة الأشعة من ملف المراجع؟ (أصلها يبقى في برنامج السنسر)', { danger: true, ok: 'حذف' })) return;
-    try { await api('DELETE', '/api/xrays/' + x.id, {}); m.close(); toast('تم الحذف'); PT_TAB = 'xray'; reloadPatient(); } catch (e) { toast(e.message, 'err'); }
+    try { await api('DELETE', '/api/xrays/' + x.id, {}); m.close(); toast('تم الحذف'); reloadPatient(); } catch (e) { toast(e.message, 'err'); }
   };
 };
