@@ -17,12 +17,12 @@ function remBadge(r) {
 /* ---- قائمة المراجعين والبحث ---- */
 async function pagePatients(main) {
   main.innerHTML = `<div class="page-head"><h1>المراجعون</h1><div class="actions"><button type="button" class="btn primary" data-action="new-patient">${icon('plus')} إضافة مراجع جديد</button></div></div>
-  <section class="card"><div class="searchbar">${icon('search', 20)}<input id="pq" type="search" placeholder="ابحث بالاسم (كاملاً أو جزءاً منه)، أو رقم الهاتف، أو رقم الملف" autocomplete="off"></div><div id="plist" class="mt"></div></section>`;
+  <section class="card"><div class="searchbar">${icon('search', 20)}<input id="pq" type="search" placeholder="ابحث بالاسم (كاملاً أو جزءاً منه)، أو رقم الهاتف، أو رقم الملف" autocomplete="off"></div><p id="pcount" class="muted small mt"></p><div id="plist"></div></section>`;
   const input = $('#pq'); let t, seq = 0;
   async function load() {
     const my = ++seq;
     try {
-      const d = await api('GET', '/api/patients?' + qs({ q: input.value, limit: 200 }));
+      const d = await api('GET', '/api/patients?' + qs({ q: input.value, limit: 100000 }));   // كل المراجعين
       if (my !== seq) return;
       const cols = [
         { title: 'رقم الملف', key: 'file_no', cls: 'num', render: r => `<bdi class="num">${r.file_no}</bdi>` },
@@ -33,6 +33,7 @@ async function pagePatients(main) {
         { title: 'أول زيارة', key: 'first_visit_date', render: r => dateH(r.first_visit_date) },
       ];
       if (can('payments')) cols.push({ title: 'الحساب', key: 'remaining', render: r => remBadge(r.remaining), exp: r => r.remaining });
+      $('#pcount').textContent = input.value ? `نتائج البحث: ${fmt(d.patients.length)} مراجع` : `عدد المراجعين: ${fmt(d.patients.length)}`;
       dataTable($('#plist'), { cols, rows: d.patients, href: r => '#/patient/' + r.id, search: false, empty: input.value ? 'لا يوجد مراجع مطابق للبحث. جرّب جزءاً من الاسم أو رقم الهاتف.' : 'لا يوجد مراجعون بعد. أضف أول مراجع من الزر أعلاه.' });
     } catch (e) { $('#plist').innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
   }

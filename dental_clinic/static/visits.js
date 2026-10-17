@@ -72,7 +72,7 @@ function openVisitModal(v) {
       <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? `<span>التكلفة${MONEY_UNIT()}</span>` : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
       <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
-      ${money && isNew ? `<label class="paid-cash"><input type="checkbox" name="paid_cash"> <b>تم الدفع نقداً</b> <span class="muted small">— تُسجَّل دفعة نقدية بمبلغ الزيارة مباشرة (بدون «المخطط له»)</span></label>` : ''}
+      ${money && isNew ? `<label class="paid-cash"><input type="checkbox" name="paid_cash" checked> <b>تم الدفع نقداً</b> <span class="muted small">— تُسجَّل دفعة نقدية بمبلغ الزيارة مباشرة. أزل العلامة إذا لم يدفع، فيبقى المبلغ ديناً على المراجع</span></label>` : ''}
       ${money ? '<p class="muted small">الإجراء «مخطط له» لا يدخل في المبلغ المستحق على المراجع حتى تغيّر حالته إلى «قيد التنفيذ» أو «مكتمل».</p>' : ''}
       <label class="fld full"><span>ملاحظات سريرية</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
       <div class="form-grid c3">${f('next_appointment', 'موعد الزيارة القادمة', v.next_appointment, 'date')}${f('next_time', 'وقت الموعد القادم', v.next_time, 'time')}</div>
@@ -170,8 +170,7 @@ async function renderVisitsView(host, def) {
   const money = can('payments');
   host.innerHTML = `<section class="card filters"><div class="form-grid c4">
     <label class="fld"><span>من تاريخ</span><input type="date" id="vf" value="${def.from}"></label><label class="fld"><span>إلى تاريخ</span><input type="date" id="vt" value="${def.to}"></label>
-    <label class="fld"><span>اسم / هاتف / رقم ملف</span><input type="search" id="vq" autocomplete="off"></label><label class="fld"><span>الطبيب</span><input id="vd" list="dl-docs2" autocomplete="off"></label></div>
-    <datalist id="dl-docs2">${doctorList().map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <label class="fld"><span>اسم / هاتف / رقم ملف</span><input type="search" id="vq" autocomplete="off"></label><label class="fld"><span>الطبيب</span><select id="vd"><option value="">كل الأطباء</option>${doctorList().concat(['غير محدد']).map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label></div>
     <div class="presets"><button type="button" class="btn sm" data-p="today">اليوم</button><button type="button" class="btn sm" data-p="yest">أمس</button><button type="button" class="btn sm" data-p="week">هذا الأسبوع</button><button type="button" class="btn sm" data-p="month">هذا الشهر</button><button type="button" class="btn sm" data-p="30">آخر 30 يوماً</button></div></section>
     <div id="vres"></div>`;
   const val = id => $('#' + id, host).value;
@@ -182,7 +181,6 @@ async function renderVisitsView(host, def) {
     try {
       const d = await api('GET', '/api/visits_by_date?' + qs({ from, to, q: val('vq'), doctor: val('vd') }));
       if (my !== seq) return;
-      const rowsOut = [];
       const cols = [
         { title: 'التاريخ', key: 'visit_date', render: r => dateH(r.visit_date) },
         { title: 'الوقت', key: 'visit_time', render: r => `<bdi>${esc(r.visit_time || '')}</bdi>` },
@@ -191,14 +189,29 @@ async function renderVisitsView(host, def) {
         { title: 'الإجراءات', val: r => r.procedures.map(p => p.name).join('، '), render: r => r.procedures.map(p => `${teethTags(p.tooth_no)}${p.tooth_no ? ' ' : ''}${esc(p.name)}`).join('<br>') || '<span class="muted">—</span>' },
       ];
       if (money) cols.push({ title: 'تكلفة العلاج', key: 'visit_cost', render: r => moneyH(r.visit_cost) }, { title: 'المقبوض في ذلك اليوم', key: 'paid_that_day', render: r => r.paid_that_day == null ? '<span class="muted">—</span>' : moneyH(r.paid_that_day) }, { title: 'المتبقي على المراجع', key: 'remaining', render: r => remBadge(r.remaining) });
-      const tbl = $('#vtbl', host);
-      const dt = dataTable(tbl, { cols, rows: d.visits, search: false, empty: 'لا توجد زيارات مسجلة في هذه الفترة.',
-        footer: money ? () => `<tr class="tot"><td colspan="5">المجموع (${d.visits.length} زيارة)</td><td>${moneyH(d.visits.reduce((s, r) => s + r.visit_cost, 0))}</td><td colspan="2"></td></tr>` : null });
-      if (money) $('#vpay', host).innerHTML = `<h3>الدفعات المقبوضة في هذه الفترة <small class="muted">(حسب تاريخ استلام المبلغ، وقد تختلف عن تاريخ العلاج)</small></h3>` + simpleTable(['التاريخ', 'المراجع', 'النوع', 'المبلغ', 'الطريقة'], d.payments.map(p => [dateH(p.pay_date), `<a class="pname" href="#/patient/${p.patient_id}">${esc(p.full_name)}</a>`, p.kind === 'refund' ? 'مسترد' : 'دفعة', moneyH(p.kind === 'refund' ? -p.amount : p.amount), METH[p.method]]), { foot: `<tr class="tot"><td colspan="3">إجمالي المقبوضات (بدون المسترد)</td><td colspan="2">${moneyH(d.receipts_total)}</td></tr>` });
-      RPT = { title: `الزيارات من ${from} إلى ${to}`, headers: dt.headers(), rows: dt.matrix(), html: simpleTable(dt.headers(), dt.matrix().map(r => r.map(c => esc(c)))) };
+      /* مجموعة لكل طبيب بترتيب ثابت، وتحتها مجموع ما قُبض له في الفترة */
+      const box = $('#vtbl', host);
+      box.innerHTML = d.groups.length ? d.groups.map((g, i) => `<section class="card dgroup"><h3>${esc(g.doctor)} <span class="cnt">${fmt(g.visits)} زيارة · ${fmt(g.patients)} مراجع</span></h3><div id="dg${i}"></div>
+          ${money ? `<div class="dsum"><span>تكلفة العلاج: <b>${moneyH(g.cost)}</b></span><span class="hl">المبلغ المدفوع لهذا الطبيب: <b>${moneyH(g.receipts)}</b></span></div>` : ''}</section>`).join('')
+        + (money && d.groups.length > 1 ? `<section class="card dsum total"><span>المجموع لكل الأطباء: ${fmt(d.visits.length)} زيارة</span><span>تكلفة العلاج: <b>${moneyH(d.visits.reduce((s, r) => s + r.visit_cost, 0))}</b></span><span class="hl">إجمالي المدفوع: <b>${moneyH(d.receipts_total)}</b></span></section>` : '')
+        : '<section class="card"><p class="muted">لا توجد زيارات مسجلة في هذه الفترة.</p></section>';
+      d.groups.forEach((g, i) => dataTable($('#dg' + i, box), { cols, rows: d.visits.filter(v => v.doctor_eff === g.doctor), search: false, empty: 'لا توجد زيارات لهذا الطبيب في الفترة (توجد دفعات فقط).' }));
+      if (money) {
+        $('#vpay', host).innerHTML = `<h3>الدفعات المقبوضة في هذه الفترة <small class="muted">(حسب تاريخ استلام المبلغ، وقد تختلف عن تاريخ العلاج)</small></h3><div id="vpayt"></div>`;
+        dataTable($('#vpayt', host), { rows: d.payments, search: false, empty: 'لا توجد دفعات في هذه الفترة.', cols: [
+          { title: 'التاريخ', key: 'pay_date', render: p => dateH(p.pay_date) }, { title: 'المراجع', key: 'full_name', render: p => `<a class="pname" href="#/patient/${p.patient_id}">${esc(p.full_name)}</a>` },
+          { title: 'الطبيب', key: 'doctor_eff' }, { title: 'النوع', val: p => p.kind === 'refund' ? 'مسترد' : 'دفعة' },
+          { title: 'المبلغ', val: p => p.kind === 'refund' ? -p.amount : p.amount, render: p => moneyH(p.kind === 'refund' ? -p.amount : p.amount) }, { title: 'الطريقة', val: p => METH[p.method] }],
+          footer: () => `<tr class="tot"><td colspan="4">إجمالي المقبوضات (بدون المسترد)</td><td colspan="2">${moneyH(d.receipts_total)}</td></tr>` });
+      }
+      const head = ['الطبيب', 'التاريخ', 'الوقت', 'المراجع', 'الهاتف', 'الإجراءات'].concat(money ? ['تكلفة العلاج', 'المقبوض في ذلك اليوم', 'المتبقي على المراجع'] : []);
+      const ordered = d.groups.flatMap(g => d.visits.filter(v => v.doctor_eff === g.doctor));
+      const rows = ordered.map(v => [v.doctor_eff, v.visit_date, v.visit_time || '', v.full_name, v.phone || '', v.procedures.map(p => p.name).join('، ')].concat(money ? [v.visit_cost, v.paid_that_day ?? '', v.remaining] : []));
+      const sums = money ? '<h3>المجاميع حسب الطبيب</h3>' + simpleTable(['الطبيب', 'الزيارات', 'المراجعون', 'تكلفة العلاج', 'المبلغ المدفوع'], d.groups.map(g => [esc(g.doctor), fmt(g.visits), fmt(g.patients), fmtMoney(g.cost), fmtMoney(g.receipts)])) : '';
+      RPT = { title: `الزيارات من ${from} إلى ${to}`, headers: head, rows, html: sums + simpleTable(head, rows.map(r => r.map(c => esc(typeof c === 'number' ? fmt(c) : c)))) };
     } catch (e) { $('#vtbl', host).innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
   }
-  $('#vres', host).innerHTML = `${exportBar()}<section class="card"><div id="vtbl"></div></section>${money ? '<section class="card" id="vpay"></section>' : ''}`;
+  $('#vres', host).innerHTML = `${exportBar()}<div id="vtbl"></div>${money ? '<section class="card" id="vpay"></section>' : ''}`;
   ['vf', 'vt', 'vd'].forEach(i => $('#' + i, host).addEventListener('change', load));
   $('#vq', host).addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 250); });
   host.addEventListener('click', e => {

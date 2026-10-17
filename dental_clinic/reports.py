@@ -48,30 +48,80 @@ def by_procedure(db, a, b):
 NO_DOCTOR = 'غير محدد'
 
 
+def settings_doctors(db):
+    try:
+        return [d for d in json.loads(get_settings(db).get('doctors') or '[]') if isinstance(d, str) and d.strip()]
+    except ValueError:
+        return []
+
+
+class DoctorNames:
+    """يوحّد كتابات اسم الطبيب مع أسماء الأطباء في الإعدادات («د. مرتضى» و«د مرتضى حميد عجرش» = طبيب واحد)."""
+    def __init__(self, db):
+        from importer import doctor_core
+        self.core = lambda n: doctor_core(n).replace(' ', '')
+        self.doctors = settings_doctors(db)
+        self.cache = {}
+
+    def __call__(self, name):
+        name = (name or '').strip()
+        if not name:
+            return NO_DOCTOR
+        if name not in self.cache:
+            c = self.core(name)
+            hit = [d for d in self.doctors if self.core(d) == c]
+            if not hit and c:
+                hit = [d for d in self.doctors if self.core(d) and (self.core(d) in c or c in self.core(d))]
+            self.cache[name] = hit[0] if len(hit) == 1 else name
+        return self.cache[name]
+
+    def order(self, name):
+        """ترتيب ثابت: أطباء الإعدادات بترتيبهم، ثم غيرهم، ثم «غير محدد»."""
+        if name in self.doctors:
+            return (0, self.doctors.index(name), '')
+        return (2, 0, '') if name == NO_DOCTOR else (1, 0, name)
+
+
+# الطبيب الفعلي: المسجل على السجل نفسه، وإلا الطبيب المعالج للمراجع. «» صريح (شيت مشترك) = غير محدد
+PROC_DOC = ("CASE WHEN x.doctor IS NOT NULL THEN NULLIF(TRIM(x.doctor),'') "
+            "ELSE COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) END")
+VISIT_DOC = "CASE WHEN v.doctor IS NOT NULL THEN NULLIF(TRIM(v.doctor),'') ELSE NULLIF(TRIM(pt.doctor),'') END"
+PAY_DOC = ("CASE WHEN y.doctor IS NOT NULL THEN NULLIF(TRIM(y.doctor),'') "
+           "ELSE COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) END")
+
+
+def receipts_by_doctor(db, a, b, names=None):
+    names = names or DoctorNames(db)
+    out = {}
+    for r in db.execute("SELECT " + PAY_DOC + " AS doc, SUM(y.amount) t FROM payments y JOIN patients pt ON pt.id=y.patient_id "
+                        "LEFT JOIN visits v ON v.id=y.visit_id AND v.deleted=0 "
+                        "WHERE y.deleted=0 AND y.kind='payment' AND y.pay_date BETWEEN ? AND ? GROUP BY doc", (a, b)):
+        k = names(r['doc'])
+        out[k] = out.get(k, 0) + (r['t'] or 0)
+    return out
+
+
 def by_doctor(db, a, b):
     """عمل كل طبيب في الفترة: الإجراء يُنسب لطبيبه، ثم طبيب الزيارة، ثم الطبيب المعالج للمراجع.
     المقبوض يُنسب لطبيب الدفعة، ثم طبيب الزيارة المرتبطة بها، ثم الطبيب المعالج للمراجع.
-    الطبيب الفارغ صراحةً («» من شيت مشترك عند الاستيراد) يبقى «غير محدد» ولا يُنسب لطبيب المراجع."""
+    الطبيب الفارغ صراحةً («» من شيت مشترك عند الاستيراد) يبقى «غير محدد» ولا يُنسب لطبيب المراجع.
+    كتابات اسم الطبيب المختلفة تُجمع تحت اسمه في الإعدادات."""
+    names = DoctorNames(db)
     out = {}
     def row(name):
-        return out.setdefault(name or NO_DOCTOR, {'doctor': name or NO_DOCTOR, 'patients': 0, 'visits': 0, 'procedures': 0,
-                                                  'executed': 0, 'agreed': 0, 'receipts': 0})
+        return out.setdefault(name, {'doctor': name, 'patients': set(), 'visits': set(), 'procedures': 0, 'executed': 0, 'agreed': 0, 'receipts': 0})
     for r in db.execute(
-            "SELECT CASE WHEN x.doctor IS NOT NULL THEN NULLIF(TRIM(x.doctor),'') "
-            "ELSE COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) END AS doc, "
-            "COUNT(DISTINCT v.patient_id) np, COUNT(DISTINCT v.id) nv, COUNT(x.id) nx, "
+            "SELECT " + PROC_DOC + " AS doc, v.patient_id pid, v.id vid, COUNT(x.id) nx, "
             "COALESCE(SUM(CASE WHEN x.status='completed' THEN x.cost END),0) executed, COALESCE(SUM(x.cost),0) agreed "
             "FROM procedures x JOIN visits v ON v.id=x.visit_id JOIN patients pt ON pt.id=v.patient_id "
-            "WHERE x.deleted=0 AND v.deleted=0 AND x.status!='cancelled' AND v.visit_date BETWEEN ? AND ? GROUP BY doc", (a, b)):
-        d = row(r['doc'])
-        d.update(patients=r['np'], visits=r['nv'], procedures=r['nx'], executed=r['executed'], agreed=r['agreed'])
-    for r in db.execute(
-            "SELECT CASE WHEN y.doctor IS NOT NULL THEN NULLIF(TRIM(y.doctor),'') "
-            "ELSE COALESCE(NULLIF(TRIM(v.doctor),''), NULLIF(TRIM(pt.doctor),'')) END AS doc, SUM(y.amount) t "
-            "FROM payments y JOIN patients pt ON pt.id=y.patient_id LEFT JOIN visits v ON v.id=y.visit_id AND v.deleted=0 "
-            "WHERE y.deleted=0 AND y.kind='payment' AND y.pay_date BETWEEN ? AND ? GROUP BY doc", (a, b)):
-        row(r['doc'])['receipts'] = r['t'] or 0
-    rows = sorted(out.values(), key=lambda d: (d['doctor'] == NO_DOCTOR, -d['executed'], -d['agreed'], -d['receipts']))
+            "WHERE x.deleted=0 AND v.deleted=0 AND x.status!='cancelled' AND v.visit_date BETWEEN ? AND ? GROUP BY doc, v.id", (a, b)):
+        d = row(names(r['doc']))
+        d['patients'].add(r['pid']); d['visits'].add(r['vid'])
+        d['procedures'] += r['nx']; d['executed'] += r['executed']; d['agreed'] += r['agreed']
+    for k, t in receipts_by_doctor(db, a, b, names).items():
+        row(k)['receipts'] = t
+    rows = [{**d, 'patients': len(d['patients']), 'visits': len(d['visits'])} for d in out.values()]
+    rows.sort(key=lambda d: (d['doctor'] == NO_DOCTOR, -d['executed'], -d['agreed'], -d['receipts']))
     total = sum(d['executed'] for d in rows)
     for d in rows:
         d['share'] = round(100 * d['executed'] / total, 1) if total else 0
@@ -114,55 +164,91 @@ def _range(c, need_both=True):
 
 
 def visits_in_range(db, a, b, q='', doctor='', money=True):
-    sql = ("SELECT v.*, p.full_name, p.file_no, p.phone FROM visits v JOIN patients p ON p.id=v.patient_id "
-           "WHERE v.deleted=0 AND v.visit_date BETWEEN ? AND ?")
+    """كل زيارات الفترة (بلا حد أقصى). الإجراءات والمقبوض والأرصدة تُقرأ بثلاث استعلامات مجمّعة لا استعلام لكل زيارة."""
+    names = DoctorNames(db)
+    where = "v.deleted=0 AND v.visit_date BETWEEN ? AND ?"
     args = [a, b]
     cond, ca = search_cond(q)
     if cond:
-        sql += ' AND ' + cond
+        where += ' AND ' + cond
         args += ca
-    if doctor:
-        sql += ' AND v.doctor=?'
-        args.append(doctor)
-    sql += ' ORDER BY v.visit_date DESC, COALESCE(v.visit_time,\'\'), v.id LIMIT 2000'
-    rows, seen, bal_cache = [], set(), {}
-    for r in db.execute(sql, args):
+    rows = []
+    for r in db.execute("SELECT v.*, p.full_name, p.file_no, p.phone, " + VISIT_DOC.replace('pt.', 'p.') + " AS doc FROM visits v "
+                        "JOIN patients p ON p.id=v.patient_id WHERE " + where + " ORDER BY v.visit_date DESC, COALESCE(v.visit_time,''), v.id", args):
         v = dict(r)
-        v['procedures'] = [dict(x) for x in db.execute('SELECT name,tooth_no,status,cost FROM procedures WHERE visit_id=? AND deleted=0 ORDER BY id', (v['id'],))]
-        if money:
+        v['doctor_eff'] = names(v.pop('doc'))       # الطبيب الفعلي للزيارة (بالاسم الموحد)
+        if doctor and v['doctor_eff'] != doctor:
+            continue
+        v['procedures'] = []
+        rows.append(v)
+    if not rows:
+        return rows
+    by_id = {v['id']: v for v in rows}
+    for x in db.execute("SELECT x.visit_id, x.name, x.tooth_no, x.status, x.cost FROM procedures x JOIN visits v ON v.id=x.visit_id "
+                        "JOIN patients p ON p.id=v.patient_id WHERE x.deleted=0 AND " + where + " ORDER BY x.id", args):
+        if x['visit_id'] in by_id:
+            by_id[x['visit_id']]['procedures'].append({k: x[k] for k in ('name', 'tooth_no', 'status', 'cost')})
+    if money:
+        paid = {(r[0], r[1]): r[2] for r in db.execute(
+            "SELECT patient_id, pay_date, SUM(amount) FROM payments WHERE deleted=0 AND kind='payment' AND pay_date BETWEEN ? AND ? GROUP BY patient_id, pay_date", (a, b))}
+        pids = {v['patient_id'] for v in rows}
+        rem = {r[0]: r[1] for r in db.execute("SELECT patient_id, total_cost-discounts+debits-(paid-refunded) FROM v_balances")
+               if r[0] in pids} if len(pids) > 200 else {pid: balance(db, pid)['remaining'] for pid in pids}
+        seen = set()
+        for v in rows:
             v['visit_cost'] = sum(p['cost'] for p in v['procedures'] if p['status'] != 'cancelled')
             key = (v['patient_id'], v['visit_date'])
-            if key in seen:      # لا نكرر المقبوض إذا كان للمراجع أكثر من زيارة في اليوم نفسه
-                v['paid_that_day'] = None
-            else:
-                seen.add(key)
-                v['paid_that_day'] = _scalar(db, "SELECT SUM(amount) FROM payments WHERE deleted=0 AND kind='payment' AND patient_id=? AND pay_date=?", (v['patient_id'], v['visit_date']))
-            if v['patient_id'] not in bal_cache:
-                bal_cache[v['patient_id']] = balance(db, v['patient_id'])['remaining']
-            v['remaining'] = bal_cache[v['patient_id']]
-        rows.append(v)
+            v['paid_that_day'] = None if key in seen else paid.get(key, 0)   # لا نكرر المقبوض لزيارتين في نفس اليوم
+            seen.add(key)
+            v['remaining'] = rem.get(v['patient_id'], 0)
     return rows
 
 
-def payments_in_range(db, a, b, q=''):
-    sql = ("SELECT y.id, y.pay_date, y.amount, y.kind, y.method, y.notes, y.patient_id, p.full_name, p.file_no FROM payments y "
-           "JOIN patients p ON p.id=y.patient_id WHERE y.deleted=0 AND y.pay_date BETWEEN ? AND ?")
+def payments_in_range(db, a, b, q='', names=None):
+    names = names or DoctorNames(db)
+    sql = ("SELECT y.id, y.pay_date, y.amount, y.kind, y.method, y.notes, y.patient_id, p.full_name, p.file_no, "
+           + PAY_DOC.replace('pt.', 'p.') + " AS doc FROM payments y "
+           "JOIN patients p ON p.id=y.patient_id LEFT JOIN visits v ON v.id=y.visit_id AND v.deleted=0 WHERE y.deleted=0 AND y.pay_date BETWEEN ? AND ?")
     args = [a, b]
     cond, ca = search_cond(q)
     if cond:
         sql += ' AND ' + cond
         args += ca
-    return [dict(r) for r in db.execute(sql + ' ORDER BY y.pay_date DESC, y.id DESC LIMIT 3000', args)]
+    out = []
+    for r in db.execute(sql + ' ORDER BY y.pay_date DESC, y.id DESC LIMIT 5000', args):
+        d = dict(r)
+        d['doctor_eff'] = names(d.pop('doc'))
+        out.append(d)
+    return out
 
 
 @route('GET', '/api/visits_by_date', perm='visits', tx=False)
 def visits_by_date(c):
     a, b = _range(c)
     money = can(c.user, 'payments')
-    out = {'visits': visits_in_range(c.db, a, b, c.q.get('q', ''), c.q.get('doctor', ''), money)}
+    names = DoctorNames(c.db)
+    doctor = (c.q.get('doctor') or '').strip()
+    out = {'visits': visits_in_range(c.db, a, b, c.q.get('q', ''), doctor, money), 'doctors': names.doctors + [NO_DOCTOR]}
+    # مراجعو كل طبيب في مجموعة منفصلة، بترتيب ثابت (أطباء الإعدادات بترتيبهم)، وتحت كل مجموعة ما قُبض له
+    groups = {}
+    def grp(k):
+        return groups.setdefault(k, {'doctor': k, 'visits': 0, 'patients': set(), 'cost': 0, 'receipts': 0})
+    for v in out['visits']:
+        g = grp(v['doctor_eff'])
+        g['visits'] += 1; g['patients'].add(v['patient_id']); g['cost'] += v.get('visit_cost') or 0
     if money:
-        out['payments'] = payments_in_range(c.db, a, b, c.q.get('q', ''))
-        out['receipts_total'] = sum(p['amount'] for p in out['payments'] if p['kind'] == 'payment')
+        pays = payments_in_range(c.db, a, b, c.q.get('q', ''), names)
+        if doctor:
+            pays = [p for p in pays if p['doctor_eff'] == doctor]
+        out['payments'] = pays
+        out['receipts_total'] = sum(p['amount'] for p in pays if p['kind'] == 'payment')
+        for p in pays:
+            if p['kind'] == 'payment':
+                grp(p['doctor_eff'])['receipts'] += p['amount']
+    out['groups'] = [{**g, 'patients': len(g['patients'])} for g in sorted(groups.values(), key=lambda g: names.order(g['doctor']))]
+    if not money:
+        for g in out['groups']:
+            g.pop('cost'); g.pop('receipts')
     return out
 
 

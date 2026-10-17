@@ -596,6 +596,44 @@ class T12_Doctors(Base):
         self.assertEqual(d['by_doctor'][-1]['doctor'], 'غير محدد')
         self.assertEqual(d['by_doctor'][-1]['executed'], 10000)
 
+    def test_bydate_grouped_by_doctor(self):
+        """مراجعو يوم/فترة: مجموعة لكل طبيب بترتيب الإعدادات ومجموع المدفوع له، والفلترة تُظهر كل مراجعيه"""
+        st = self.c.ok('GET', '/api/settings')['settings']
+        self.c.ok('PUT', '/api/settings', {**st, 'doctors': ['د مرتضى حميد عجرش', 'د منتظر']})
+        a = self.patient('مراجع مرتضى', '07701000001', doctor='د مرتضى حميد عجرش')
+        b = self.patient('مراجع منتظر', '07701000002', doctor='د منتظر')
+        c = self.patient('مراجع قديم', '07701000003', doctor='د مرتضى حميد عجرش')
+        self.visit(a['id'], '2025-07-01', [{'name': 'حشوة', 'cost': 50000}], paid_cash=True)
+        self.visit(b['id'], '2025-07-01', [{'name': 'قلع سن', 'cost': 30000}], paid_cash=True)
+        self.visit(b['id'], '2025-07-03', [{'name': 'تنظيف', 'cost': 20000}], doctor='د. مرتضى')     # كتابة مختلفة لنفس الطبيب
+        db = sqlite3.connect(os.path.join(self.tmp, 'clinic.db'))     # زيارة قديمة بلا طبيب على الزيارة نفسها (مثل المستورد)
+        vid = db.execute("INSERT INTO visits(patient_id,visit_date,doctor,created_at,updated_at) VALUES(?, '2025-07-02', NULL, 'x', 'x')", (c['id'],)).lastrowid
+        db.execute("INSERT INTO procedures(visit_id,patient_id,name,status,cost,created_at,updated_at) VALUES(?,?, 'فحص', 'completed', 15000, 'x', 'x')", (vid, c['id']))
+        db.commit(); db.close()
+        self.pay(c['id'], '2025-07-02', 15000)
+        d = self.c.ok('GET', '/api/visits_by_date?from=2025-07-01&to=2025-07-31')
+        self.assertEqual([g['doctor'] for g in d['groups']], ['د مرتضى حميد عجرش', 'د منتظر'])
+        mo, mu = d['groups']
+        self.assertEqual((mo['visits'], mo['patients'], mo['cost'], mo['receipts']), (3, 3, 85000, 65000))
+        self.assertEqual((mu['visits'], mu['patients'], mu['cost'], mu['receipts']), (1, 1, 30000, 30000))
+        # الفلترة بالطبيب: كل زياراته (بما فيها القديمة بلا طبيب والكتابة المختلفة)، والدفعات أيضاً
+        f = self.c.ok('GET', '/api/visits_by_date?from=2025-07-01&to=2025-07-31&doctor=' + urllib.parse.quote('د مرتضى حميد عجرش'))
+        self.assertEqual(len(f['visits']), 3)
+        self.assertEqual(f['receipts_total'], 65000)
+        self.assertEqual({v['doctor_eff'] for v in f['visits']}, {'د مرتضى حميد عجرش'})
+        # تقرير الأطباء يستعمل نفس التوحيد
+        rows = {r['doctor']: r for r in self.c.ok('GET', '/api/reports/period?from=2025-07-01&to=2025-07-31')['by_doctor']}
+        self.assertEqual(set(rows), {'د مرتضى حميد عجرش', 'د منتظر'})
+        self.assertEqual(rows['د مرتضى حميد عجرش']['receipts'], 65000)
+
+    def test_patients_list_shows_all(self):
+        """قائمة المراجعين تعرض الكل (آلاف المراجعين) لا أول 200 فقط"""
+        db = sqlite3.connect(os.path.join(self.tmp, 'clinic.db'))
+        db.executemany("INSERT INTO patients(file_no,full_name,name_norm,created_at,updated_at) VALUES(?,?,?,'x','x')",
+                       [(2000 + i, 'مراجع %d' % i, 'مراجع %d' % i) for i in range(1200)])
+        db.commit(); db.close()
+        self.assertEqual(len(self.c.ok('GET', '/api/patients?limit=100000')['patients']), 1200)
+
     def test_old_database_is_upgraded(self):
         """قاعدة بيانات من الإصدار السابق (بدون عمود الطبيب) تُرقّى تلقائياً دون فقدان البيانات"""
         import core

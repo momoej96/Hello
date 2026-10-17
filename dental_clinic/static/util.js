@@ -234,10 +234,16 @@ function dataTable(host, o) {
     }
     return rows;
   };
+  const rowHTML = r => `<tr ${o.href ? `data-href="${esc(o.href(r))}"` : ''} class="${o.rowClass ? o.rowClass(r) : ''}">${cols.map(c => `<td class="${c.cls || ''}">${c.render ? c.render(r) : esc(val(c, r) ?? '')}</td>`).join('')}</tr>`;
+  let gen = 0;
   function draw() {
-    const rows = view();
+    const rows = view(), my = ++gen, FIRST = 300, CHUNK = 700;
     const cnt = $('.dt-count', host); if (cnt) cnt.textContent = `${rows.length} من ${o.rows.length}`;
-    body.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr>${cols.map((c, i) => `<th data-i="${i}" class="${c.cls || ''} ${c.sortable === false ? '' : 'sortable'} ${st.key === i ? (st.dir > 0 ? 'asc' : 'desc') : ''}">${c.title}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr ${o.href ? `data-href="${esc(o.href(r))}"` : ''} class="${o.rowClass ? o.rowClass(r) : ''}">${cols.map(c => `<td class="${c.cls || ''}">${c.render ? c.render(r) : esc(val(c, r) ?? '')}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" class="empty">${o.empty || 'لا توجد بيانات'}</td></tr>`}</tbody>${o.footer ? `<tfoot>${o.footer(rows)}</tfoot>` : ''}</table></div>`;
+    body.innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr>${cols.map((c, i) => `<th data-i="${i}" class="${c.cls || ''} ${c.sortable === false ? '' : 'sortable'} ${st.key === i ? (st.dir > 0 ? 'asc' : 'desc') : ''}">${c.title}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.slice(0, FIRST).map(rowHTML).join('') : `<tr><td colspan="${cols.length}" class="empty">${o.empty || 'لا توجد بيانات'}</td></tr>`}</tbody>${o.footer ? `<tfoot>${o.footer(rows)}</tfoot>` : ''}</table></div>`;
+    // الجداول الكبيرة (آلاف المراجعين): تظهر أول الصفوف فوراً ويُكمَل الباقي على دفعات دون تجميد الصفحة
+    const tb = $('tbody', body);
+    const more = i => { if (my !== gen || i >= rows.length) return; tb.insertAdjacentHTML('beforeend', rows.slice(i, i + CHUNK).map(rowHTML).join('')); setTimeout(() => more(i + CHUNK), 0); };
+    if (rows.length > FIRST) setTimeout(() => more(FIRST), 0);
   }
   host.addEventListener('click', e => { const th = e.target.closest('th.sortable'); if (!th) return; const i = +th.dataset.i; st.dir = st.key === i ? -st.dir : 1; st.key = i; draw(); });
   const q = $('.dt-q', host); if (q) q.addEventListener('input', () => { st.q = q.value; draw(); });

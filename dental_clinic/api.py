@@ -188,7 +188,7 @@ def search_cond(q, alias='p'):
 def patients_list(c):
     q = (c.q.get('q') or '').strip()
     try:
-        limit = max(1, min(int(c.q.get('limit') or 100), 500))
+        limit = max(1, min(int(c.q.get('limit') or 100), 100000))
     except ValueError:
         limit = 100
     sql = ("SELECT p.*, (b.total_cost - b.discounts + b.debits - (b.paid - b.refunded)) AS remaining "
