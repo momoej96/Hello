@@ -634,6 +634,32 @@ class T12_Doctors(Base):
         db.commit(); db.close()
         self.assertEqual(len(self.c.ok('GET', '/api/patients?limit=100000')['patients']), 1200)
 
+    def test_root_canal_stages_and_partial_payment(self):
+        """حشوة الجذر: مراحل وقياسات تُحفظ؛ الدفع لكل إجراء: المدفوع = التكلفة − المتبقي، والمتبقي يُضاف للمطلوب"""
+        p = self.patient()
+        r = self.visit(p['id'], '2025-08-01', [
+            {'name': 'حشوة جذر (عصب)', 'tooth_no': '16', 'cost': 100000, 'rc_steps': ['obturation', 'access'], 'rc_measure': 'MB 21mm, DB 20.5mm', 'paid_now': 60000},
+            {'name': 'فحص وتشخيص', 'cost': 10000, 'paid_now': 10000},
+            {'name': 'تاج', 'cost': 300000, 'status': 'planned', 'paid_now': 300000}])        # المخطط له لا يُدفع الآن
+        self.assertEqual(r['payment']['amount'], 70000)
+        rc = r['visit']['procedures'][0]
+        self.assertEqual((rc['rc_steps'], rc['rc_measure']), ('access,obturation', 'MB 21mm, DB 20.5mm'))
+        self.assertEqual(self.summary(p['id'])['remaining'], 40000)
+        # تجاوز التكلفة أو مرحلة غير معروفة مرفوضان
+        bad = lambda pr: self.c.call('POST', '/api/patients/%d/visits' % p['id'], {'visit_date': '2025-08-02', 'procedures': [pr]})[0]
+        self.assertEqual(bad({'name': 'حشوة', 'cost': 10000, 'paid_now': 20000}), 400)
+        self.assertEqual(bad({'name': 'حشوة جذر', 'cost': 0, 'rc_steps': ['x']}), 400)
+        # تعديل الزيارة: إكمال المراحل، وإجراء جديد يُضاف مع دفعته
+        v = r['visit']
+        procs = [{'id': x['id'], 'name': x['name'], 'tooth_no': x['tooth_no'], 'status': x['status'], 'cost': x['cost'], 'rc_steps': x['rc_steps'], 'rc_measure': x['rc_measure']} for x in v['procedures']]
+        procs[0]['rc_steps'] = ['access', 'obturation', 'buildup']
+        procs.append({'name': 'أشعة', 'cost': 15000, 'paid_now': 15000})
+        u = self.c.ok('PUT', '/api/visits/%d' % v['id'], {'visit_date': '2025-08-01', 'procedures': procs})
+        self.assertEqual(u['payment']['amount'], 15000)
+        self.assertEqual(u['visit']['procedures'][0]['rc_steps'], 'access,obturation,buildup')
+        self.assertEqual(self.summary(p['id'])['remaining'], 40000)
+        self.assertEqual(len(self.c.ok('GET', '/api/patients/%d' % p['id'])['payments']), 2)
+
     def test_old_database_is_upgraded(self):
         """قاعدة بيانات من الإصدار السابق (بدون عمود الطبيب) تُرقّى تلقائياً دون فقدان البيانات"""
         import core

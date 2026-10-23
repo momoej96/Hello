@@ -68,6 +68,7 @@ ACTIONS['xray-capture'] = async b => {
         toast('وصلت صورة أشعة جديدة');
       }
       const left = $('#xleft', m.el); if (left) left.textContent = Math.ceil(r.seconds_left / 60);
+      if (r.skipped) { let n = $('#xskip', m.el); if (!n) { $('.xwait', m.el).insertAdjacentHTML('afterend', '<p id="xskip" class="muted small"></p>'); n = $('#xskip', m.el); } n.textContent = `تُضاف صورة واحدة لكل لقطة: تم تجاهل ${fmt(r.skipped)} نسخة إضافية (المصغّرة والخام).`; }
     } catch (e) { toast(e.message, 'err'); }
     if (active) timer = setTimeout(poll, 2000);
   }

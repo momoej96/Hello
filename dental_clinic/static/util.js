@@ -23,8 +23,12 @@ const PROC_TREE = [
   ['فحص وتشخيص'], ['تنظيف الأسنان'],
   ['حشوة دائمية', ['ضوئية', 'معدنية']], ['حشوة مؤقتة', ['اعتيادية', 'علاجية (GIC)']],
   ['حشوة جذر (عصب)'], ['حشوة تجميلية'], ['تاج (تلبيس)'], ['جسر أسنان'], ['قلع سن'], ['قلع جراحي'], ['معالجة بعد القلع'],
-  ['زراعة سن'], ['تبييض الأسنان'], ['تقويم أسنان'], ['أشعة'], ['أشعة بانوراما'], ['أشعة periapical'], ['طقم أسنان'],
+  ['زراعة سن'], ['تبييض الأسنان'], ['تقويم أسنان'], ['أشعة'], ['طقم أسنان'],
 ];
+/* مراحل حشوة الجذر (تُحفظ مع الإجراء) */
+const RC_STEPS = [['access', 'Access'], ['obturation', 'Instrumentation + Obturation'], ['buildup', 'Build up']];
+const isRootCanal = n => /جذر|عصب|endo|rct/i.test(n || '');
+const rcText = x => (x.rc_steps ? x.rc_steps.split(',').map(k => (RC_STEPS.find(s => s[0] === k) || [k, k])[1]).join(' · ') : '');
 const COMMON_PROCS = PROC_TREE.flatMap(([n, subs]) => subs ? subs.map(s => n + ' - ' + s) : [n]);
 
 const ICONS = {

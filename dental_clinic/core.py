@@ -101,6 +101,7 @@ DEFAULT_SETTINGS = {
 PUBLIC_SETTING_KEYS = list(DEFAULT_SETTINGS.keys())
 
 PROC_STATUS = ('planned', 'in_progress', 'completed', 'cancelled')
+RC_STEPS = ('access', 'obturation', 'buildup')   # Access / Instrumentation + Obturation / Build up
 APPT_STATUS = ('confirmed', 'completed', 'cancelled', 'no_show')
 PAY_METHODS = ('cash', 'transfer', 'other')
 EXPENSE_CATS = ['مواد طب الأسنان', 'أجور المختبر', 'الإيجار', 'الرواتب',
@@ -141,6 +142,10 @@ def migrate(db):
     db.execute('CREATE INDEX IF NOT EXISTS ix_xray_pat ON xrays(patient_id, taken_at)')
     # أسماء قديمة لمراجعين دُمجت ملفاتهم، حتى يتعرف عليها الاستيراد من Excel لاحقاً
     db.execute('CREATE TABLE IF NOT EXISTS patient_aliases(name_key TEXT PRIMARY KEY, patient_id INTEGER NOT NULL REFERENCES patients(id))')
+    cols = {r['name'] for r in db.execute('PRAGMA table_info(procedures)')}
+    if 'rc_steps' not in cols:   # مراحل حشوة الجذر (access,obturation,buildup) وقياسات الجذور
+        db.execute('ALTER TABLE procedures ADD COLUMN rc_steps TEXT')
+        db.execute('ALTER TABLE procedures ADD COLUMN rc_measure TEXT')
     cols = {r['name'] for r in db.execute('PRAGMA table_info(payments)')}
     if 'doctor' not in cols:   # الطبيب الذي تُنسب له الدفعة (من شيت الطبيب عند الاستيراد)
         db.execute('ALTER TABLE payments ADD COLUMN doctor TEXT')

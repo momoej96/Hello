@@ -55,11 +55,11 @@ function showApp() {
       const my = ++seq;
       try {
         const d = await api('GET', '/api/patients?' + qs({ q, limit: 7 })); if (my !== seq) return;
-        tres.innerHTML = d.patients.map(p => `<a href="#/patient/${p.id}" data-pick><b>${esc(p.full_name)}</b><span class="muted"> ملف <bdi>${p.file_no}</bdi> · <bdi>${esc(p.phone || '')}</bdi></span></a>`).join('') || '<div class="muted pad">لا توجد نتائج</div>';
+        tres.innerHTML = d.patients.map(p => `<a href="#/patient/${p.id}" data-pick><b>${esc(p.full_name)}</b><span class="muted"> ملف <bdi>${p.file_no}</bdi> · <bdi>${esc(p.phone || '')}</bdi></span></a>`).join('') + (can('patients') ? addNewItem(q) : '');   // مثل جهات الاتصال: آخر سطر «إضافة … كمراجع جديد»
       } catch (e) { }
     }, 180);
   });
-  tq.addEventListener('keydown', e => { if (e.key === 'Enter') { const a = $('a', tres); if (a) { location.hash = a.getAttribute('href'); } } if (e.key === 'Escape') { tres.innerHTML = ''; } });
+  tq.addEventListener('keydown', e => { if (e.key === 'Enter') { const a = $('a[href]', tres); if (a) { location.hash = a.getAttribute('href'); tq.value = ''; tres.innerHTML = ''; } else { const n = $('.add-new', tres); if (n) n.click(); } } if (e.key === 'Escape') { tres.innerHTML = ''; } });
   document.addEventListener('click', e => { if (e.target.closest('[data-pick]')) { tq.value = ''; tres.innerHTML = ''; } else if (!e.target.closest('.tsearch')) tres.innerHTML = ''; });
 }
 

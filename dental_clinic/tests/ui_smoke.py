@@ -36,7 +36,9 @@ with sync_playwright() as pw:
     p.click('.tooth-panel [data-t="36"]'); assert rows.nth(0).locator('[name=tooth_no]').input_value() == '36'
     rows.nth(0).locator('[name=status]').select_option('in_progress'); rows.nth(0).locator('[name=cost]').fill('500'); assert rows.nth(0).locator('[name=cost]').input_value() == '500'   # بالألف: 500 = 500,000
     p.click('[data-action=add-proc]'); rows.nth(1).locator('[name=name]').fill('فحص وتشخيص'); rows.nth(1).locator('[name=cost]').fill('١٥')
-    assert p.is_checked('[name=paid_cash]'); p.uncheck('[name=paid_cash]')   # «تم الدفع نقداً» مفعّل افتراضياً؛ هنا لم يدفع بعد
+    for i in range(2):                     # «تم الدفع نقداً» لكل إجراء ومفعّل افتراضياً؛ هنا لم يدفع بعد
+        assert rows.nth(i).locator('[name=pay_cash]').is_checked(); rows.nth(i).locator('[name=pay_cash]').uncheck()
+        assert rows.nth(i).locator('[name=remain]').is_visible()
     p.fill('[name=notes]', 'ملاحظة سريرية تجريبية'); p.wait_for_timeout(100); assert '515,000' in p.inner_text('.proc-total'), p.inner_text('.proc-total')
     p.click('[data-save]'); p.wait_for_selector('.visit'); assert '515,000' in p.inner_text('.strip'), p.inner_text('.strip')
     # دفعتان

@@ -2,7 +2,7 @@
 """صور الأشعة: استقبال تلقائي من مجلد برنامج السنسر (مثل Woodpecker)، رفع يدوي، عرض وحذف.
 برنامج السنسر يلتقط الصورة ويحفظها في مجلده؛ عند الضغط على «استقبال أشعة» نراقب ذلك المجلد،
 وكل صورة جديدة تُنسخ (النسخ لا النقل، فيبقى أصلها في برنامج السنسر) إلى data/xrays/<رقم المراجع>/."""
-import os, time, secrets
+import os, time, secrets, struct, zlib
 from core import ApiError, get_settings, now_iso, audit, v_text, v_tooth, v_date, today_iso
 from api import route, Response, get_patient
 
@@ -11,6 +11,8 @@ MAGIC = ((b'\x89PNG', '.png'), (b'\xff\xd8\xff', '.jpg'), (b'BM', '.bmp'))
 SKIP_WORDS = ('thumb', 'thumbnail', 'preview', 'small')
 SESSION_MINUTES = 15
 SETTLE_SECONDS = 1.0          # ننتظر حتى يكتمل حفظ الملف قبل نسخه
+SHOT_GAP = 2.0                # ملفات اللقطة الواحدة تُحفظ معاً (مصغّرة + عادية + خام) خلال ثانيتين
+SHOT_QUIET = 3.0              # ننتظر حتى يهدأ المجلد قبل اختيار صورة اللقطة
 MAX_IMAGE = 60 * 1024 * 1024
 
 
@@ -46,6 +48,71 @@ def sniff(data):
         if data.startswith(sig):
             return ext
     return None
+
+
+def image_info(data):
+    """(العرض، الارتفاع، عمق البت) لصور PNG وBMP؛ None إن تعذّر."""
+    if data.startswith(b'\x89PNG') and len(data) > 26 and data[12:16] == b'IHDR':
+        w, h, bd = struct.unpack('>IIB', data[16:25])
+        return w, h, bd
+    if data.startswith(b'BM') and len(data) > 30:
+        w, h, _, bd = struct.unpack('<iiHH', data[18:30])
+        return abs(w), abs(h), bd
+    return None
+
+
+def png_mean(data, max_pixels=6_000_000):
+    """متوسط سطوع صورة PNG بعمق 8 بت (0..255) لتمييز الصورة الخام البيضاء؛ None إن لم تُدعم."""
+    try:
+        w, h, bd = struct.unpack('>IIB', data[16:25])
+        ct, interlace = data[25], data[28]
+        ch = {0: 1, 2: 3, 4: 2, 6: 4}.get(ct)
+        if bd != 8 or not ch or interlace or w * h > max_pixels:
+            return None
+        pos, idat = 8, []
+        while pos < len(data):
+            n, t = struct.unpack('>I4s', data[pos:pos + 8])
+            if t == b'IDAT':
+                idat.append(data[pos + 8:pos + 8 + n])
+            pos += 12 + n
+        raw, bpp, stride = zlib.decompress(b''.join(idat)), ch, w * ch
+        prev, total = bytearray(stride), 0
+        for y in range(h):
+            f, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+            if f == 1:
+                for i in range(bpp, stride): line[i] = (line[i] + line[i - bpp]) & 255
+            elif f == 2:
+                line = bytearray((a + b) & 255 for a, b in zip(line, prev))
+            elif f == 3:
+                for i in range(stride): line[i] = (line[i] + ((line[i - bpp] if i >= bpp else 0) + prev[i]) // 2) & 255
+            elif f == 4:
+                for i in range(stride):
+                    a = line[i - bpp] if i >= bpp else 0; b = prev[i]; cc = prev[i - bpp] if i >= bpp else 0
+                    pa, pb, pc = abs(b - cc), abs(a - cc), abs(a + b - 2 * cc)
+                    line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else cc)) & 255
+            total += sum(line[:w] if ch == 1 else line[0::ch])
+            prev = line
+        return total / float(w * h)
+    except Exception:
+        return None
+
+
+def pick_shot_image(files):
+    """من ملفات اللقطة الواحدة (مصغّرة، عادية، خام بيضاء) نختار الصورة العادية:
+    نستبعد 16 بت (الخام) إن وُجد غيرها، ثم الأكبر أبعاداً (لا المصغّرة)، وعند تقارب الأبعاد الأغمق (لا البيضاء)."""
+    c = [f for f in files if f['info']]
+    if not c:
+        return files[0] if len(files) == 1 else max(files, key=lambda f: len(f['data']))
+    eight = [f for f in c if f['info'][2] <= 8]
+    c = eight or c
+    big = max(f['info'][0] * f['info'][1] for f in c)
+    c = [f for f in c if f['info'][0] * f['info'][1] >= big * 0.8]
+    if len(c) > 1:
+        for f in c:
+            f['mean'] = png_mean(f['data'])
+        if all(f['mean'] is not None for f in c):
+            return min(c, key=lambda f: f['mean'])
+    return max(c, key=lambda f: f['info'][0] * f['info'][1])
 
 
 def store_image(c, pid, data, source, original_path=None, taken_at=None, tooth=None, notes=None, visit_id=None):
@@ -198,32 +265,51 @@ def capture_poll(c, tok):
         return {'active': False, 'reason': 'timeout', 'xrays': s['imported']}
     now, new = time.time(), []
     with c.clinic.lock:
-        for path, (mtime, size) in sorted(scan(s['folder']).items(), key=lambda kv: kv[1][0]):
-            if s['known'].get(path) == (mtime, size) or now - mtime < SETTLE_SECONDS or size == 0:
+        pending = [(p, m, z) for p, (m, z) in scan(s['folder']).items() if s['known'].get(p) != (m, z) and z > 0]
+        # تجميع ملفات كل لقطة: نفس المجلد وأوقات حفظ متقاربة
+        shots = []
+        for p, m, z in sorted(pending, key=lambda t: (os.path.dirname(t[0]), t[1])):
+            last = shots[-1] if shots else None
+            if last and last['dir'] == os.path.dirname(p) and m - last['end'] <= SHOT_GAP:
+                last['files'].append((p, m, z)); last['end'] = m
+            else:
+                shots.append({'dir': os.path.dirname(p), 'end': m, 'files': [(p, m, z)]})
+        for shot in sorted(shots, key=lambda sh: sh['end']):
+            if now - shot['end'] < max(SHOT_QUIET, SETTLE_SECONDS):
+                continue                                   # برنامج السنسر ما زال يحفظ ملفات هذه اللقطة
+            files = []
+            for p, m, z in shot['files']:
+                try:
+                    with open(p, 'rb') as f:
+                        data = f.read()
+                except OSError:
+                    files = None
+                    break
+                if sniff(data):
+                    files.append({'path': p, 'mtime': m, 'data': data, 'info': image_info(data)})
+            if files is None:
+                continue                                   # ملف ما زال مقفلاً: نحاول في المرة القادمة
+            for p, m, z in shot['files']:
+                s['known'][p] = (m, z)
+            if not files:
                 continue
-            try:
-                with open(path, 'rb') as f:
-                    data = f.read()
-            except OSError:
-                continue                       # ما زال برنامج السنسر يكتب الملف: نحاول في المرة القادمة
-            s['known'][path] = (mtime, size)
-            if not sniff(data):
-                continue
+            best = pick_shot_image(files)
+            s['skipped'] = s.get('skipped', 0) + len(files) - 1
             c.db.execute('BEGIN IMMEDIATE')
             try:
-                taken = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+                taken = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(best['mtime']))
                 vid = s['visit_id']
                 if vid and not c.db.execute('SELECT 1 FROM visits WHERE id=? AND deleted=0', (vid,)).fetchone():
                     vid = None                                        # حُذفت الزيارة أثناء الاستقبال
                 vid = vid or same_day_visit(c.db, s['patient_id'], taken[:10])   # وإلا: زيارة نفس اليوم
-                x = store_image(c, s['patient_id'], data, 'sensor', path, taken, visit_id=vid)
+                x = store_image(c, s['patient_id'], best['data'], 'sensor', best['path'], taken, visit_id=vid)
                 c.db.execute('COMMIT')
             except BaseException:
                 c.db.execute('ROLLBACK')
                 raise
             s['imported'].append(x)
             new.append(x)
-    return {'active': True, 'new': new, 'xrays': s['imported'], 'seconds_left': int(s['until'] - now)}
+    return {'active': True, 'new': new, 'xrays': s['imported'], 'skipped': s.get('skipped', 0), 'seconds_left': int(s['until'] - now)}
 
 
 @route('POST', r'/api/xray_capture/([\w\-]+)/stop', perm='visits', tx=False)

@@ -34,7 +34,8 @@ async function pagePatients(main) {
       ];
       if (can('payments')) cols.push({ title: 'الحساب', key: 'remaining', render: r => remBadge(r.remaining), exp: r => r.remaining });
       $('#pcount').textContent = input.value ? `نتائج البحث: ${fmt(d.patients.length)} مراجع` : `عدد المراجعين: ${fmt(d.patients.length)}`;
-      dataTable($('#plist'), { cols, rows: d.patients, href: r => '#/patient/' + r.id, search: false, empty: input.value ? 'لا يوجد مراجع مطابق للبحث. جرّب جزءاً من الاسم أو رقم الهاتف.' : 'لا يوجد مراجعون بعد. أضف أول مراجع من الزر أعلاه.' });
+      if (input.value.trim() && !d.patients.length) { $('#plist').innerHTML = `<div class="reslist"><div class="muted small pad">لا يوجد مراجع بهذا الاسم أو الرقم</div>${addNewItem(input.value.trim())}</div>`; return; }
+      dataTable($('#plist'), { cols, rows: d.patients, href: r => '#/patient/' + r.id, search: false, empty: 'لا يوجد مراجعون بعد. أضف أول مراجع من الزر أعلاه.' });
     } catch (e) { $('#plist').innerHTML = `<div class="alert err">${esc(e.message)}</div>`; }
   }
   input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 200); });
@@ -54,10 +55,37 @@ const patientFields = cur => [
   { name: 'first_visit_date', label: 'تاريخ أول زيارة', type: 'date' },
   { name: 'notes', label: 'ملاحظات عامة (حساسية، أمراض مزمنة…)', type: 'textarea', cls: 'full' },
 ];
-ACTIONS['new-patient'] = () => formModal({
-  title: 'إضافة مراجع جديد', fields: patientFields(), values: { first_visit_date: today() }, submit: 'حفظ وفتح الملف',
-  onSubmit: async (v, force, m) => { const r = await api('POST', '/api/patients', { ...v, force }); m.close(); toast('تم إنشاء ملف رقم ' + r.patient.file_no); location.hash = '#/patient/' + r.patient.id; },
-});
+/* إنشاء مراجع جديد؛ إن جاء من بحث بلا نتائج يُكتب نص البحث في الاسم الكامل (أو الهاتف إن كان رقماً) */
+const newPatientValues = q => { q = (q || '').trim(); const digits = toLatin(q).replace(/[\s\-+]/g, ''); return /^\d{6,}$/.test(digits) ? { phone: q } : { full_name: q }; };
+const addNewItem = q => `<a class="add-new" role="button" tabindex="0" data-action="new-patient" data-q="${esc(q)}" data-pick><span class="add-ic">${icon('plus', 16)}</span><span>إضافة «<b>${esc(q)}</b>» كمراجع جديد</span></a>`;
+ACTIONS['new-patient'] = b => {
+  const m = formModal({
+    title: 'إضافة مراجع جديد', fields: patientFields(), values: { first_visit_date: today(), ...newPatientValues(b && b.dataset && b.dataset.q) }, submit: 'حفظ وفتح الملف',
+    onSubmit: async (v, force, m) => { const r = await api('POST', '/api/patients', { ...v, force }); m.close(); toast('تم إنشاء ملف رقم ' + r.patient.file_no); location.hash = '#/patient/' + r.patient.id; },
+  });
+  watchExisting(m);
+};
+/* أثناء كتابة اسم أو هاتف المراجع الجديد: إن وُجد سجل مشابه يظهر تحت الحقل مع «فتح السجل» بدل إنشاء ملف مكرر */
+function watchExisting(m) {
+  const name = $('[name=full_name]', m.el), phone = $('[name=phone]', m.el);
+  name.closest('.fld').insertAdjacentHTML('beforeend', '<div class="exist" hidden></div>');
+  const box = $('.exist', m.el);
+  let t, seq = 0;
+  const check = () => { clearTimeout(t); t = setTimeout(async () => {
+    const q = name.value.trim().length >= 3 ? name.value.trim() : '', ph = toLatin(phone.value).replace(/\D/g, '');
+    const my = ++seq;
+    const found = new Map();
+    try {
+      for (const term of [q, ph.length >= 6 ? ph : ''].filter(Boolean))
+        (await api('GET', '/api/patients?' + qs({ q: term, limit: 5 }))).patients.forEach(p => found.set(p.id, p));
+    } catch (e) { return; }
+    if (my !== seq) return;
+    const list = [...found.values()].slice(0, 5);
+    box.hidden = !list.length;
+    box.innerHTML = list.length ? `<span class="muted small">يوجد سجل مشابه — افتحه بدل إنشاء ملف مكرر:</span>` + list.map(p => `<a href="#/patient/${p.id}" class="exist-it" data-close><b>${esc(p.full_name)}</b><span class="muted"> ملف <bdi>${p.file_no}</bdi>${p.phone ? ' · <bdi>' + esc(p.phone) + '</bdi>' : ''}</span><span class="open">فتح السجل ‹</span></a>`).join('') : '';
+  }, 250); };
+  name.addEventListener('input', check); phone.addEventListener('input', check); check();
+}
 ACTIONS['edit-patient'] = () => formModal({
   title: 'تعديل بيانات المراجع', fields: patientFields(PT.patient.doctor), values: PT.patient, submit: 'حفظ التعديلات',
   onSubmit: async (v, force, m) => { await api('PUT', '/api/patients/' + PT.patient.id, { ...v, force }); m.close(); toast('تم حفظ التعديلات'); reloadPatient(); },
@@ -131,7 +159,7 @@ function visitCard(v, withActions = true) {
   const cp = v.procedures.find(x => x.status !== 'cancelled' && careKind(x.name));
   const procs = v.procedures.length ? `<div class="tbl-wrap"><table class="tbl compact"><thead><tr><th>السن</th><th>الإجراء</th><th>الحالة</th><th>التكلفة</th></tr></thead><tbody>${v.procedures.map(x => `<tr class="${x.status === 'cancelled' ? 'cancelled' : ''}">
     <td>${x.tooth_no ? teethTags(x.tooth_no) : '<span class="muted">—</span>'}</td>
-    <td><b>${esc(x.name)}</b>${x.details ? `<div class="muted small">${nl2br(x.details)}</div>` : ''}</td>
+    <td><b>${esc(x.name)}</b>${x.rc_steps ? `<div class="rc-done">${icon('check', 13)} <bdi dir="ltr">${esc(rcText(x))}</bdi></div>` : ''}${x.rc_measure ? `<div class="small">القياسات: <bdi dir="ltr">${esc(x.rc_measure)}</bdi></div>` : ''}${x.details ? `<div class="muted small">${nl2br(x.details)}</div>` : ''}</td>
     <td>${withActions && can('visits') ? `<select class="st-sel b-${x.status}" data-change="proc-status" data-id="${x.id}">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${k === x.status ? 'selected' : ''}>${t}</option>`).join('')}</select>` : badge(PROC_ST, x.status)}</td>
     <td>${can('payments') ? moneyH(x.cost) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">لا توجد إجراءات مسجلة في هذه الزيارة.</p>';
   return `<article class="visit">

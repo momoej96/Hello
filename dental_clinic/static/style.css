@@ -198,3 +198,14 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
 .dgroup h3 .cnt{font-weight:600}.dsum{display:flex;flex-wrap:wrap;gap:1.2rem;justify-content:flex-end;align-items:center;margin-top:.6rem;padding:.55rem .8rem;border-radius:8px;background:var(--paper)}
 .dsum .hl{color:var(--teal-d);font-size:1.05rem}.dsum.total{background:var(--mint)}
 .tbl tbody tr{content-visibility:auto;contain-intrinsic-size:auto 42px}
+.pext{grid-column:1/-1;display:flex;flex-direction:column;gap:.35rem}.pext:empty{display:none}
+.pext .rc,.pext .ppay{display:flex;flex-wrap:wrap;gap:.4rem 1rem;align-items:center;padding:.4rem .6rem;border-radius:8px;background:var(--paper);font-size:.88rem}
+.pext .rc[hidden],.pext .ppay[hidden],.prem[hidden]{display:none}.pext .ppay{background:var(--mint)}
+.pext .chk{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer}.pext input[type=checkbox]{width:1.05rem;height:1.05rem;accent-color:var(--teal)}
+.pext .rcm,.prem{display:inline-flex;align-items:center;gap:.4rem}.pext .rcm input{min-width:260px}.prem input{width:110px}
+.rc-done{font-size:.8rem;color:var(--leaf)}
+.add-new{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;color:var(--teal-d);cursor:pointer;border-top:1px solid var(--line);text-decoration:none}
+.add-new:hover,.add-new:focus{background:var(--mint);outline:none}.add-ic{display:inline-flex;width:28px;height:28px;border-radius:50%;align-items:center;justify-content:center;background:var(--teal);color:#fff;flex:none}
+.reslist{border:1px solid var(--line);border-radius:10px;overflow:hidden}.reslist .pad{padding:.6rem .8rem}
+.exist{margin-top:.4rem;border:1px solid #f0d9a8;background:var(--amber-bg);border-radius:8px;padding:.4rem .6rem;display:flex;flex-direction:column;gap:.2rem}
+.exist-it{display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem;border-radius:6px;color:var(--ink);text-decoration:none}.exist-it:hover{background:#fff}.exist-it .open{margin-inline-start:auto;color:var(--teal-d);font-weight:700;font-size:.85rem}

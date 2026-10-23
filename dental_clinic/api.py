@@ -394,8 +394,42 @@ def clean_procs(lst, default_doctor):
             'status': v_choice(p, 'status', 'حالة الإجراء', PROC_STATUS, 'completed'),
             'cost': v_money(p, 'cost', 'تكلفة الإجراء رقم %d' % i, required=False, allow_zero=True) or 0,
             'doctor': v_text(p, 'doctor', 'الطبيب', maxlen=100) or default_doctor or None,
+            'rc_steps': clean_rc_steps(p.get('rc_steps')),
+            'rc_measure': v_text(p, 'rc_measure', 'القياسات', maxlen=500) or None,
         })
+        # المدفوع الآن لهذا الإجراء (مع الزيارة): من صفر إلى تكلفته؛ None = لا دفعة
+        paid = p.get('paid_now')
+        if paid not in (None, ''):
+            paid = v_money(p, 'paid_now', 'المدفوع للإجراء رقم %d' % i, required=False, allow_zero=True) or 0
+            if paid > out[-1]['cost']:
+                raise ApiError('المبلغ المدفوع أكبر من تكلفة الإجراء رقم %d' % i)
+            out[-1]['paid_now'] = paid
     return out
+
+
+def clean_rc_steps(v):
+    if v in (None, '', []):
+        return None
+    items = v if isinstance(v, list) else str(v).split(',')
+    steps = [s.strip() for s in items if str(s).strip()]
+    if any(s not in RC_STEPS for s in steps):
+        raise ApiError('مرحلة حشوة جذر غير معروفة')
+    return ','.join(s for s in RC_STEPS if s in steps) or None
+
+
+def pay_with_visit(c, pid, vid, pay_date, procs, key, full=False):
+    """دفعة نقدية مع الزيارة بمجموع ما دُفع لكل إجراء محتسب (المخطط له والملغى لا يُحتسبان)."""
+    counted = [p for p in procs if p['status'] in ('in_progress', 'completed')]
+    amount = sum(p['cost'] if full and 'paid_now' not in p else p.get('paid_now', 0) for p in counted)
+    if amount <= 0:
+        return None
+    names = '، '.join(p['name'] for p in counted if (p.get('paid_now') or (full and 'paid_now' not in p)))
+    cur = c.db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,idem_key,created_by,created_at) "
+                       "VALUES(?,?,?,?, 'payment','cash',?,?,?,?)",
+                       (pid, vid, pay_date, amount, ('دُفع نقداً مع الزيارة: ' + names)[:1000], key, c.user['username'], now_iso()))
+    row = dict(c.db.execute('SELECT * FROM payments WHERE id=?', (cur.lastrowid,)).fetchone())
+    audit(c.db, c.user['username'], 'payment', row['id'], 'create', None, row)
+    return row
 
 
 def sync_next_appt(c, visit_id, pid, next_date, next_time):
@@ -427,8 +461,8 @@ def clean_visit(b):
 
 
 def insert_proc(c, vid, pid, p, now):
-    c.db.execute('INSERT INTO procedures(visit_id,patient_id,name,tooth_no,details,status,cost,doctor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-                 (vid, pid, p['name'], p['tooth_no'], p['details'], p['status'], p['cost'], p['doctor'], now, now))
+    c.db.execute('INSERT INTO procedures(visit_id,patient_id,name,tooth_no,details,status,cost,doctor,rc_steps,rc_measure,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+                 (vid, pid, p['name'], p['tooth_no'], p['details'], p['status'], p['cost'], p['doctor'], p['rc_steps'], p['rc_measure'], now, now))
 
 
 @route('POST', r'/api/patients/(\d+)/visits', perm='visits')
@@ -446,16 +480,11 @@ def visit_create(c, pid):
     sync_next_appt(c, vid, pid, f['next_appointment'], f['next_time'])
     audit(c.db, c.user['username'], 'visit', vid, 'create', None, {'visit': f, 'procedures': procs})
     out = {'visit': visit_with_procs(c.db, c.db.execute('SELECT * FROM visits WHERE id=?', (vid,)).fetchone())}
-    if c.body.get('paid_cash') and can(c.user, 'payments'):
-        # «تم الدفع نقداً»: تُسجَّل دفعة نقدية بتكلفة الزيارة المحتسبة (المخطط له والملغى لا يُحتسبان)
-        amount = sum(p['cost'] for p in procs if p['status'] in ('in_progress', 'completed'))
-        if amount > 0:
-            cur = c.db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,idem_key,created_by,created_at) "
-                               "VALUES(?,?,?,?, 'payment','cash',?,?,?,?)",
-                               (pid, vid, f['visit_date'], amount, 'دُفع نقداً مع الزيارة', 'visit:%d' % vid, c.user['username'], now))
-            row = dict(c.db.execute('SELECT * FROM payments WHERE id=?', (cur.lastrowid,)).fetchone())
-            audit(c.db, c.user['username'], 'payment', row['id'], 'create', None, row)
-            out['payment'] = row
+    if can(c.user, 'payments') and (c.body.get('paid_cash') or any('paid_now' in p for p in procs)):
+        # «تم الدفع نقداً» لكل إجراء: يُدفع ما كُتب (التكلفة − المتبقي)؛ وpaid_cash القديم = كامل الزيارة
+        pay = pay_with_visit(c, pid, vid, f['visit_date'], procs, 'visit:%d' % vid, full=bool(c.body.get('paid_cash')))
+        if pay:
+            out['payment'] = pay
     if can(c.user, 'payments'):
         out['summary'] = balance(c.db, pid)
     return out
@@ -481,7 +510,7 @@ def visit_update(c, vid):
     if 'procedures' in c.body:
         procs = clean_procs(c.body['procedures'], f['doctor'])
         existing = {r['id'] for r in c.db.execute('SELECT id FROM procedures WHERE visit_id=? AND deleted=0', (vid,))}
-        keep = set()
+        keep, added = set(), []
         for p in procs:
             if p['id'] is not None:
                 try:
@@ -491,17 +520,24 @@ def visit_update(c, vid):
                 if pid_ not in existing:
                     raise ApiError('إجراء لا يتبع هذه الزيارة')
                 keep.add(pid_)
-                c.db.execute('UPDATE procedures SET name=?,tooth_no=?,details=?,status=?,cost=?,doctor=?,updated_at=? WHERE id=?',
-                             (p['name'], p['tooth_no'], p['details'], p['status'], p['cost'], p['doctor'], now, pid_))
+                c.db.execute('UPDATE procedures SET name=?,tooth_no=?,details=?,status=?,cost=?,doctor=?,rc_steps=?,rc_measure=?,updated_at=? WHERE id=?',
+                             (p['name'], p['tooth_no'], p['details'], p['status'], p['cost'], p['doctor'], p['rc_steps'], p['rc_measure'], now, pid_))
             else:
                 insert_proc(c, vid, pid, p, now)
+                added.append(p)
         for gone in existing - keep:
             c.db.execute('UPDATE procedures SET deleted=1, updated_at=? WHERE id=?', (now, gone))
     sync_next_appt(c, vid, pid, f['next_appointment'], f['next_time'])
+    pay = None
+    if 'procedures' in c.body and can(c.user, 'payments'):
+        # إجراء جديد أُضيف للزيارة مع «تم الدفع نقداً»
+        pay = pay_with_visit(c, pid, vid, f['visit_date'], [p for p in added if 'paid_now' in p], 'visit:%d:%s' % (vid, now))
     guard_overpay(c, pid, before)
     new_full = visit_with_procs(c.db, get_visit(c.db, vid))
     audit(c.db, c.user['username'], 'visit', vid, 'update', old_full, new_full)
     out = {'visit': new_full}
+    if pay:
+        out['payment'] = pay
     if can(c.user, 'payments'):
         out['summary'] = balance(c.db, pid)
     return out
@@ -530,10 +566,10 @@ def proc_update(c, procid):
         raise ApiError('الإجراء غير موجود', 404, 'not_found')
     before = balance(c.db, r['patient_id'])
     b = dict(r)
-    b.update({k: v for k, v in c.body.items() if k in ('name', 'tooth_no', 'details', 'status', 'cost', 'doctor')})
+    b.update({k: v for k, v in c.body.items() if k in ('name', 'tooth_no', 'details', 'status', 'cost', 'doctor', 'rc_steps', 'rc_measure')})
     p = clean_procs([b], None)[0]
-    c.db.execute('UPDATE procedures SET name=?,tooth_no=?,details=?,status=?,cost=?,doctor=?,updated_at=? WHERE id=?',
-                 (p['name'], p['tooth_no'], p['details'], p['status'], p['cost'], p['doctor'], now_iso(), procid))
+    c.db.execute('UPDATE procedures SET name=?,tooth_no=?,details=?,status=?,cost=?,doctor=?,rc_steps=?,rc_measure=?,updated_at=? WHERE id=?',
+                 (p['name'], p['tooth_no'], p['details'], p['status'], p['cost'], p['doctor'], p['rc_steps'], p['rc_measure'], now_iso(), procid))
     guard_overpay(c, r['patient_id'], before)
     audit(c.db, c.user['username'], 'procedure', procid, 'update', dict(r),
           dict(c.db.execute('SELECT * FROM procedures WHERE id=?', (procid,)).fetchone()))

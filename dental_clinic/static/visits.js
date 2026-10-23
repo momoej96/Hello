@@ -19,14 +19,41 @@ function procRowHTML(p = {}) {
     <select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     ${money ? `<input name="cost" data-money inputmode="decimal" placeholder="التكلفة${MONEY_UNIT()}" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off">` : ''}
     <input name="details" class="pdet" placeholder="تفاصيل العلاج" value="${esc(p.details || '')}">
-    <button type="button" class="btn sm danger-o" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button></div>`;
+    <button type="button" class="btn sm danger-o" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button>
+    <div class="pext">
+      <div class="rc" ${isRootCanal(p.name) ? '' : 'hidden'}><b>مراحل حشوة الجذر:</b>
+        ${RC_STEPS.map(([k, t]) => `<label class="chk"><input type="checkbox" name="rc_${k}" ${(p.rc_steps || '').split(',').includes(k) ? 'checked' : ''}> <bdi dir="ltr">${t}</bdi></label>`).join('')}
+        <label class="rcm">القياسات <input name="rc_measure" dir="ltr" value="${esc(p.rc_measure || '')}" placeholder="مثال: MB 21mm · DB 20.5mm · P 22mm"></label></div>
+      ${money && !p.id ? `<div class="ppay"><label class="chk"><input type="checkbox" name="pay_cash" checked> <b>تم الدفع نقداً</b></label>
+        <label class="prem" hidden>المتبقي${MONEY_UNIT()} <input name="remain" data-money inputmode="decimal" autocomplete="off"></label><span class="pinfo muted small"></span></div>` : ''}
+    </div></div>`;
+}
+/* إظهار مراحل حشوة الجذر حسب اسم الإجراء، وحقل «المتبقي» عند إزالة «تم الدفع نقداً» */
+function syncProcRow(r) {
+  $('.rc', r).hidden = !isRootCanal($('[name=name]', r).value);
+  const pay = $('.ppay', r); if (!pay) return;
+  const st = $('[name=status]', r).value, counted = st === 'in_progress' || st === 'completed';
+  pay.hidden = !counted;
+  const chk = $('[name=pay_cash]', r), rem = $('[name=remain]', r), cost = parseMoney($('[name=cost]', r).value) || 0;
+  $('.prem', r).hidden = chk.checked;
+  if (!chk.checked && rem.value === '' && !rem._touched) { rem.value = cost ? moneyIn(cost) : ''; }
+  const left = chk.checked ? 0 : Math.min(cost, parseMoney(rem.value) || 0);
+  $('.pinfo', r).innerHTML = cost ? (chk.checked ? `يُسجَّل مدفوعاً ${moneyH(cost)}` : `المدفوع الآن ${moneyH(cost - left)} · يبقى ديناً ${moneyH(left)}`) : '';
+}
+function procPaidNow(r) {
+  const pay = $('.ppay', r); if (!pay || pay.hidden) return undefined;
+  const cost = parseMoney($('[name=cost]', r).value) || 0;
+  if ($('[name=pay_cash]', r).checked) return cost;
+  const left = parseMoney($('[name=remain]', r).value) || 0;
+  if (left > cost) throw new Error('المتبقي أكبر من تكلفة الإجراء: ' + $('[name=name]', r).value);
+  return cost - left;
 }
 function procTotal(root) {
   let t = 0;
   $$('.prow', root).forEach(r => { const st = $('[name=status]', r).value; if (st === 'cancelled') return; const c = $('[name=cost]', r); t += c ? (parseMoney(c.value) || 0) : 0; });
   const el = $('.proc-total', root); if (el) el.innerHTML = moneyH(t);
 }
-ACTIONS['add-proc'] = b => { const root = b.closest('.dlg-body'); $('#procRows', root).insertAdjacentHTML('beforeend', procRowHTML()); attachMoneyInputs(root); $$('.prow', root).pop().querySelector('input').focus(); };
+ACTIONS['add-proc'] = b => { const root = b.closest('.dlg-body'); $('#procRows', root).insertAdjacentHTML('beforeend', procRowHTML()); attachMoneyInputs(root); const r = $$('.prow', root).pop(); syncProcRow(r); r.querySelector('input').focus(); };
 ACTIONS['rm-proc'] = b => { const root = b.closest('.dlg-body'); const row = b.closest('.prow'); const nx = row.nextElementSibling; if (nx && nx.classList.contains('tooth-panel')) nx.remove(); row.remove(); procTotal(root); };
 ACTIONS['tooth-pick'] = b => {
   const row = b.closest('.prow'), nx = row.nextElementSibling;
@@ -52,7 +79,7 @@ ACTIONS['proc-pick'] = b => {
   if (open) return;
   row.insertAdjacentHTML('afterend', procPanel($('[name=name]', row).value)); row.nextElementSibling._row = row;
 };
-ACTIONS['proc-set'] = b => { const pn = b.closest('.proc-panel'), row = pn._row; $('[name=name]', row).value = b.dataset.v; pn.remove(); const c = $('[name=cost]', row); (c || $('[name=details]', row)).focus(); };
+ACTIONS['proc-set'] = b => { const pn = b.closest('.proc-panel'), row = pn._row; $('[name=name]', row).value = b.dataset.v; pn.remove(); syncProcRow(row); const c = $('[name=cost]', row); (c || $('[name=details]', row)).focus(); };
 ACTIONS['tooth-clear'] = b => { const pn = b.closest('.tooth-panel'); $('[name=tooth_no]', pn._row).value = ''; pn.remove(); };
 
 function openVisitModal(v) {
@@ -72,7 +99,7 @@ function openVisitModal(v) {
       <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? `<span>التكلفة${MONEY_UNIT()}</span>` : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
       <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
-      ${money && isNew ? `<label class="paid-cash"><input type="checkbox" name="paid_cash" checked> <b>تم الدفع نقداً</b> <span class="muted small">— تُسجَّل دفعة نقدية بمبلغ الزيارة مباشرة. أزل العلامة إذا لم يدفع، فيبقى المبلغ ديناً على المراجع</span></label>` : ''}
+      ${money ? '<p class="muted small">«تم الدفع نقداً» لكل إجراء جديد: يُسجَّل المبلغ دفعة مباشرة. إذا لم يدفع كاملاً أزل العلامة واكتب «المتبقي»، فيُضاف إلى المبلغ المطلوب منه.</p>' : ''}
       ${money ? '<p class="muted small">الإجراء «مخطط له» لا يدخل في المبلغ المستحق على المراجع حتى تغيّر حالته إلى «قيد التنفيذ» أو «مكتمل».</p>' : ''}
       <label class="fld full"><span>ملاحظات سريرية</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
       <div class="form-grid c3">${f('next_appointment', 'موعد الزيارة القادمة', v.next_appointment, 'date')}${f('next_time', 'وقت الموعد القادم', v.next_time, 'time')}</div>
@@ -80,27 +107,32 @@ function openVisitModal(v) {
     footer: `<button type="button" class="btn primary" data-save>حفظ الزيارة</button><button type="button" class="btn" data-close>إلغاء</button>`,
   });
   const root = m.body, form = $('form', root);
-  root.addEventListener('input', () => procTotal(root)); root.addEventListener('change', () => procTotal(root)); procTotal(root);
+  const onEdit = e => { const r = e && e.target.closest && e.target.closest('.prow'); if (r) { if (e.target.name === 'remain') e.target._touched = true; syncProcRow(r); } procTotal(root); };
+  root.addEventListener('input', onEdit); root.addEventListener('change', onEdit); $$('.prow', root).forEach(syncProcRow); procTotal(root);
   let busy = false;
   async function save() {
     if (busy) return;
     const err = $('.form-err', root); err.textContent = '';
     const procs = [];
-    $$('.prow', root).forEach(r => {
-      const g = n => { const e = $(`[name=${n}]`, r); return e ? e.value.trim() : ''; };
-      if (!g('name') && !g('tooth_no') && !g('details') && !(parseMoney(g('cost')) > 0) && !r.dataset.id) return;
-      const costEl = $('[name=cost]', r);
-      procs.push({ id: r.dataset.id ? +r.dataset.id : undefined, name: g('name'), tooth_no: g('tooth_no'), status: g('status'), details: g('details'), cost: costEl ? (parseMoney(costEl.value) || 0) : +r.dataset.cost });
-    });
+    try {
+      $$('.prow', root).forEach(r => {
+        const g = n => { const e = $(`[name=${n}]`, r); return e ? e.value.trim() : ''; };
+        if (!g('name') && !g('tooth_no') && !g('details') && !(parseMoney(g('cost')) > 0) && !r.dataset.id) return;
+        const costEl = $('[name=cost]', r), rc = isRootCanal(g('name'));
+        const pr = { id: r.dataset.id ? +r.dataset.id : undefined, name: g('name'), tooth_no: g('tooth_no'), status: g('status'), details: g('details'), cost: costEl ? (parseMoney(costEl.value) || 0) : +r.dataset.cost,
+          rc_steps: rc ? RC_STEPS.filter(([k]) => $(`[name=rc_${k}]`, r).checked).map(([k]) => k) : [], rc_measure: rc ? g('rc_measure') : '' };
+        const paid = procPaidNow(r); if (paid !== undefined) pr.paid_now = paid;
+        procs.push(pr);
+      });
+    } catch (e2) { err.textContent = e2.message; return; }
     const body = { visit_date: $('[name=visit_date]', root).value, visit_time: $('[name=visit_time]', root).value, doctor: $('[name=doctor]', root).value.trim(), notes: $('[name=notes]', root).value.trim(),
       next_appointment: $('[name=next_appointment]', root).value, next_time: $('[name=next_time]', root).value, procedures: procs };
-    const pc = $('[name=paid_cash]', root); if (pc && pc.checked) body.paid_cash = true;
     if (!body.visit_date) { err.textContent = 'تاريخ الزيارة مطلوب'; return; }
     busy = true; $('[data-save]', m.el).disabled = true;
     try {
       let r;
       if (isNew) r = await api('POST', `/api/patients/${p.id}/visits`, body);
-      else await withForce(force => api('PUT', '/api/visits/' + v.id, { ...body, force }));
+      else r = await withForce(force => api('PUT', '/api/visits/' + v.id, { ...body, force }));
       m.close(); toast(r && r.payment ? `تم حفظ الزيارة وتسجيل دفعة نقدية ${fmtMoney(r.payment.amount)}` : 'تم حفظ الزيارة'); reloadPatient();
     } catch (e) { if (e) err.textContent = e.message; busy = false; $('[data-save]', m.el).disabled = false; }
   }

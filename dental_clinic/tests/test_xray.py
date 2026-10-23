@@ -6,13 +6,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_acceptance import Base, Client, PW
 
 
-def png(w=4, h=3, shade=100):
-    raw = b''.join(b'\x00' + bytes([shade]) * w for _ in range(h))
+def png(w=4, h=3, shade=100, depth=8):
+    px = bytes([shade]) if depth == 8 else bytes([shade, 0])
+    raw = b''.join(b'\x00' + px * w for _ in range(h))
     chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 0, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, depth, 0, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
 
 
-def write(path, data, age=3):
+def write(path, data, age=5):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as f:
         f.write(data)
@@ -47,7 +48,7 @@ class T30_Xray(Base):
         r = self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})
         self.assertEqual(len(r['new']), 1)
         self.assertEqual(r['new'][0]['source'], 'sensor')
-        time.sleep(1.1)
+        time.sleep(3.2)
         r = self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})
         self.assertEqual(len(r['new']), 1)                                                  # fresh.png بعد اكتمالها
         r = self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})
@@ -66,6 +67,28 @@ class T30_Xray(Base):
         st2 = self.c.ok('POST', '/api/patients/%d/xray_capture' % q['id'], {})
         self.assertEqual(st2['replaced'][0]['full_name'], p['full_name'])
         self.assertFalse(self.c.ok('POST', '/api/xray_capture/%s/poll' % st1['token'], {})['active'])
+
+    def test_one_image_per_sensor_shot(self):
+        """Woodpecker يحفظ لكل لقطة 3 صور (مصغّرة، عادية، خام بيضاء 16 بت): تُضاف العادية فقط"""
+        p = self.patient()
+        st = self.c.ok('POST', '/api/patients/%d/xray_capture' % p['id'], {})
+        normal = png(400, 300, shade=90)
+        write(os.path.join(self.sensor, '20', '1001_s.png'), png(40, 30, shade=90))          # مصغّرة
+        write(os.path.join(self.sensor, '20', '1001.png'), normal)                           # العادية
+        write(os.path.join(self.sensor, '20', '1001_o.png'), png(400, 300, shade=250, depth=16))   # الخام
+        r = self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})
+        self.assertEqual((len(r['new']), r['skipped']), (1, 2))
+        self.assertEqual(self.c.call('GET', '/api/xrays/%d/image' % r['new'][0]['id'])[1], normal)
+        # لقطة ثانية بعد قليل في نفس المجلد: صورتان 8 بت بنفس الأبعاد، البيضاء تُستبعد
+        dark = png(300, 200, shade=70)
+        write(os.path.join(self.sensor, '20', '1002.png'), dark, age=4)
+        write(os.path.join(self.sensor, '20', '1002_raw.png'), png(300, 200, shade=245), age=4)
+        r = self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})
+        self.assertEqual(len(r['new']), 1)
+        self.assertEqual(self.c.call('GET', '/api/xrays/%d/image' % r['new'][0]['id'])[1], dark)
+        # ملفات لقطة ما زالت تُحفظ (أحدثها قبل أقل من 3 ثوانٍ): لا يُختار منها شيء بعد
+        write(os.path.join(self.sensor, '20', '1003.png'), png(300, 200, shade=60), age=1)
+        self.assertEqual(self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})['new'], [])
 
     def test_missing_folder_upload_edit_permissions(self):
         p = self.patient()
