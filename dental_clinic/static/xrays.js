@@ -88,7 +88,7 @@ ACTIONS['xray-view'] = b => {
         <label>السطوع <input type="range" min="40" max="220" value="100" data-k="br"></label>
         <label>التباين <input type="range" min="40" max="300" value="100" data-k="ct"></label></div>
       <div class="form-grid c3 mt"><label class="fld full"><span>الزيارة</span><select name="visit_id"><option value="">— غير مرتبطة بزيارة —</option>${PT.visits.map(v => `<option value="${v.id}" ${v.id === x.visit_id ? 'selected' : ''}>${esc(visitLabel(v))}</option>`).join('')}</select></label>
-        <label class="fld"><span>السن</span><input name="tooth_no" dir="ltr" value="${esc(teethOf(x.tooth_no).join(', '))}" placeholder="مثال: 36 أو 11, 21"></label>
+        <label class="fld"><span>السن</span><input name="tooth_no" dir="ltr" value="${esc(teethInput(x.tooth_no))}" placeholder="مثال: LL6 أو UR1, UL1"></label>
         <label class="fld" style="grid-column:span 2"><span>ملاحظات</span><input name="notes" value="${esc(x.notes || '')}"></label></div>
       <p class="muted small">التاريخ: <bdi class="num">${esc(x.taken_at)}</bdi> · ${x.source === 'sensor' ? 'من السنسر' : 'رفع يدوي'}</p>`,
     footer: `${can('visits') ? '<button type="button" class="btn primary" data-save>حفظ</button>' : ''}<button type="button" class="btn" data-print>${icon('print', 15)} طباعة</button>
@@ -115,7 +115,7 @@ ACTIONS['xray-view'] = b => {
   $('[data-print]', m.el).onclick = () => {
     const p = PT.patient;
     printDoc('صورة أشعة', `<table class="kv"><tr><th>المراجع</th><td>${esc(p.full_name)}</td><th>رقم الملف</th><td><bdi>${p.file_no}</bdi></td></tr>
-      <tr><th>التاريخ</th><td><bdi>${esc(x.taken_at)}</bdi></td><th>السن</th><td>${esc(teethText($('[name=tooth_no]', m.el).value.replace(/[\s،]+/g, ',')) || '—')}</td></tr></table>
+      <tr><th>التاريخ</th><td><bdi>${esc(x.taken_at)}</bdi></td><th>السن</th><td>${esc(teethText($('[name=tooth_no]', m.el).value) || '—')}</td></tr></table>
       <div class="xprint"><img src="${xrayUrl(x.id)}" alt="صورة أشعة" style="filter:${filt()};transform:rotate(${v.rot}deg)"></div>
       ${$('[name=notes]', m.el).value ? `<p>${esc($('[name=notes]', m.el).value)}</p>` : ''}`);
   };

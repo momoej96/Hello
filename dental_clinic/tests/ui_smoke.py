@@ -33,7 +33,7 @@ with sync_playwright() as pw:
     # زيارة بإجراءين
     p.click('.pt-actions [data-action=new-visit]'); p.wait_for_selector('.vform')
     rows = p.locator('.prow'); rows.nth(0).locator('[name=name]').fill('زراعة سن'); rows.nth(0).locator('[data-action=tooth-pick]').click(); p.wait_for_selector('.tooth-panel'); shot(p, '06_visit_modal_tooth')
-    p.click('.tooth-panel [data-t="36"]'); assert rows.nth(0).locator('[name=tooth_no]').input_value() == '36'
+    p.click('.tooth-panel [data-t="36"]'); assert rows.nth(0).locator('[name=tooth_no]').input_value() == 'LL6'   # بنظام Palmer (يُخزَّن 36)
     rows.nth(0).locator('[name=status]').select_option('in_progress'); rows.nth(0).locator('[name=cost]').fill('500'); assert rows.nth(0).locator('[name=cost]').input_value() == '500'   # بالألف: 500 = 500,000
     p.click('[data-action=add-proc]'); rows.nth(1).locator('[name=name]').fill('فحص وتشخيص'); rows.nth(1).locator('[name=cost]').fill('١٥')
     for i in range(2):                     # «تم الدفع نقداً» لكل إجراء ومفعّل افتراضياً؛ هنا لم يدفع بعد
@@ -62,7 +62,7 @@ with sync_playwright() as pw:
     # تعليمات القلع/الزراعة
     p.click('.pt-actions [data-action=care-sheet]'); p.wait_for_selector('.dialog [name=k]'); assert p.input_value('.dialog [name=k]') == 'implant'
     p.fill('.dialog [name=x]', 'تجنب الجهة اليمنى'); p.click('.dialog [data-print]'); p.wait_for_timeout(200)
-    t = p.inner_text('#printRoot'); assert 'تعليمات ما بعد الزراعة' in t and 'خالد إبراهيم' in t and '36' in t and 'تجنب الجهة اليمنى' in t and 'عيادة النور' in t, t[:300]
+    t = p.inner_text('#printRoot'); assert 'تعليمات ما بعد الزراعة' in t and 'خالد إبراهيم' in t and 'LL6' in t and 'تجنب الجهة اليمنى' in t and 'عيادة النور' in t, t[:300]
     p.emulate_media(media='print'); p.pdf(path=f'{SH}/care.pdf', prefer_css_page_size=True); p.emulate_media(media='screen'); p.evaluate("window.dispatchEvent(new Event('afterprint'))")
     p.click('[data-tab=treat]'); p.click('.visit [data-action=care-sheet]'); p.wait_for_selector('.dialog [name=k]'); p.select_option('.dialog [name=k]', 'extract'); p.click('.dialog [data-print]'); p.wait_for_timeout(200)
     assert 'تعليمات ما بعد القلع' in p.inner_text('#printRoot'); p.evaluate("window.dispatchEvent(new Event('afterprint'))")

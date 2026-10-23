@@ -209,3 +209,4 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
 .reslist{border:1px solid var(--line);border-radius:10px;overflow:hidden}.reslist .pad{padding:.6rem .8rem}
 .exist{margin-top:.4rem;border:1px solid #f0d9a8;background:var(--amber-bg);border-radius:8px;padding:.4rem .6rem;display:flex;flex-direction:column;gap:.2rem}
 .exist-it{display:flex;gap:.4rem;align-items:center;padding:.3rem .2rem;border-radius:6px;color:var(--ink);text-decoration:none}.exist-it:hover{background:#fff}.exist-it .open{margin-inline-start:auto;color:var(--teal-d);font-weight:700;font-size:.85rem}
+.tp-sides{display:flex;justify-content:space-between;direction:ltr;font-size:.75rem;color:var(--muted);padding:0 .3rem}

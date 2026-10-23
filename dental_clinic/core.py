@@ -275,6 +275,12 @@ def v_tooth(v):
     """سن واحد أو عدة أسنان لنفس الإجراء (مثل «11، 21» أو قائمة). تُحفظ مفصولة بفواصل: «11,21»."""
     if v in (None, '') or v == []:
         return None
+    if not isinstance(v, list) and re.search(r'[a-zA-Z]', str(v)):
+        from importer import parse_teeth          # نظام Palmer: UR6، ul1، LLE، u11 …
+        parts, bad = parse_teeth(str(v))
+        if bad or not parts:
+            raise ApiError('رقم السن غير مفهوم (اكتب بنظام Palmer مثل UR6 أو LL7): ' + str(v))
+        v = [str(t) for t in parts]
     parts = v if isinstance(v, list) else re.split(r'[\s,،؛;+/\-]+', str(v).translate(AR_DIGITS))
     teeth = []
     for t in parts:

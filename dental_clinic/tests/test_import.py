@@ -114,6 +114,15 @@ class T20_Import(Base):
         teeth = {p['name']: p['tooth_no'] for v in full['visits'] for p in v['procedures']}
         self.assertEqual((teeth['تاج'], teeth['حشوة']), ('11,21', '46,36'))
 
+    def test_palmer_tooth_input(self):
+        """السن يُكتب بنظام Palmer (UR6، LL7، أسنان الأطفال URE) ويُخزَّن بنظام FDI"""
+        p = self.patient()
+        v = self.visit(p['id'], '2025-03-01', [{'name': 'حشوة', 'tooth_no': 'UR6, ll7', 'cost': 1}, {'name': 'قلع سن', 'tooth_no': 'URE', 'cost': 1},
+                                               {'name': 'تبييض', 'tooth_no': 'UR1 UL1', 'cost': 1}])['visit']
+        self.assertEqual([x['tooth_no'] for x in v['procedures']], ['16,37', '55', '11,21'])
+        s, d = self.c.call('POST', '/api/patients/%d/visits' % p['id'], {'visit_date': '2025-03-02', 'procedures': [{'name': 'x', 'tooth_no': 'UR9'}]})
+        self.assertEqual(s, 400); self.assertIn('Palmer', d['error'])
+
     def test_visit_with_several_teeth(self):
         """اختيار أكثر من سن لنفس الإجراء داخل الزيارة"""
         p = self.patient()

@@ -3,10 +3,10 @@
 const FDI_UP = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
 const FDI_LO = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
 const FDI_PU = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65], FDI_PL = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
-/* الأسنان: يمكن اختيار أكثر من سن لنفس الإجراء، وتُكتب مفصولة بفواصل (11, 21) */
-const teethOf = s => String(s || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).split(/[\s,،؛;+/\-]+/).filter(Boolean);
-const toothBtns = (a, sel) => a.map((n, i) => `<button type="button" class="tb ${i === a.length / 2 ? 'gap' : ''} ${sel.includes(String(n)) ? 'on' : ''}" data-action="tooth-set" data-t="${n}" aria-pressed="${sel.includes(String(n))}">${n}</button>`).join('');
-const toothPanel = sel => `<div class="tooth-panel"><div class="tp-note">اضغط على سن أو أكثر لنفس الإجراء (نظام FDI) — الجهة العلوية للأعلى. اضغط مرة ثانية لإلغاء الاختيار.</div>
+/* الأسنان: يمكن اختيار أكثر من سن لنفس الإجراء؛ تُكتب بنظام Palmer مفصولة بفواصل (UR1, UL1) */
+const toothBtns = (a, sel) => a.map((n, i) => `<button type="button" class="tb ${i === a.length / 2 ? 'gap' : ''} ${sel.includes(String(n)) ? 'on' : ''}" data-action="tooth-set" data-t="${n}" aria-pressed="${sel.includes(String(n))}" title="${toPalmer(n)}">${toPalmer(n).slice(2)}</button>`).join('');
+const toothPanel = sel => `<div class="tooth-panel"><div class="tp-note">اضغط على سن أو أكثر لنفس الإجراء (نظام Palmer) — الجهة العلوية للأعلى. اضغط مرة ثانية لإلغاء الاختيار.</div>
+  <div class="tp-sides"><span>يمين المراجع (R)</span><span>يسار المراجع (L)</span></div>
   <div class="tp-row">${toothBtns(FDI_UP, sel)}</div><div class="tp-row">${toothBtns(FDI_LO, sel)}</div>
   <div class="tp-sub">أسنان الأطفال</div><div class="tp-row s">${toothBtns(FDI_PU, sel)}</div><div class="tp-row s">${toothBtns(FDI_PL, sel)}</div>
   <div class="tp-act"><button type="button" class="btn sm primary" data-action="tooth-done">تم</button><button type="button" class="btn sm" data-action="tooth-clear">بدون سن محدد</button></div></div>`;
@@ -15,7 +15,7 @@ function procRowHTML(p = {}) {
   const money = can('payments');
   return `<div class="prow" data-id="${p.id || ''}" data-cost="${p.cost || 0}">
     <div class="tooth-in"><input name="name" list="dl-procs" placeholder="الإجراء أو العلاج" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div>
-    <div class="tooth-in"><input name="tooth_no" placeholder="السن" value="${esc(teethOf(p.tooth_no).join(', '))}" dir="ltr" title="سن واحد أو أكثر، مثل: 11, 21"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div>
+    <div class="tooth-in"><input name="tooth_no" placeholder="السن" value="${esc(teethInput(p.tooth_no))}" dir="ltr" title="سن واحد أو أكثر بنظام Palmer، مثل: UR6 أو UR1, UL1"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div>
     <select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
     ${money ? `<input name="cost" data-money inputmode="decimal" placeholder="التكلفة${MONEY_UNIT()}" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off">` : ''}
     <input name="details" class="pdet" placeholder="تفاصيل العلاج" value="${esc(p.details || '')}">
@@ -65,7 +65,7 @@ ACTIONS['tooth-set'] = b => {
   const pn = b.closest('.tooth-panel'), inp = $('[name=tooth_no]', pn._row), t = b.dataset.t;
   const sel = teethOf(inp.value), i = sel.indexOf(t);
   if (i >= 0) sel.splice(i, 1); else sel.push(t);
-  inp.value = sel.join(', ');
+  inp.value = sel.map(toPalmer).join(', ');
   b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', String(i < 0));
 };
 ACTIONS['tooth-done'] = b => b.closest('.tooth-panel').remove();

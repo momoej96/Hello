@@ -8,8 +8,25 @@ const can = p => S.perms.includes('*') || S.perms.includes(p);
 const ACTIONS = {}, CHANGES = {};
 /* أسماء الأطباء من الإعدادات، وخيارات قائمة اختيار الطبيب (مع إبقاء القيمة الحالية إن لم تعد في القائمة) */
 /* عرض سن أو عدة أسنان مخزنة بصيغة «11,21» */
-const teethTags = s => String(s || '').split(',').filter(Boolean).map(t => `<span class="tooth-tag">${esc(t)}</span>`).join(' ');
-const teethText = s => String(s || '').split(',').filter(Boolean).join('، ');
+/* ترقيم الأسنان: يُخزَّن بنظام FDI (16، 21…) ويُعرض ويُكتب بنظام Palmer (UR6، UL1، LL7، LR8؛ أسنان الأطفال بالأحرف URA…URE) */
+const PAL_Q = { 1: 'UR', 2: 'UL', 3: 'LL', 4: 'LR', 5: 'UR', 6: 'UL', 7: 'LL', 8: 'LR' };
+const toPalmer = n => { n = +n; const q = Math.floor(n / 10), u = n % 10; return PAL_Q[q] ? PAL_Q[q] + (q >= 5 ? 'ABCDE'[u - 1] : u) : String(n); };
+/* يقرأ سناً أو أكثر بنظام Palmer (UR6, ll7, URE) أو FDI (16, 21) ويعيد أرقام FDI كنصوص */
+const teethOf = s => {
+  const out = [];
+  String(s || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).toUpperCase().split(/[\s,،؛;+/\-]+/).filter(Boolean).forEach(tok => {
+    const m = tok.match(/^(UR|UL|LL|LR)([1-8]+|[A-E]+)$/);
+    if (m) {
+      const q = { UR: 1, UL: 2, LL: 3, LR: 4 }[m[1]];
+      [...m[2]].forEach(ch => out.push(String(/\d/.test(ch) ? q * 10 + +ch : (q + 4) * 10 + 'ABCDE'.indexOf(ch) + 1)));
+    } else out.push(tok);
+  });
+  return [...new Set(out)];
+};
+const teethPalmer = s => teethOf(s).map(t => /^\d\d$/.test(t) ? toPalmer(t) : t);
+const teethInput = s => teethPalmer(s).join(', ');
+const teethTags = s => teethPalmer(s).map(t => `<span class="tooth-tag">${esc(t)}</span>`).join(' ');
+const teethText = s => teethPalmer(s).join('، ');
 const doctorList = () => { try { return JSON.parse(S.settings.doctors || '[]'); } catch (e) { return []; } };
 const doctorOptions = cur => { const l = doctorList(); if (cur && !l.includes(cur)) l.push(cur); return [{ v: '', t: '— اختر الطبيب —' }].concat(l.map(x => ({ v: x, t: x }))); };
 let RPT = null; // التقرير الحالي (للطباعة والتصدير)
