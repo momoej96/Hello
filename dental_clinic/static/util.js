@@ -39,28 +39,32 @@ let RPT = null; // التقرير الحالي (للطباعة والتصدير)
 const PROC_ST = { planned: 'مخطط له', in_progress: 'قيد التنفيذ', completed: 'مكتمل', cancelled: 'ملغى' };
 const APPT_ST = { confirmed: 'مؤكد', completed: 'مكتمل', cancelled: 'ملغى', no_show: 'لم يحضر' };
 const METH = { cash: 'نقداً', transfer: 'تحويل', other: 'أخرى' };
-/* الإجراءات الشائعة. الإجراء الذي له أنواع يُحفظ باسم «الإجراء - النوع» (مثل «حشوة دائمية - ضوئية»).
+/* مربعات قائمة الإجراءات بالترتيب المعروض (من اليمين). الإجراء الذي له أنواع يُحفظ باسم «الإجراء - النوع»
+   (مثل «حشوة دائمية - ضوئية»)، إلا إن حُدد للنوع اسم خاص (قلع جراحي). def = النوع الافتراضي عند اختيار المربع.
    نفس الأسماء يستخدمها الاستيراد من Excel عند توحيد أنواع العمل (importer.py). */
-const PROC_TREE = [
-  ['فحص وتشخيص'], ['تنظيف الأسنان'],
-  ['حشوة دائمية', ['ضوئية', 'معدنية']], ['حشوة مؤقتة', ['اعتيادية', 'علاجية (GIC)']],
-  ['حشوة جذر (عصب)'], ['حشوة تجميلية'], ['تاج (تلبيس)', ['زركون', 'سيراميك', 'Emax']], ['جسر أسنان', ['زركون', 'سيراميك', 'Emax']],
-  ['قلع سن'], ['قلع جراحي'], ['معالجة بعد القلع'], ['زراعة سن'], ['تبييض الأسنان'], ['تقويم أسنان', ['حديد', 'شفاف', 'متحرك']], ['أشعة'], ['طقم أسنان'],
-];
+const PROC_TILES = [
+  { n: 'حشوة دائمية', types: ['ضوئية', 'معدنية'], def: 'ضوئية' },
+  { n: 'قلع سن', types: [['عادي', 'قلع سن'], ['جراحي', 'قلع جراحي']], def: 'عادي' },
+  { n: 'حشوة جذر (عصب)' },
+  { n: 'حشوة مؤقتة', types: ['اعتيادية', 'علاجية (GIC)'], def: 'اعتيادية' },
+  { n: 'تقويم أسنان', types: ['حديد', 'شفاف', 'متحرك'] },
+  { n: 'فحص وتشخيص' }, { n: 'تنظيف الأسنان' }, { n: 'تبييض الأسنان' }, { n: 'معالجة بعد القلع' }, { n: 'زراعة سن' },
+  { n: 'تاج (تلبيس)', types: ['زركون', 'سيراميك', 'Emax'] }, { n: 'جسر أسنان', types: ['زركون', 'سيراميك', 'Emax'] }, { n: 'طقم أسنان' },
+].map(t => ({ ...t, types: t.types && t.types.map(x => Array.isArray(x) ? x : [x, t.n + ' - ' + x]) }));
 /* مراحل حشوة الجذر (تُحفظ مع الإجراء) */
 const RC_STEPS = [['access', 'Access'], ['obturation', 'Instrumentation + Obturation'], ['buildup', 'Build up']];
 const isRootCanal = n => /جذر|عصب|endo|rct/i.test(n || '');
 const rcText = x => (x.rc_steps ? x.rc_steps.split(',').map(k => (RC_STEPS.find(s => s[0] === k) || [k, k])[1]).join(' · ') : '');
 /* نوع الإجراء (الإجراء الذي له أنواع)، وهل يحتاج اسم المختبر: التاج والجسر بعد اختيار النوع، والتقويم الشفاف/المتحرك */
+/* المربع الذي ينتمي له اسم الإجراء: «تاج (تلبيس) - زركون»، «قلع جراحي»، أو «تاج» وحدها (الكلمة الأولى إن لم تتكرر) */
 const procParent = n => {
   n = (n || '').trim(); if (!n) return null;
-  const parents = PROC_TREE.filter(([, subs]) => subs), first = p => p.split(' ')[0];
-  // «تاج (تلبيس) - زركون» أو «تاج» وحدها (الكلمة الأولى إن لم تتكرر بين الإجراءات، فـ«حشوة» وحدها لا تكفي)
-  return parents.find(([p]) => n.startsWith(p)) || parents.find(([p]) => first(p) === n && parents.filter(([q]) => first(q) === n).length === 1) || null;
+  const typed = PROC_TILES.filter(t => t.types), first = p => p.split(' ')[0];
+  return typed.find(t => t.types.some(([, full]) => full === n)) || typed.find(t => n.startsWith(t.n + ' - '))
+    || typed.find(t => first(t.n) === n && typed.filter(q => first(q.n) === n).length === 1) || null;
 };
-const procType = n => { const t = procParent(n); return t ? ((n || '').split(' - ')[1] || '').trim() : ''; };
-const needsLab = n => { const t = procType(n); return !!t && (/^(تاج|جسر)/.test((n || '').trim()) || (/^تقويم/.test((n || '').trim()) && t !== 'حديد')); };
-const COMMON_PROCS = PROC_TREE.flatMap(([n, subs]) => subs ? subs.map(s => n + ' - ' + s) : [n]);
+const procType = n => { const t = procParent(n); if (!t) return ''; const m = t.types.find(([, full]) => full === (n || '').trim()); return m ? m[0] : ''; };
+const needsLab = n => { const t = procParent(n), ty = procType(n); return !!ty && (/^(تاج|جسر)/.test(t.n) || (/^تقويم/.test(t.n) && ty !== 'حديد')); };
 
 const ICONS = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',

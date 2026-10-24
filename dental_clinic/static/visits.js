@@ -17,7 +17,7 @@ function procRowHTML(p = {}) {
   return `<div class="prow" data-id="${p.id || ''}" data-cost="${p.cost || 0}">
     <div class="pmain">
       <span class="pnum"></span>
-      <div class="pf pname"><span class="pl">الإجراء</span><div class="tooth-in"><input name="name" list="dl-procs" placeholder="اكتب أو اختر من القائمة" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div></div>
+      <div class="pf pname"><span class="pl">الإجراء</span><div class="tooth-in"><input name="name" placeholder="اكتب أو اختر من القائمة ☰" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div></div>
       <div class="pf"><span class="pl">السن (Palmer)</span><div class="tooth-in"><input name="tooth_no" placeholder="مثل UR6" value="${esc(teethInput(p.tooth_no))}" dir="ltr" title="سن واحد أو أكثر بنظام Palmer، مثل: UR6 أو UR1, UL1"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div></div>
       <div class="pf"><span class="pl">الحالة</span><select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
       ${money ? `<div class="pf"><span class="pl">التكلفة${MONEY_UNIT()}</span><input name="cost" data-money inputmode="decimal" placeholder="0" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off"></div>` : ''}
@@ -43,7 +43,7 @@ function syncProcRow(r) {
   const pt = $('.ptype', r); pt.hidden = !par;
   if (par && pt.dataset.for !== nm) {
     pt.dataset.for = nm;
-    pt.innerHTML = `<span class="pl">النوع</span>` + par[1].map(t => `<button type="button" class="btn sm ${t === typ ? 'primary' : ''}" data-action="proc-type" data-v="${esc(par[0] + ' - ' + t)}">${esc(t)}</button>`).join('');
+    pt.innerHTML = `<span class="pl">النوع</span>` + par.types.map(([t, full]) => `<button type="button" class="btn sm ${t === typ ? 'primary' : ''}" data-action="proc-type" data-v="${esc(full)}">${esc(t)}</button>`).join('');
   }
   $('.plab', r).hidden = !needsLab(nm);
   const pay = $('.ppay', r); if (!pay) return;
@@ -84,17 +84,33 @@ ACTIONS['tooth-set'] = b => {
   b.classList.toggle('on', i < 0); b.setAttribute('aria-pressed', String(i < 0));
 };
 ACTIONS['tooth-done'] = b => b.closest('.tooth-panel').remove();
-/* قائمة الإجراءات: الإجراء الذي له أنواع (الحشوة الدائمية والمؤقتة) يظهر مع أنواعه للاختيار */
-const procPanel = cur => `<div class="tooth-panel proc-panel"><div class="tp-note">اختر الإجراء</div><div class="pp-grid">${PROC_TREE.map(([n, subs]) => subs
-  ? `<div class="pp-group"><b>${esc(n)}</b><div>${subs.map(s => { const v = n + ' - ' + s; return `<button type="button" class="btn sm ${cur === v ? 'primary' : ''}" data-action="proc-set" data-v="${esc(v)}">${esc(s)}</button>`; }).join('')}</div></div>`
-  : `<button type="button" class="btn sm ${cur === n ? 'primary' : ''}" data-action="proc-set" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+/* قائمة الإجراءات: مربعات كبيرة؛ المربع الذي له أنواع يُظهر سطر «النوع» (مع اختيار النوع الافتراضي إن وُجد) */
+const typesRow = (t, cur) => `<span class="pl">نوع ${esc(t.n)}:</span>` + t.types.map(([ty, full]) => `<button type="button" class="btn ${full === cur ? 'primary' : ''}" data-action="proc-set" data-v="${esc(full)}">${esc(ty)}</button>`).join('')
+  + `<button type="button" class="btn sm pp-done" data-action="proc-done">تم</button>`;
+const procPanel = cur => {
+  const sel = procParent(cur), selN = sel ? sel.n : (cur || '').trim();
+  return `<div class="tooth-panel proc-panel"><div class="pp-head"><b>اختر الإجراء</b><button type="button" class="btn sm" data-action="proc-done">إغلاق ✕</button></div>
+  <div class="pp-tiles">${PROC_TILES.map((t, i) => `<button type="button" class="pp-tile ${t.n === selN ? 'sel' : ''}" data-action="proc-tile" data-i="${i}"><b>${esc(t.n)}</b>${t.types ? `<small>${t.types.map(x => esc(x[0])).join(' · ')}</small>` : ''}</button>`).join('')}</div>
+  <div class="pp-types" ${sel ? '' : 'hidden'}>${sel ? typesRow(sel, (cur || '').trim()) : ''}</div></div>`;
+};
 ACTIONS['proc-pick'] = b => {
   const row = b.closest('.prow'), nx = row.nextElementSibling, open = nx && nx.classList.contains('proc-panel');
   $$('.tooth-panel').forEach(x => x.remove());
   if (open) return;
   row.insertAdjacentHTML('afterend', procPanel($('[name=name]', row).value)); row.nextElementSibling._row = row;
 };
-ACTIONS['proc-set'] = b => { const pn = b.closest('.proc-panel'), row = pn._row; $('[name=name]', row).value = b.dataset.v; pn.remove(); syncProcRow(row); const c = $('[name=cost]', row); (c || $('[name=details]', row)).focus(); };
+const setProcName = (row, v) => { $('[name=name]', row).value = v; syncProcRow(row); procTotal(row.closest('.dlg-body')); };
+const closeProcPanel = pn => { const row = pn._row; pn.remove(); const lab = $('[name=lab]', row); if (lab && !lab.closest('.plab').hidden && !lab.value) lab.focus(); else { const c = $('[name=cost]', row); (c || $('[name=details]', row)).focus(); } };
+ACTIONS['proc-tile'] = b => {
+  const pn = b.closest('.proc-panel'), row = pn._row, t = PROC_TILES[+b.dataset.i];
+  if (!t.types) { setProcName(row, t.n); closeProcPanel(pn); return; }
+  const def = t.def ? t.types.find(([ty]) => ty === t.def)[1] : t.n;     // النوع الافتراضي (ضوئية، اعتيادية، قلع عادي)
+  setProcName(row, def);
+  $$('.pp-tile', pn).forEach(x => x.classList.toggle('sel', x === b));
+  const tr = $('.pp-types', pn); tr.hidden = false; tr.innerHTML = typesRow(t, def);
+};
+ACTIONS['proc-set'] = b => { const pn = b.closest('.proc-panel'); setProcName(pn._row, b.dataset.v); closeProcPanel(pn); };
+ACTIONS['proc-done'] = b => closeProcPanel(b.closest('.proc-panel'));
 ACTIONS['proc-type'] = b => { const r = b.closest('.prow'); $('[name=name]', r).value = b.dataset.v; syncProcRow(r); const lab = $('[name=lab]', r); if (!lab.closest('.plab').hidden) lab.focus(); };
 ACTIONS['tooth-clear'] = b => { const pn = b.closest('.tooth-panel'); $('[name=tooth_no]', pn._row).value = ''; pn.remove(); };
 
@@ -115,7 +131,7 @@ function openVisitModal(v) {
   const m = modal({
     title: isNew ? 'زيارة جديدة — ' + p.full_name : 'تعديل الزيارة', wide: true,
     body: `<form class="vform" novalidate>
-      <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-labs"></datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+<datalist id="dl-labs"></datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${docField || f('doctor', 'الطبيب', v.doctor)}</div>
       <h4 class="sec">الإجراءات العلاجية</h4>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
