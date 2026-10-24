@@ -65,6 +65,28 @@ const procParent = n => {
 };
 const procType = n => { const t = procParent(n); if (!t) return ''; const m = t.types.find(([, full]) => full === (n || '').trim()); return m ? m[0] : ''; };
 const needsLab = n => { const t = procParent(n), ty = procType(n); return !!ty && (/^(تاج|جسر)/.test(t.n) || (/^تقويم/.test(t.n) && ty !== 'حديد')); };
+/* رسمة بسيطة لكل مربع إجراء (بنفس ترتيب PROC_TILES) */
+const TOOTH_D = 'M7 3C4.5 3 3 5 3 7.5c0 2 .8 3.4 1.5 5 .8 1.9 1 5.3 2 7.8.4 1 1.6 1 2-.1.6-1.7.8-4 1.5-5 .6-.8 3.4-.8 4 0 .7 1 .9 3.3 1.5 5 .4 1.1 1.6 1.1 2 .1 1-2.5 1.2-5.9 2-7.8.7-1.6 1.5-3 1.5-5C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z';
+const toothD = (tf = '') => `<path d="${TOOTH_D}" ${tf ? `transform="${tf}"` : ''}/>`;
+const PROC_ICONS = {
+  'حشوة دائمية': toothD() + '<rect x="9" y="6" width="6" height="4" rx="1.2" fill="currentColor" stroke="none"/>',
+  'قلع سن': toothD('translate(4 7) scale(.67)') + '<path d="M12 6V1M9.5 3.5 12 1l2.5 2.5"/>',
+  'حشوة جذر (عصب)': toothD() + '<path d="M9 9.5c.4 3 .6 5.5 1 8M15 9.5c-.4 3-.6 5.5-1 8" stroke-dasharray="1.6 1.4"/>',
+  'حشوة مؤقتة': toothD() + '<rect x="9" y="6" width="6" height="4" rx="1.2" stroke-dasharray="1.5 1.2"/>',
+  'تقويم أسنان': '<path d="M2 12h20"/><rect x="3.5" y="9" width="4" height="6" rx="1"/><rect x="10" y="9" width="4" height="6" rx="1"/><rect x="16.5" y="9" width="4" height="6" rx="1"/>',
+  'فحص وتشخيص': '<circle cx="15.5" cy="8" r="4.5"/><path d="M12.3 11.2 3.5 20.5"/>',
+  'تنظيف الأسنان': '<path d="M3 21 13 11"/><path d="M12 12l3.5-3.5 4 4L16 16z"/><path d="M15 8l1.5-1.5M17 10l1.5-1.5M19 12l1.5-1.5"/>',
+  'تبييض الأسنان': toothD('translate(0 4) scale(.82)') + '<path d="M19 1.5l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9-1.9-.9 1.9-.9z" fill="currentColor" stroke="none"/>',
+  'معالجة بعد القلع': '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/>',
+  'زراعة سن': '<path d="M6 9.5C6 6 8.5 3.5 12 3.5S18 6 18 9.5V10H6z"/><path d="M12 10v12M9 13h6M9.5 15.5h5M10 18h4M11 20.5h2"/>',
+  'تاج (تلبيس)': '<path d="M3 8.5l4.5 3.5L12 5l4.5 7L21 8.5 19 19H5z"/><path d="M5 16h14"/>',
+  'جسر أسنان': '<path d="M2.5 8h19"/><path d="M4 8v5.5c0 2.5 1 4 2.2 4s2.3-1.5 2.3-4V8M9.8 8v5.5c0 2.5 1 4 2.2 4s2.2-1.5 2.2-4V8M15.5 8v5.5c0 2.5 1 4 2.3 4s2.2-1.5 2.2-4V8"/>',
+  'طقم أسنان': '<path d="M3 8c1.5 9 16.5 9 18 0"/><path d="M5.5 11.2v-2M8.5 13.3v-2.3M12 14v-2.4M15.5 13.3v-2.3M18.5 11.2v-2"/><path d="M3 8h18"/>',
+  'إجراء آخر': '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>',
+};
+/* رسمة الإجراء حسب اسمه (أو مربعه)، وإن لم يُعرف فرسمة «إجراء آخر» */
+const procTile = n => { n = (n || '').trim(); return procParent(n) || PROC_TILES.find(t => t.n === n) || null; };
+const procIcon = (n, size = 26) => { const t = procTile(n); return `<svg class="pic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PROC_ICONS[t ? t.n : 'إجراء آخر']}</svg>`; };
 
 const ICONS = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',

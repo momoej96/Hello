@@ -32,10 +32,12 @@ with sync_playwright() as pw:
     p.wait_for_selector('.pt-head h1:has-text("خالد إبراهيم")')  # ننتظر صفحة المراجع الجديد لا الصفحة السابقة
     # زيارة بإجراءين
     p.click('.pt-actions [data-action=new-visit]'); p.wait_for_selector('.vform')
-    rows = p.locator('.prow'); rows.nth(0).locator('[name=name]').fill('زراعة سن'); rows.nth(0).locator('[data-action=tooth-pick]').click(); p.wait_for_selector('.tooth-panel'); shot(p, '06_visit_modal_tooth')
+    tile = lambda n: p.click(f'.proc-panel .pp-tile:has(b:text-is("{n}"))')   # الإجراء زر يفتح مربعات الإجراءات
+    rows = p.locator('.prow'); rows.nth(0).locator('.proc-btn').click(); assert p.locator('.proc-panel .pp-tile svg').count() >= 14
+    tile('زراعة سن'); assert rows.nth(0).locator('[name=name]').input_value() == 'زراعة سن' and 'زراعة سن' in rows.nth(0).locator('.proc-btn').inner_text(); rows.nth(0).locator('[data-action=tooth-pick]').click(); p.wait_for_selector('.tooth-panel'); shot(p, '06_visit_modal_tooth')
     p.click('.tooth-panel [data-t="36"]'); assert rows.nth(0).locator('[name=tooth_no]').input_value() == 'LL6'   # بنظام Palmer (يُخزَّن 36)
     rows.nth(0).locator('[name=status]').select_option('in_progress'); rows.nth(0).locator('[name=cost]').fill('500'); assert rows.nth(0).locator('[name=cost]').input_value() == '500'   # بالألف: 500 = 500,000
-    p.click('[data-action=add-proc]'); rows.nth(1).locator('[name=name]').fill('فحص وتشخيص'); rows.nth(1).locator('[name=cost]').fill('١٥')
+    p.click('[data-action=add-proc]'); p.wait_for_selector('.proc-panel'); tile('فحص وتشخيص'); rows.nth(1).locator('[name=cost]').fill('١٥')
     for i in range(2):                     # «تم الدفع نقداً» لكل إجراء ومفعّل افتراضياً؛ هنا لم يدفع بعد
         assert rows.nth(i).locator('[name=pay_cash]').is_checked(); rows.nth(i).locator('[name=pay_cash]').uncheck()
         assert rows.nth(i).locator('[name=remain]').is_visible()
