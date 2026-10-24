@@ -11,6 +11,10 @@ const UI_SCALE_DEFAULT = 1.05;
 const uiScale = () => { try { const v = parseFloat(localStorage.getItem('ui_scale')); return v >= 0.8 && v <= 1.8 ? v : UI_SCALE_DEFAULT; } catch (e) { return UI_SCALE_DEFAULT; } };
 const setUiScale = v => { v = Math.round(Math.min(1.8, Math.max(0.8, v)) * 100) / 100; document.documentElement.style.setProperty('--ui-scale', v); try { localStorage.setItem('ui_scale', v); } catch (e) { } return v; };
 document.documentElement.style.setProperty('--ui-scale', uiScale());
+/* جهاز الأشعة لهذه الحاسبة (لكل حاسبة جهازها): الحاسبة الرئيسية = الأول، والحاسبات الأخرى = الثاني إن وُجد، ويمكن تغييره */
+const xraySensor = () => { try { const v = localStorage.getItem('xray_sensor'); if (v === '1' || v === '2') return +v; } catch (e) { } return /^(localhost|127\.|\[::1\])/.test(location.hostname) || !(S.settings && S.settings.xray_folder2) ? 1 : 2; };
+const setXraySensor = v => { try { localStorage.setItem('xray_sensor', String(v)); } catch (e) { } };
+const XRAY_SENSORS = { 1: 'جهاز الأشعة الأول (الحاسبة الرئيسية)', 2: 'جهاز الأشعة الثاني (الحاسبة الثانية)' };
 /* أسماء الأطباء من الإعدادات، وخيارات قائمة اختيار الطبيب (مع إبقاء القيمة الحالية إن لم تعد في القائمة) */
 /* عرض سن أو عدة أسنان مخزنة بصيغة «11,21» */
 /* ترقيم الأسنان: يُخزَّن بنظام FDI (16، 21…) ويُعرض ويُكتب بنظام Palmer (UR6، UL1، LL7، LR8؛ أسنان الأطفال بالأحرف URA…URE) */

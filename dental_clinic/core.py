@@ -96,6 +96,7 @@ DEFAULT_SETTINGS = {
     'currency_code': 'IQD', 'currency_label': 'دينار عراقي', 'currency_symbol': 'د.ع',
     'idle_minutes': '15', 'doctors': '[]', 'receipt_footer': 'شكراً لزيارتكم',
     'money_thousands': '1',
+    'xray_folder2': '',   # جهاز الأشعة الثاني (على حاسبة أخرى): مجلده المشارك عبر الشبكة، مثل \\DR2\xray
     'xray_folder': r'C:\ai-dental-images\patients',   # مجلد حفظ الصور في برنامج السنسر (Image Path في Woodpecker)   # إدخال المبالغ بالألف في الواجهة: 25 تعني 25,000 (التخزين دائماً بالمبلغ الكامل)
 }
 PUBLIC_SETTING_KEYS = list(DEFAULT_SETTINGS.keys())

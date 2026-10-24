@@ -90,6 +90,8 @@ def settings_put(c):
     old = get_settings(c.db)
     if 'xray_folder' in b:
         new['xray_folder'] = v_text(b, 'xray_folder', 'مجلد صور الأشعة', maxlen=400)
+    if 'xray_folder2' in b:
+        new['xray_folder2'] = v_text(b, 'xray_folder2', 'مجلد جهاز الأشعة الثاني', maxlen=400)
     if 'money_thousands' in b:
         new['money_thousands'] = '1' if str(b.get('money_thousands')) in ('1', 'true', 'True') else '0'
     for k, v in new.items():

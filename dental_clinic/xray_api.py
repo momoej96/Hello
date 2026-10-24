@@ -2,7 +2,7 @@
 """صور الأشعة: استقبال تلقائي من مجلد برنامج السنسر (مثل Woodpecker)، رفع يدوي، عرض وحذف.
 برنامج السنسر يلتقط الصورة ويحفظها في مجلده؛ عند الضغط على «استقبال أشعة» نراقب ذلك المجلد،
 وكل صورة جديدة تُنسخ (النسخ لا النقل، فيبقى أصلها في برنامج السنسر) إلى data/xrays/<رقم المراجع>/."""
-import os, time, secrets, struct, zlib
+import os, time, secrets, struct, zlib, threading
 from core import ApiError, get_settings, now_iso, audit, v_text, v_tooth, v_date, today_iso
 from api import route, Response, get_patient
 
@@ -165,11 +165,20 @@ def same_day_visit(db, pid, day):
     return r['id'] if r else None
 
 
-def folder_setting(c):
-    f = (get_settings(c.db).get('xray_folder') or '').strip()
+SENSORS = {1: ('xray_folder', 'جهاز الأشعة الأول'), 2: ('xray_folder2', 'جهاز الأشعة الثاني')}
+
+
+def is_remote(folder):
+    """مجلد على حاسبة أخرى عبر الشبكة (\\\\حاسبة\\مجلد): قراءته قد تبطئ أو تتعطل إن كانت تلك الحاسبة مطفأة."""
+    return folder.startswith('\\\\') or folder.startswith('//')
+
+
+def sensor_folder(c, sensor):
+    key, label = SENSORS[sensor]
+    f = (get_settings(c.db).get(key) or '').strip()
     if not f:
-        raise ApiError('حدد مجلد صور الأشعة أولاً من «الإعدادات ← بيانات العيادة ← مجلد صور الأشعة»')
-    if not os.path.isdir(f):
+        raise ApiError('حدد مجلد صور %s أولاً من «الإعدادات ← بيانات العيادة»' % label)
+    if not is_remote(f) and not os.path.isdir(f):     # مجلد الشبكة يُفحص في الخلفية حتى لا يتوقف البرنامج
         raise ApiError('مجلد صور الأشعة غير موجود على الجهاز الرئيسي: %s' % f)
     return f
 
@@ -232,26 +241,109 @@ def xray_delete(c, xid):
 
 
 # ---- الاستقبال التلقائي من مجلد برنامج السنسر ----
+# لكل جهاز أشعة جلسة واحدة. مراقبة المجلد تجري في خيط خلفي خارج قفل البرنامج، لأن مجلد الحاسبة الثانية
+# يُقرأ عبر الشبكة وقد يكون بطيئاً أو غير متاح؛ والطلب يأخذ فقط الصور الجاهزة ويحفظها.
 def _sessions(clinic):
     if not hasattr(clinic, 'xray_sessions'):
         clinic.xray_sessions = {}
     return clinic.xray_sessions
 
 
+def find_shots(s, now):
+    """صور اللقطات الجديدة المكتملة في مجلد الجلسة (صورة واحدة لكل لقطة)."""
+    seen, found = s['seen'], []
+    pending = []
+    for p, (m, z) in scan(s['folder']).items():
+        if s['known'].get(p) == (m, z) or z <= 0:
+            continue
+        if seen.get(p, (None,))[0] != (m, z):
+            seen[p] = ((m, z), now)          # متى لاحظنا هذا الملف بحالته الحالية (بساعة هذا الجهاز)
+        pending.append((p, m, z))
+    # تجميع ملفات كل لقطة: نفس المجلد وأوقات حفظ متقاربة
+    shots = []
+    for p, m, z in sorted(pending, key=lambda t: (os.path.dirname(t[0]), t[1])):
+        last = shots[-1] if shots else None
+        if last and last['dir'] == os.path.dirname(p) and m - last['end'] <= SHOT_GAP:
+            last['files'].append((p, m, z)); last['end'] = m
+        else:
+            shots.append({'dir': os.path.dirname(p), 'end': m, 'files': [(p, m, z)]})
+    quiet = max(SHOT_QUIET, SETTLE_SECONDS)
+    for shot in sorted(shots, key=lambda sh: sh['end']):
+        # برنامج السنسر ما زال يحفظ ملفات هذه اللقطة؟ (ساعة الحاسبة الثانية قد تختلف، فنعتمد أيضاً وقت ملاحظتنا للملف)
+        if now - shot['end'] < quiet and now - max(seen[p][1] for p, _, _ in shot['files']) < quiet:
+            continue
+        files = []
+        for p, m, z in shot['files']:
+            try:
+                with open(p, 'rb') as f:
+                    data = f.read()
+            except OSError:
+                files = None
+                break
+            if sniff(data):
+                files.append({'path': p, 'mtime': m, 'data': data, 'info': image_info(data)})
+        if files is None:
+            continue                                   # ملف ما زال مقفلاً: نحاول في المرة القادمة
+        for p, m, z in shot['files']:
+            s['known'][p] = (m, z)
+        if files:
+            found.append((pick_shot_image(files), len(files) - 1))
+    return found
+
+
+def _watch(s):
+    cv = s['cv']
+    try:
+        if 'known' not in s:
+            if not os.path.isdir(s['folder']):
+                raise OSError
+            s['known'] = scan(s['folder'])
+        s['ready'] = True
+        while not s['stopped'] and time.time() < s['until']:
+            with cv:
+                s['scanning'] = True
+            shots = find_shots(s, time.time())
+            with cv:
+                s['queue'].extend(shots); s['gen'] += 1; s['scanning'] = False; cv.notify_all()
+                if not s['kick']:
+                    cv.wait(1.5)
+                s['kick'] = False
+    except OSError:
+        s['error'] = 'تعذّر الوصول لمجلد %s: %s — تأكد أن تلك الحاسبة شغالة وأن المجلد مشارك على الشبكة' % (s['label'], s['folder'])
+    except Exception as e:                              # لا نترك الجلسة معلّقة بصمت
+        s['error'] = 'خطأ في مراقبة مجلد الأشعة: %s' % e
+    with cv:
+        s['gen'] += 1; cv.notify_all()
+
+
 @route('POST', r'/api/patients/(\d+)/xray_capture', perm='visits', tx=False)
 def capture_start(c, pid):
     p = get_patient(c.db, pid)
     vid = check_visit(c.db, pid, c.body.get('visit_id'))
-    folder = folder_setting(c)
+    sensor = 2 if str(c.body.get('sensor') or '1') == '2' else 1
+    folder = sensor_folder(c, sensor)
     sessions = _sessions(c.clinic)
     with c.clinic.lock:
-        # جلسة واحدة فقط: صورة جديدة يجب أن تذهب لمراجع واحد بلا لبس
-        replaced = [dict(full_name=s['patient_name'], user=s['user']) for s in sessions.values() if time.time() < s['until']]
-        sessions.clear()
+        # جلسة واحدة لكل جهاز أشعة: صورة جديدة يجب أن تذهب لمراجع واحد بلا لبس
+        replaced = []
+        for k, s in list(sessions.items()):
+            if s['sensor'] == sensor or time.time() > s['until']:
+                if s['sensor'] == sensor and time.time() < s['until']:
+                    replaced.append(dict(full_name=s['patient_name'], user=s['user']))
+                s['stopped'] = True
+                with s['cv']:
+                    s['cv'].notify_all()
+                sessions.pop(k)
         tok = secrets.token_urlsafe(12)
-        sessions[tok] = {'patient_id': pid, 'patient_name': p['full_name'], 'visit_id': vid, 'user': c.user['username'], 'folder': folder,
-                         'since': time.time(), 'until': time.time() + SESSION_MINUTES * 60, 'known': scan(folder), 'imported': []}
-    return {'token': tok, 'folder': folder, 'minutes': SESSION_MINUTES, 'replaced': replaced, 'visit_id': vid}
+        s = {'patient_id': pid, 'patient_name': p['full_name'], 'visit_id': vid, 'user': c.user['username'], 'folder': folder,
+             'sensor': sensor, 'label': SENSORS[sensor][1], 'remote': is_remote(folder),
+             'since': time.time(), 'until': time.time() + SESSION_MINUTES * 60, 'seen': {}, 'imported': [],
+             'queue': [], 'gen': 0, 'kick': False, 'scanning': False, 'stopped': False, 'ready': False, 'error': None, 'cv': threading.Condition()}
+        if not s['remote']:
+            s['known'] = scan(folder)          # المجلد المحلي سريع: نبدأ فوراً
+        sessions[tok] = s
+    threading.Thread(target=_watch, args=(s,), daemon=True, name='xray-watch').start()
+    return {'token': tok, 'folder': folder, 'sensor': sensor, 'label': s['label'], 'minutes': SESSION_MINUTES, 'replaced': replaced, 'visit_id': vid}
 
 
 @route('POST', r'/api/xray_capture/([\w\-]+)/poll', perm='visits', tx=False)
@@ -262,59 +354,44 @@ def capture_poll(c, tok):
         return {'active': False, 'reason': 'stopped', 'xrays': []}
     if time.time() > s['until']:
         _sessions(c.clinic).pop(tok, None)
+        s['stopped'] = True
         return {'active': False, 'reason': 'timeout', 'xrays': s['imported']}
-    now, new = time.time(), []
-    with c.clinic.lock:
-        pending = [(p, m, z) for p, (m, z) in scan(s['folder']).items() if s['known'].get(p) != (m, z) and z > 0]
-        # تجميع ملفات كل لقطة: نفس المجلد وأوقات حفظ متقاربة
-        shots = []
-        for p, m, z in sorted(pending, key=lambda t: (os.path.dirname(t[0]), t[1])):
-            last = shots[-1] if shots else None
-            if last and last['dir'] == os.path.dirname(p) and m - last['end'] <= SHOT_GAP:
-                last['files'].append((p, m, z)); last['end'] = m
-            else:
-                shots.append({'dir': os.path.dirname(p), 'end': m, 'files': [(p, m, z)]})
-        for shot in sorted(shots, key=lambda sh: sh['end']):
-            if now - shot['end'] < max(SHOT_QUIET, SETTLE_SECONDS):
-                continue                                   # برنامج السنسر ما زال يحفظ ملفات هذه اللقطة
-            files = []
-            for p, m, z in shot['files']:
-                try:
-                    with open(p, 'rb') as f:
-                        data = f.read()
-                except OSError:
-                    files = None
-                    break
-                if sniff(data):
-                    files.append({'path': p, 'mtime': m, 'data': data, 'info': image_info(data)})
-            if files is None:
-                continue                                   # ملف ما زال مقفلاً: نحاول في المرة القادمة
-            for p, m, z in shot['files']:
-                s['known'][p] = (m, z)
-            if not files:
-                continue
-            best = pick_shot_image(files)
-            s['skipped'] = s.get('skipped', 0) + len(files) - 1
-            c.db.execute('BEGIN IMMEDIATE')
-            try:
-                taken = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(best['mtime']))
-                vid = s['visit_id']
-                if vid and not c.db.execute('SELECT 1 FROM visits WHERE id=? AND deleted=0', (vid,)).fetchone():
-                    vid = None                                        # حُذفت الزيارة أثناء الاستقبال
-                vid = vid or same_day_visit(c.db, s['patient_id'], taken[:10])   # وإلا: زيارة نفس اليوم
-                x = store_image(c, s['patient_id'], best['data'], 'sensor', best['path'], taken, visit_id=vid)
-                c.db.execute('COMMIT')
-            except BaseException:
-                c.db.execute('ROLLBACK')
-                raise
-            s['imported'].append(x)
-            new.append(x)
-    return {'active': True, 'new': new, 'xrays': s['imported'], 'skipped': s.get('skipped', 0), 'seconds_left': int(s['until'] - now)}
+    cv = s['cv']
+    with cv:
+        # المجلد المحلي: نطلب فحصاً فورياً وننتظره قليلاً؛ مجلد الشبكة: لا ننتظر حتى لا يتوقف البرنامج
+        need = s['gen'] + (2 if s['scanning'] else 1)     # فحص يبدأ بعد هذا الطلب
+        s['kick'] = True; cv.notify_all()
+        if not s['remote']:
+            cv.wait_for(lambda: s['gen'] >= need or s['error'] or s['stopped'], timeout=1.5)
+        shots, s['queue'] = s['queue'], []
+    new, now = [], time.time()
+    for best, skipped in shots:
+        s['skipped'] = s.get('skipped', 0) + skipped
+        c.db.execute('BEGIN IMMEDIATE')
+        try:
+            taken = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(min(best['mtime'], now)))
+            vid = s['visit_id']
+            if vid and not c.db.execute('SELECT 1 FROM visits WHERE id=? AND deleted=0', (vid,)).fetchone():
+                vid = None                                        # حُذفت الزيارة أثناء الاستقبال
+            vid = vid or same_day_visit(c.db, s['patient_id'], taken[:10])   # وإلا: زيارة نفس اليوم
+            x = store_image(c, s['patient_id'], best['data'], 'sensor', best['path'], taken, visit_id=vid)
+            c.db.execute('COMMIT')
+        except BaseException:
+            c.db.execute('ROLLBACK')
+            raise
+        s['imported'].append(x)
+        new.append(x)
+    return {'active': True, 'new': new, 'xrays': s['imported'], 'skipped': s.get('skipped', 0), 'seconds_left': int(s['until'] - now),
+            'ready': s['ready'], 'error': s['error'], 'label': s['label']}
 
 
 @route('POST', r'/api/xray_capture/([\w\-]+)/stop', perm='visits', tx=False)
 def capture_stop(c, tok):
     s = _sessions(c.clinic).pop(str(tok), None)
+    if s:
+        s['stopped'] = True
+        with s['cv']:
+            s['cv'].notify_all()
     return {'ok': True, 'xrays': s['imported'] if s else []}
 
 
@@ -323,8 +400,18 @@ def folder_check(c):
     f = (c.q.get('folder') or '').strip()
     if not f:
         raise ApiError('اكتب مسار المجلد')
-    if not os.path.isdir(f):
-        return {'ok': False, 'message': 'المجلد غير موجود على الجهاز الرئيسي'}
-    imgs = scan(f)
+    res = {}
+
+    def run():
+        res['ok'] = os.path.isdir(f)
+        if res['ok']:
+            res['imgs'] = scan(f)
+    t = threading.Thread(target=run, daemon=True)
+    t.start(); t.join(15)                    # مجلد شبكة لحاسبة مطفأة قد لا يرد
+    if t.is_alive():
+        return {'ok': False, 'message': 'لا يوجد رد من الحاسبة: تأكد أنها شغالة وأن المجلد مشارك على الشبكة'}
+    if not res.get('ok'):
+        return {'ok': False, 'message': 'المجلد غير متاح: تأكد أن المسار صحيح وأن الحاسبة شغالة' if is_remote(f) else 'المجلد غير موجود على الجهاز الرئيسي'}
+    imgs = res['imgs']
     last = max((m for m, _ in imgs.values()), default=None)
     return {'ok': True, 'count': len(imgs), 'last': time.strftime('%Y-%m-%d %H:%M', time.localtime(last)) if last else None}

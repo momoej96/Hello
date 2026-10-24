@@ -37,7 +37,7 @@ async function uploadXrays(files) {
 ACTIONS['xray-capture'] = async b => {
   const p = PT.patient, visit = b && b.dataset.visit ? PT.visits.find(v => v.id == b.dataset.visit) : null;
   let st;
-  try { st = await api('POST', `/api/patients/${p.id}/xray_capture`, { visit_id: visit ? visit.id : null }); } catch (e) { toast(e.message, 'err'); return; }
+  try { st = await api('POST', `/api/patients/${p.id}/xray_capture`, { visit_id: visit ? visit.id : null, sensor: xraySensor() }); } catch (e) { toast(e.message, 'err'); return; }
   const backTab = visit ? PT_TAB : 'xray';
   if (st.replaced && st.replaced.length) toast(`أُوقف استقبال الأشعة للمراجع «${st.replaced[0].full_name}»`, 'warn');
   let active = true, timer = null, got = 0;
@@ -49,10 +49,11 @@ ACTIONS['xray-capture'] = async b => {
   const m = modal({ title: 'استقبال أشعة — ' + p.full_name + (visit ? ' — زيارة ' + visit.visit_date : ''), wide: true, onClose: stop,
     body: `<div class="xwait"><div class="pulse"></div><div><b>بانتظار صورة الأشعة…</b><br>
       <span class="muted">صوّر الآن ببرنامج السنسر (Woodpecker) كالعادة. كل صورة يحفظها تُضاف مباشرة ${visit ? 'لزيارة ' + esc(visitLabel(visit)) : 'لملف هذا المراجع (ولزيارة اليوم إن وُجدت)'}.</span><br>
-      <small class="muted">المجلد المراقَب: <bdi dir="ltr">${esc(st.folder)}</bdi> · يتوقف تلقائياً بعد <span id="xleft">${st.minutes}</span> دقيقة</small></div></div>
+      <small class="muted">${esc(st.label)}${S.settings.xray_folder2 ? ` (<a href="#" data-action="xray-switch">تغيير</a>)` : ''} · المجلد: <bdi dir="ltr">${esc(st.folder)}</bdi> · يتوقف تلقائياً بعد <span id="xleft">${st.minutes}</span> دقيقة</small></div></div>
       <div id="xgot" class="xgrid mt"></div>`,
     footer: `<button type="button" class="btn primary" data-close>إنهاء الاستقبال</button>` });
   m.el.dataset.sticky = '1';
+  m.el._restart = () => { m.close(); ACTIONS['xray-capture'](b); };
   async function poll() {
     if (!active) return;
     try {
@@ -62,6 +63,12 @@ ACTIONS['xray-capture'] = async b => {
         $('.xwait', m.el).innerHTML = `<div><b>${r.reason === 'timeout' ? 'انتهت مدة الاستقبال.' : 'توقف الاستقبال.'}</b> ${r.reason === 'stopped' ? 'بدأ استقبال لمراجع آخر من جهاز آخر.' : 'اضغط «استقبال أشعة» مرة أخرى عند الحاجة.'}</div>`;
         return;
       }
+      if (r.error) {
+        active = false; try { await api('POST', `/api/xray_capture/${st.token}/stop`, {}); } catch (e) { }
+        $('.xwait', m.el).innerHTML = `<div><b class="neg">${esc(r.error)}</b><br><span class="muted">يمكنك أيضاً رفع الصورة يدوياً من «رفع صورة من الجهاز».</span></div>`;
+        return;
+      }
+      const wt = $('.xwait b', m.el); if (wt) wt.textContent = r.ready ? 'بانتظار صورة الأشعة…' : 'جارِ الاتصال بمجلد ' + r.label + '…';
       if (r.new.length) {
         got += r.new.length;
         $('#xgot', m.el).insertAdjacentHTML('beforeend', r.new.map(x => `<div class="xcard"><img src="${xrayUrl(x.id)}" alt="صورة أشعة"><span class="xmeta">وصلت ✓ <bdi class="num">${esc(x.taken_at.slice(11, 16))}</bdi></span></div>`).join(''));
@@ -75,6 +82,11 @@ ACTIONS['xray-capture'] = async b => {
   poll();
 };
 
+ACTIONS['xray-switch'] = (a, e) => {
+  if (e) e.preventDefault();
+  setXraySensor(xraySensor() === 1 ? 2 : 1); toast('هذه الحاسبة تستقبل الآن من ' + XRAY_SENSORS[xraySensor()]);
+  const d = a.closest('.overlay'); if (d && d._restart) d._restart();
+};
 /* عارض الصورة: تكبير، سطوع، تباين، عكس الألوان، تدوير، طباعة */
 ACTIONS['xray-view'] = b => {
   const xs = PT.xrays || [], x = xs.find(i => i.id == b.dataset.id); if (!x) return;

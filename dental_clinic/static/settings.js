@@ -16,7 +16,11 @@ const scaleCard = () => `<section class="card"><h3>حجم العرض على هذ
     <b id="scaleVal" class="num">${Math.round(uiScale() * 100)}%</b>
     <button type="button" class="btn" data-action="ui-scale" data-d="0.05" aria-label="تكبير">${'أكبر +'}</button>
     <button type="button" class="btn sm" data-action="ui-scale" data-reset>الافتراضي</button></div>
-  <p class="muted small">يكبّر أو يصغّر الخط والأزرار في البرنامج كله على هذا الجهاز فقط (كل لابتوب أو موبايل له حجمه). الطباعة لا تتأثر.</p></section>`;
+  <p class="muted small">يكبّر أو يصغّر الخط والأزرار في البرنامج كله على هذا الجهاز فقط (كل لابتوب أو موبايل له حجمه). الطباعة لا تتأثر.</p></section>`
+  + (S.settings.xray_folder2 ? `<section class="card"><h3>جهاز الأشعة في هذه الحاسبة</h3>
+  <select data-change="xray-sensor" aria-label="جهاز الأشعة">${[1, 2].map(n => `<option value="${n}" ${xraySensor() === n ? 'selected' : ''}>${XRAY_SENSORS[n]}</option>`).join('')}</select>
+  <p class="muted small">«استقبال أشعة من السنسر» في هذه الحاسبة يأخذ الصور من هذا الجهاز. كل حاسبة لها اختيارها.</p></section>` : '');
+CHANGES['xray-sensor'] = el => { setXraySensor(el.value); toast('تم: هذه الحاسبة تستقبل من ' + XRAY_SENSORS[el.value]); };
 ACTIONS['ui-scale'] = b => { const v = b.dataset.reset !== undefined ? setUiScale(UI_SCALE_DEFAULT) : setUiScale(uiScale() + parseFloat(b.dataset.d)); const el = $('#scaleVal'); if (el) el.textContent = Math.round(v * 100) + '%'; };
 
 async function stClinic(host) {
@@ -25,8 +29,10 @@ async function stClinic(host) {
   host.innerHTML = scaleCard() + `<section class="card"><form id="cf" class="form-grid c2" novalidate>
     ${['clinic_name|اسم العيادة (يظهر في رأس التقارير)|full', 'clinic_phone|هاتف العيادة|', 'clinic_address|العنوان|', 'currency_label|اسم العملة|', 'currency_symbol|رمز العملة المعروض|', 'currency_code|رمز العملة (ISO)|', 'receipt_footer|عبارة أسفل الإيصالات والتقارير|full'].map(x => { const [n, l, c] = x.split('|'); return `<label class="fld ${c}"><span>${l}</span><input name="${n}" value="${esc(s[n])}" autocomplete="off"></label>`; }).join('')}
     <label class="fld"><span>القفل التلقائي بعد (دقائق من عدم الاستخدام، 0 = معطّل)</span><input name="idle_minutes" inputmode="numeric" value="${esc(s.idle_minutes)}"></label>
-    <label class="fld full"><span>مجلد صور الأشعة (نفس «Image Path» في برنامج السنسر Woodpecker، على الجهاز الرئيسي)</span>
-      <div class="tooth-in"><input name="xray_folder" dir="ltr" value="${esc(s.xray_folder || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="xray-folder-check">فحص المجلد</button></div><em id="xfres"></em></label>
+    <label class="fld full"><span>مجلد صور جهاز الأشعة الأول (نفس «Image Path» في برنامج السنسر Woodpecker، على الجهاز الرئيسي)</span>
+      <div class="tooth-in"><input name="xray_folder" dir="ltr" value="${esc(s.xray_folder || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="xray-folder-check" data-f="xray_folder">فحص المجلد</button></div><em class="xfres"></em></label>
+    <label class="fld full"><span>مجلد صور جهاز الأشعة الثاني (على الحاسبة الثانية، مشارك على الشبكة — مثل <bdi dir="ltr">\\\\DR2\\xray</bdi>؛ اتركه فارغاً إن لم يوجد)</span>
+      <div class="tooth-in"><input name="xray_folder2" dir="ltr" value="${esc(s.xray_folder2 || '')}" placeholder="\\\\اسم-الحاسبة\\xray" autocomplete="off"><button type="button" class="btn sm" data-action="xray-folder-check" data-f="xray_folder2">فحص المجلد</button></div><em class="xfres"></em></label>
     <label class="fld"><span>طريقة كتابة المبالغ</span><select name="money_thousands"><option value="1" ${s.money_thousands !== '0' ? 'selected' : ''}>بالألف: أكتب 25 فتُسجَّل 25,000</option><option value="0" ${s.money_thousands === '0' ? 'selected' : ''}>كاملة: أكتب 25000 فتُسجَّل 25,000</option></select></label>
     <label class="fld full"><span>أسماء الأطباء (اسم في كل سطر — تظهر كقائمة اختيار عند إضافة مراجع أو زيارة، وفي تقرير عمل الأطباء)</span><textarea name="doctors" rows="3">${esc(docs.join('\n'))}</textarea></label>
     <div class="form-err" role="alert"></div><div class="full"><button type="submit" class="btn primary">حفظ الإعدادات</button></div></form></section>`;
@@ -38,10 +44,10 @@ async function stClinic(host) {
   };
 }
 
-ACTIONS['xray-folder-check'] = async () => {
-  const out = $('#xfres');
+ACTIONS['xray-folder-check'] = async b => {
+  const out = $('.xfres', b.closest('.fld')); out.textContent = 'جارِ الفحص…';
   try {
-    const r = await api('GET', '/api/xray_folder_check?' + qs({ folder: $('[name=xray_folder]').value }));
+    const r = await api('GET', '/api/xray_folder_check?' + qs({ folder: $(`[name=${b.dataset.f}]`).value }));
     out.textContent = r.ok ? `المجلد موجود: ${fmt(r.count)} صورة${r.last ? '، آخرها ' + r.last : ''}. لا تنسَ «حفظ الإعدادات».` : r.message;
   } catch (e) { out.textContent = e.message; }
 };

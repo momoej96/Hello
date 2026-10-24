@@ -90,6 +90,42 @@ class T30_Xray(Base):
         write(os.path.join(self.sensor, '20', '1003.png'), png(300, 200, shade=60), age=1)
         self.assertEqual(self.c.ok('POST', '/api/xray_capture/%s/poll' % st['token'], {})['new'], [])
 
+    def poll_until(self, tok, n, timeout=8):
+        got, end = [], time.time() + timeout
+        while time.time() < end:
+            r = self.c.ok('POST', '/api/xray_capture/%s/poll' % tok, {})
+            got += r['new']
+            if len(got) >= n or r.get('error'):
+                return got, r
+            time.sleep(0.3)
+        return got, r
+
+    def test_two_sensors_on_two_computers(self):
+        """جهازا أشعة على حاسبتين: الثاني مجلد مشارك عبر الشبكة؛ لكل جهاز جلسته، والحاسبة المطفأة لا توقف البرنامج"""
+        p, q = self.patient(), self.patient('مراجع الطبيب الثاني', '07703334444')
+        sensor2 = tempfile.mkdtemp(prefix='woodpecker2_'); self.addCleanup(shutil.rmtree, sensor2, True)
+        st = self.c.ok('GET', '/api/settings')['settings']
+        s, d = self.c.call('POST', '/api/patients/%d/xray_capture' % q['id'], {'sensor': 2})
+        self.assertEqual(s, 400); self.assertIn('الثاني', d['error'])                       # لم يُحدد بعد
+        self.c.ok('PUT', '/api/settings', {**st, 'xray_folder2': '/' + sensor2})          # «//...» مثل \\DR2\xray
+        write(os.path.join(sensor2, 'old.png'), png(shade=9), age=100)
+        a = self.c.ok('POST', '/api/patients/%d/xray_capture' % p['id'], {})
+        b = self.c.ok('POST', '/api/patients/%d/xray_capture' % q['id'], {'sensor': 2})
+        self.assertEqual((a['sensor'], b['sensor'], b['replaced']), (1, 2, []))           # لا يوقف أحدهما الآخر
+        time.sleep(0.5)                                                                     # مجلد الشبكة يُقرأ في الخلفية
+        write(os.path.join(self.sensor, '5', 'a.png'), png(shade=40))
+        write(os.path.join(sensor2, '8', 'b.png'), png(shade=60))
+        ga, _ = self.poll_until(a['token'], 1); gb, rb = self.poll_until(b['token'], 1)
+        self.assertEqual(([x['patient_id'] for x in ga], [x['patient_id'] for x in gb]), ([p['id']], [q['id']]))
+        self.assertTrue(rb['ready']); self.assertIsNone(rb['error'])
+        # الحاسبة الثانية مطفأة / المجلد غير متاح: البدء لا يتعطل، والرسالة تظهر أثناء الاستقبال
+        self.c.ok('PUT', '/api/settings', {**st, 'xray_folder2': '/' + os.path.join(sensor2, 'gone')})
+        t0 = time.time(); b = self.c.ok('POST', '/api/patients/%d/xray_capture' % q['id'], {'sensor': 2})
+        self.assertLess(time.time() - t0, 1)
+        _, r = self.poll_until(b['token'], 1, timeout=3)
+        self.assertIn('تأكد أن تلك الحاسبة شغالة', r['error'])
+        self.assertTrue(self.c.ok('POST', '/api/xray_capture/%s/poll' % a['token'], {})['active'])   # جلسة الجهاز الأول باقية
+
     def test_missing_folder_upload_edit_permissions(self):
         p = self.patient()
         st = self.c.ok('GET', '/api/settings')['settings']
