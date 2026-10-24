@@ -13,22 +13,27 @@ const toothPanel = sel => `<div class="tooth-panel"><div class="tp-note">اضغ�
 
 function procRowHTML(p = {}) {
   const money = can('payments');
+  /* كل إجراء بطاقة مستقلة: الحقول الأساسية بعناوينها، ثم الإضافات (النوع، المختبر، مراحل الجذر)، ثم الدفع أسفل البطاقة */
   return `<div class="prow" data-id="${p.id || ''}" data-cost="${p.cost || 0}">
-    <div class="tooth-in"><input name="name" list="dl-procs" placeholder="الإجراء أو العلاج" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div>
-    <div class="tooth-in"><input name="tooth_no" placeholder="السن" value="${esc(teethInput(p.tooth_no))}" dir="ltr" title="سن واحد أو أكثر بنظام Palmer، مثل: UR6 أو UR1, UL1"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div>
-    <select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    ${money ? `<input name="cost" data-money inputmode="decimal" placeholder="التكلفة${MONEY_UNIT()}" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off">` : ''}
-    <input name="details" class="pdet" placeholder="تفاصيل العلاج" value="${esc(p.details || '')}">
-    <button type="button" class="btn sm danger-o" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button>
+    <div class="pmain">
+      <span class="pnum"></span>
+      <div class="pf pname"><span class="pl">الإجراء</span><div class="tooth-in"><input name="name" list="dl-procs" placeholder="اكتب أو اختر من القائمة" value="${esc(p.name || '')}" autocomplete="off"><button type="button" class="btn sm" data-action="proc-pick" title="اختيار الإجراء من القائمة">${icon('list', 15)}</button></div></div>
+      <div class="pf"><span class="pl">السن (Palmer)</span><div class="tooth-in"><input name="tooth_no" placeholder="مثل UR6" value="${esc(teethInput(p.tooth_no))}" dir="ltr" title="سن واحد أو أكثر بنظام Palmer، مثل: UR6 أو UR1, UL1"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div></div>
+      <div class="pf"><span class="pl">الحالة</span><select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+      ${money ? `<div class="pf"><span class="pl">التكلفة${MONEY_UNIT()}</span><input name="cost" data-money inputmode="decimal" placeholder="0" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off"></div>` : ''}
+      <button type="button" class="btn sm danger-o prm" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button>
+      <div class="pf pdetf"><span class="pl">تفاصيل العلاج</span><input name="details" class="pdet" placeholder="اختياري" value="${esc(p.details || '')}"></div>
+    </div>
     <div class="pext">
       <div class="ptype" hidden></div>
-      <div class="plab" ${needsLab(p.name) ? '' : 'hidden'}><label>المختبر <input name="lab" list="dl-labs" value="${esc(p.lab || '')}" placeholder="اسم المختبر الذي عُملت عنده الحالة" autocomplete="off"></label></div>
-      <div class="rc" ${isRootCanal(p.name) ? '' : 'hidden'}><b>مراحل حشوة الجذر:</b>
+      <div class="plab" ${needsLab(p.name) ? '' : 'hidden'}><span class="pl">المختبر</span><input name="lab" list="dl-labs" value="${esc(p.lab || '')}" placeholder="اسم المختبر" autocomplete="off"></div>
+      <div class="rc" ${isRootCanal(p.name) ? '' : 'hidden'}><span class="pl">مراحل حشوة الجذر</span>
         ${RC_STEPS.map(([k, t]) => `<label class="chk"><input type="checkbox" name="rc_${k}" ${(p.rc_steps || '').split(',').includes(k) ? 'checked' : ''}> <bdi dir="ltr">${t}</bdi></label>`).join('')}
-        <label class="rcm">القياسات <input name="rc_measure" dir="ltr" value="${esc(p.rc_measure || '')}" placeholder="مثال: MB 21mm · DB 20.5mm · P 22mm"></label></div>
-      ${money && !p.id ? `<div class="ppay"><label class="chk"><input type="checkbox" name="pay_cash" checked> <b>تم الدفع نقداً</b></label>
-        <label class="prem" hidden>المتبقي${MONEY_UNIT()} <input name="remain" data-money inputmode="decimal" autocomplete="off"></label><span class="pinfo muted small"></span></div>` : ''}
-    </div></div>`;
+        <label class="rcm"><span class="pl">القياسات</span><input name="rc_measure" dir="ltr" value="${esc(p.rc_measure || '')}" placeholder="MB 21mm · DB 20.5mm · P 22mm"></label></div>
+    </div>
+    ${money && !p.id ? `<div class="ppay"><label class="chk"><input type="checkbox" name="pay_cash" checked> <b>تم الدفع نقداً</b></label>
+      <label class="prem" hidden>المتبقي${MONEY_UNIT()} <input name="remain" data-money inputmode="decimal" autocomplete="off"></label><span class="pinfo muted small"></span></div>` : ''}
+  </div>`;
 }
 /* إظهار مراحل حشوة الجذر حسب اسم الإجراء، وحقل «المتبقي» عند إزالة «تم الدفع نقداً» */
 function syncProcRow(r) {
@@ -38,7 +43,7 @@ function syncProcRow(r) {
   const pt = $('.ptype', r); pt.hidden = !par;
   if (par && pt.dataset.for !== nm) {
     pt.dataset.for = nm;
-    pt.innerHTML = `<b>النوع:</b>` + par[1].map(t => `<button type="button" class="btn sm ${t === typ ? 'primary' : ''}" data-action="proc-type" data-v="${esc(par[0] + ' - ' + t)}">${esc(t)}</button>`).join('');
+    pt.innerHTML = `<span class="pl">النوع</span>` + par[1].map(t => `<button type="button" class="btn sm ${t === typ ? 'primary' : ''}" data-action="proc-type" data-v="${esc(par[0] + ' - ' + t)}">${esc(t)}</button>`).join('');
   }
   $('.plab', r).hidden = !needsLab(nm);
   const pay = $('.ppay', r); if (!pay) return;
@@ -113,7 +118,6 @@ function openVisitModal(v) {
       <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-labs"></datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${docField || f('doctor', 'الطبيب', v.doctor)}</div>
       <h4 class="sec">الإجراءات العلاجية</h4>
-      <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? `<span>التكلفة${MONEY_UNIT()}</span>` : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
       <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
       ${!isNew && can('finance_edit') ? visitPaysHTML(v) : ''}
