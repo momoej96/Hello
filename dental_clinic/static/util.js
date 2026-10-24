@@ -6,6 +6,11 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const S = { user: null, perms: [], settings: {}, demo: false, cats: [] };
 const can = p => S.perms.includes('*') || S.perms.includes(p);
 const ACTIONS = {}, CHANGES = {};
+/* حجم العرض (الخط والأزرار) لكل جهاز على حدة: يُحفظ في هذا المتصفح فقط */
+const UI_SCALE_DEFAULT = 1.05;
+const uiScale = () => { try { const v = parseFloat(localStorage.getItem('ui_scale')); return v >= 0.8 && v <= 1.8 ? v : UI_SCALE_DEFAULT; } catch (e) { return UI_SCALE_DEFAULT; } };
+const setUiScale = v => { v = Math.round(Math.min(1.8, Math.max(0.8, v)) * 100) / 100; document.documentElement.style.setProperty('--ui-scale', v); try { localStorage.setItem('ui_scale', v); } catch (e) { } return v; };
+document.documentElement.style.setProperty('--ui-scale', uiScale());
 /* أسماء الأطباء من الإعدادات، وخيارات قائمة اختيار الطبيب (مع إبقاء القيمة الحالية إن لم تعد في القائمة) */
 /* عرض سن أو عدة أسنان مخزنة بصيغة «11,21» */
 /* ترقيم الأسنان: يُخزَّن بنظام FDI (16، 21…) ويُعرض ويُكتب بنظام Palmer (UR6، UL1، LL7، LR8؛ أسنان الأطفال بالأحرف URA…URE) */
@@ -39,13 +44,22 @@ const METH = { cash: 'نقداً', transfer: 'تحويل', other: 'أخرى' };
 const PROC_TREE = [
   ['فحص وتشخيص'], ['تنظيف الأسنان'],
   ['حشوة دائمية', ['ضوئية', 'معدنية']], ['حشوة مؤقتة', ['اعتيادية', 'علاجية (GIC)']],
-  ['حشوة جذر (عصب)'], ['حشوة تجميلية'], ['تاج (تلبيس)'], ['جسر أسنان'], ['قلع سن'], ['قلع جراحي'], ['معالجة بعد القلع'],
-  ['زراعة سن'], ['تبييض الأسنان'], ['تقويم أسنان'], ['أشعة'], ['طقم أسنان'],
+  ['حشوة جذر (عصب)'], ['حشوة تجميلية'], ['تاج (تلبيس)', ['زركون', 'سيراميك', 'Emax']], ['جسر أسنان', ['زركون', 'سيراميك', 'Emax']],
+  ['قلع سن'], ['قلع جراحي'], ['معالجة بعد القلع'], ['زراعة سن'], ['تبييض الأسنان'], ['تقويم أسنان', ['حديد', 'شفاف', 'متحرك']], ['أشعة'], ['طقم أسنان'],
 ];
 /* مراحل حشوة الجذر (تُحفظ مع الإجراء) */
 const RC_STEPS = [['access', 'Access'], ['obturation', 'Instrumentation + Obturation'], ['buildup', 'Build up']];
 const isRootCanal = n => /جذر|عصب|endo|rct/i.test(n || '');
 const rcText = x => (x.rc_steps ? x.rc_steps.split(',').map(k => (RC_STEPS.find(s => s[0] === k) || [k, k])[1]).join(' · ') : '');
+/* نوع الإجراء (الإجراء الذي له أنواع)، وهل يحتاج اسم المختبر: التاج والجسر بعد اختيار النوع، والتقويم الشفاف/المتحرك */
+const procParent = n => {
+  n = (n || '').trim(); if (!n) return null;
+  const parents = PROC_TREE.filter(([, subs]) => subs), first = p => p.split(' ')[0];
+  // «تاج (تلبيس) - زركون» أو «تاج» وحدها (الكلمة الأولى إن لم تتكرر بين الإجراءات، فـ«حشوة» وحدها لا تكفي)
+  return parents.find(([p]) => n.startsWith(p)) || parents.find(([p]) => first(p) === n && parents.filter(([q]) => first(q) === n).length === 1) || null;
+};
+const procType = n => { const t = procParent(n); return t ? ((n || '').split(' - ')[1] || '').trim() : ''; };
+const needsLab = n => { const t = procType(n); return !!t && (/^(تاج|جسر)/.test((n || '').trim()) || (/^تقويم/.test((n || '').trim()) && t !== 'حديد')); };
 const COMMON_PROCS = PROC_TREE.flatMap(([n, subs]) => subs ? subs.map(s => n + ' - ' + s) : [n]);
 
 const ICONS = {

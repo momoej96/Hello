@@ -159,7 +159,7 @@ function visitCard(v, withActions = true) {
   const cp = v.procedures.find(x => x.status !== 'cancelled' && careKind(x.name));
   const procs = v.procedures.length ? `<div class="tbl-wrap"><table class="tbl compact"><thead><tr><th>السن</th><th>الإجراء</th><th>الحالة</th><th>التكلفة</th></tr></thead><tbody>${v.procedures.map(x => `<tr class="${x.status === 'cancelled' ? 'cancelled' : ''}">
     <td>${x.tooth_no ? teethTags(x.tooth_no) : '<span class="muted">—</span>'}</td>
-    <td><b>${esc(x.name)}</b>${x.rc_steps ? `<div class="rc-done">${icon('check', 13)} <bdi dir="ltr">${esc(rcText(x))}</bdi></div>` : ''}${x.rc_measure ? `<div class="small">القياسات: <bdi dir="ltr">${esc(x.rc_measure)}</bdi></div>` : ''}${x.details ? `<div class="muted small">${nl2br(x.details)}</div>` : ''}</td>
+    <td><b>${esc(x.name)}</b>${x.rc_steps ? `<div class="rc-done">${icon('check', 13)} <bdi dir="ltr">${esc(rcText(x))}</bdi></div>` : ''}${x.rc_measure ? `<div class="small">القياسات: <bdi dir="ltr">${esc(x.rc_measure)}</bdi></div>` : ''}${x.lab ? `<div class="small">المختبر: <b>${esc(x.lab)}</b></div>` : ''}${x.details ? `<div class="muted small">${nl2br(x.details)}</div>` : ''}</td>
     <td>${withActions && can('visits') ? `<select class="st-sel b-${x.status}" data-change="proc-status" data-id="${x.id}">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${k === x.status ? 'selected' : ''}>${t}</option>`).join('')}</select>` : badge(PROC_ST, x.status)}</td>
     <td>${can('payments') ? moneyH(x.cost) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">لا توجد إجراءات مسجلة في هذه الزيارة.</p>';
   return `<article class="visit">

@@ -21,6 +21,8 @@ function procRowHTML(p = {}) {
     <input name="details" class="pdet" placeholder="تفاصيل العلاج" value="${esc(p.details || '')}">
     <button type="button" class="btn sm danger-o" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button>
     <div class="pext">
+      <div class="ptype" hidden></div>
+      <div class="plab" ${needsLab(p.name) ? '' : 'hidden'}><label>المختبر <input name="lab" list="dl-labs" value="${esc(p.lab || '')}" placeholder="اسم المختبر الذي عُملت عنده الحالة" autocomplete="off"></label></div>
       <div class="rc" ${isRootCanal(p.name) ? '' : 'hidden'}><b>مراحل حشوة الجذر:</b>
         ${RC_STEPS.map(([k, t]) => `<label class="chk"><input type="checkbox" name="rc_${k}" ${(p.rc_steps || '').split(',').includes(k) ? 'checked' : ''}> <bdi dir="ltr">${t}</bdi></label>`).join('')}
         <label class="rcm">القياسات <input name="rc_measure" dir="ltr" value="${esc(p.rc_measure || '')}" placeholder="مثال: MB 21mm · DB 20.5mm · P 22mm"></label></div>
@@ -30,7 +32,15 @@ function procRowHTML(p = {}) {
 }
 /* إظهار مراحل حشوة الجذر حسب اسم الإجراء، وحقل «المتبقي» عند إزالة «تم الدفع نقداً» */
 function syncProcRow(r) {
-  $('.rc', r).hidden = !isRootCanal($('[name=name]', r).value);
+  const nm = $('[name=name]', r).value, par = procParent(nm), typ = procType(nm);
+  $('.rc', r).hidden = !isRootCanal(nm);
+  // أنواع الإجراء (زركون/سيراميك/Emax، حديد/شفاف/متحرك…) تظهر أزراراً داخل الإجراء
+  const pt = $('.ptype', r); pt.hidden = !par;
+  if (par && pt.dataset.for !== nm) {
+    pt.dataset.for = nm;
+    pt.innerHTML = `<b>النوع:</b>` + par[1].map(t => `<button type="button" class="btn sm ${t === typ ? 'primary' : ''}" data-action="proc-type" data-v="${esc(par[0] + ' - ' + t)}">${esc(t)}</button>`).join('');
+  }
+  $('.plab', r).hidden = !needsLab(nm);
   const pay = $('.ppay', r); if (!pay) return;
   const st = $('[name=status]', r).value, counted = st === 'in_progress' || st === 'completed';
   pay.hidden = !counted;
@@ -80,7 +90,14 @@ ACTIONS['proc-pick'] = b => {
   row.insertAdjacentHTML('afterend', procPanel($('[name=name]', row).value)); row.nextElementSibling._row = row;
 };
 ACTIONS['proc-set'] = b => { const pn = b.closest('.proc-panel'), row = pn._row; $('[name=name]', row).value = b.dataset.v; pn.remove(); syncProcRow(row); const c = $('[name=cost]', row); (c || $('[name=details]', row)).focus(); };
+ACTIONS['proc-type'] = b => { const r = b.closest('.prow'); $('[name=name]', r).value = b.dataset.v; syncProcRow(r); const lab = $('[name=lab]', r); if (!lab.closest('.plab').hidden) lab.focus(); };
 ACTIONS['tooth-clear'] = b => { const pn = b.closest('.tooth-panel'); $('[name=tooth_no]', pn._row).value = ''; pn.remove(); };
+
+/* دفعات الزيارة (المرتبطة بها أو بنفس تاريخها) قابلة للتعديل من نافذة تعديل الزيارة */
+const visitPays = v => (PT.payments || []).filter(y => y.kind === 'payment' && (y.visit_id === v.id || y.pay_date === v.visit_date));
+const visitPaysHTML = v => { const ps = visitPays(v); return ps.length ? `<div class="vpays"><b>دفعات هذه الزيارة</b>
+  ${ps.map(y => `<label class="vpay">وصل <bdi class="num">${y.id}</bdi> · <bdi>${y.pay_date}</bdi> · ${METH[y.method]} <span>المبلغ${MONEY_UNIT()}</span><input name="pay_${y.id}" data-pay="${y.id}" data-money inputmode="decimal" value="${moneyIn(y.amount)}" autocomplete="off"></label>`).join('')}
+  <span class="muted small">تعديل المبلغ هنا يعدّل الدفعة نفسها (صفر = إلغاؤها). وإذا غيّرت تاريخ الزيارة تنتقل دفعاتها لنفس التاريخ. التغييرات تُحفظ في سجل التدقيق.</span></div>` : ''; };
 
 function openVisitModal(v) {
   const isNew = !v, p = PT.patient, money = can('payments');
@@ -93,12 +110,13 @@ function openVisitModal(v) {
   const m = modal({
     title: isNew ? 'زيارة جديدة — ' + p.full_name : 'تعديل الزيارة', wide: true,
     body: `<form class="vform" novalidate>
-      <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <datalist id="dl-procs">${COMMON_PROCS.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-labs"></datalist><datalist id="dl-docs">${docs.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="form-grid c3">${f('visit_date', 'تاريخ الزيارة *', v.visit_date, 'date')}${f('visit_time', 'الوقت', v.visit_time, 'time')}${docField || f('doctor', 'الطبيب', v.doctor)}</div>
       <h4 class="sec">الإجراءات العلاجية</h4>
       <div class="phead"><span>الإجراء</span><span>السن</span><span>الحالة</span>${money ? `<span>التكلفة${MONEY_UNIT()}</span>` : ''}<span>تفاصيل</span><span></span></div>
       <div id="procRows">${(v.procedures.length ? v.procedures : [{}]).map(procRowHTML).join('')}</div>
       <div class="padd"><button type="button" class="btn sm" data-action="add-proc">${icon('plus', 15)} إضافة إجراء آخر لنفس الزيارة</button>${money ? `<span class="ptot">إجمالي الزيارة (بدون الملغى): <b class="proc-total"></b></span>` : ''}</div>
+      ${!isNew && can('finance_edit') ? visitPaysHTML(v) : ''}
       ${money ? '<p class="muted small">«تم الدفع نقداً» لكل إجراء جديد: يُسجَّل المبلغ دفعة مباشرة. إذا لم يدفع كاملاً أزل العلامة واكتب «المتبقي»، فيُضاف إلى المبلغ المطلوب منه.</p>' : ''}
       ${money ? '<p class="muted small">الإجراء «مخطط له» لا يدخل في المبلغ المستحق على المراجع حتى تغيّر حالته إلى «قيد التنفيذ» أو «مكتمل».</p>' : ''}
       <label class="fld full"><span>ملاحظات سريرية</span><textarea name="notes" rows="3">${esc(v.notes || '')}</textarea></label>
@@ -107,6 +125,7 @@ function openVisitModal(v) {
     footer: `<button type="button" class="btn primary" data-save>حفظ الزيارة</button><button type="button" class="btn" data-close>إلغاء</button>`,
   });
   const root = m.body, form = $('form', root);
+  api('GET', '/api/labs').then(d => { $('#dl-labs', root).innerHTML = d.labs.map(l => `<option value="${esc(l)}">`).join(''); }).catch(() => { });
   const onEdit = e => { const r = e && e.target.closest && e.target.closest('.prow'); if (r) { if (e.target.name === 'remain') e.target._touched = true; syncProcRow(r); } procTotal(root); };
   root.addEventListener('input', onEdit); root.addEventListener('change', onEdit); $$('.prow', root).forEach(syncProcRow); procTotal(root);
   let busy = false;
@@ -120,13 +139,15 @@ function openVisitModal(v) {
         if (!g('name') && !g('tooth_no') && !g('details') && !(parseMoney(g('cost')) > 0) && !r.dataset.id) return;
         const costEl = $('[name=cost]', r), rc = isRootCanal(g('name'));
         const pr = { id: r.dataset.id ? +r.dataset.id : undefined, name: g('name'), tooth_no: g('tooth_no'), status: g('status'), details: g('details'), cost: costEl ? (parseMoney(costEl.value) || 0) : +r.dataset.cost,
-          rc_steps: rc ? RC_STEPS.filter(([k]) => $(`[name=rc_${k}]`, r).checked).map(([k]) => k) : [], rc_measure: rc ? g('rc_measure') : '' };
+          rc_steps: rc ? RC_STEPS.filter(([k]) => $(`[name=rc_${k}]`, r).checked).map(([k]) => k) : [], rc_measure: rc ? g('rc_measure') : '', lab: needsLab(g('name')) ? g('lab') : '' };
         const paid = procPaidNow(r); if (paid !== undefined) pr.paid_now = paid;
         procs.push(pr);
       });
     } catch (e2) { err.textContent = e2.message; return; }
     const body = { visit_date: $('[name=visit_date]', root).value, visit_time: $('[name=visit_time]', root).value, doctor: $('[name=doctor]', root).value.trim(), notes: $('[name=notes]', root).value.trim(),
       next_appointment: $('[name=next_appointment]', root).value, next_time: $('[name=next_time]', root).value, procedures: procs };
+    const payEls = $$('[data-pay]', root);
+    if (payEls.length) body.payments = payEls.map(e => ({ id: +e.dataset.pay, amount: parseMoney(e.value) === '' ? 0 : parseMoney(e.value) }));
     if (!body.visit_date) { err.textContent = 'تاريخ الزيارة مطلوب'; return; }
     busy = true; $('[data-save]', m.el).disabled = true;
     try {
@@ -203,7 +224,7 @@ async function renderVisitsView(host, def) {
   host.innerHTML = `<section class="card filters"><div class="form-grid c4">
     <label class="fld"><span>من تاريخ</span><input type="date" id="vf" value="${def.from}"></label><label class="fld"><span>إلى تاريخ</span><input type="date" id="vt" value="${def.to}"></label>
     <label class="fld"><span>اسم / هاتف / رقم ملف</span><input type="search" id="vq" autocomplete="off"></label><label class="fld"><span>الطبيب</span><select id="vd"><option value="">كل الأطباء</option>${doctorList().concat(['غير محدد']).map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></label></div>
-    <div class="presets"><button type="button" class="btn sm" data-p="today">اليوم</button><button type="button" class="btn sm" data-p="yest">أمس</button><button type="button" class="btn sm" data-p="week">هذا الأسبوع</button><button type="button" class="btn sm" data-p="month">هذا الشهر</button><button type="button" class="btn sm" data-p="30">آخر 30 يوماً</button></div></section>
+    <div class="presets"><button type="button" class="btn sm" data-p="prev" title="الرجوع يوماً واحداً">‹ السابق</button><button type="button" class="btn sm" data-p="next" title="التقدّم يوماً واحداً">التالي ›</button><button type="button" class="btn sm" data-p="today">اليوم</button><button type="button" class="btn sm" data-p="yest">أمس</button><button type="button" class="btn sm" data-p="week">هذا الأسبوع</button><button type="button" class="btn sm" data-p="month">هذا الشهر</button><button type="button" class="btn sm" data-p="30">آخر 30 يوماً</button></div></section>
     <div id="vres"></div>`;
   const val = id => $('#' + id, host).value;
   let seq = 0, t;
@@ -249,7 +270,11 @@ async function renderVisitsView(host, def) {
   host.addEventListener('click', e => {
     const b = e.target.closest('[data-p]'); if (!b) return;
     const td = today(); let f = td, to = td;
-    if (b.dataset.p === 'yest') f = to = addDays(td, -1);
+    if (b.dataset.p === 'prev' || b.dataset.p === 'next') {      // يوم واحد للخلف أو للأمام (للفترة كلها)
+      const n = b.dataset.p === 'prev' ? -1 : 1;
+      f = addDays($('#vf', host).value || td, n); to = addDays($('#vt', host).value || td, n);
+    }
+    else if (b.dataset.p === 'yest') f = to = addDays(td, -1);
     else if (b.dataset.p === 'week') { f = weekStart(td); to = addDays(f, 6); }
     else if (b.dataset.p === 'month') [f, to] = monthRange(td.slice(0, 7));
     else if (b.dataset.p === '30') f = addDays(td, -29);

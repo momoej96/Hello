@@ -660,6 +660,32 @@ class T12_Doctors(Base):
         self.assertEqual(self.summary(p['id'])['remaining'], 40000)
         self.assertEqual(len(self.c.ok('GET', '/api/patients/%d' % p['id'])['payments']), 2)
 
+    def test_lab_and_visit_payments_follow_visit_edit(self):
+        """المختبر يُحفظ للتاج/الجسر/التقويم؛ وتعديل الزيارة يعدّل دفعاتها (التاريخ والمبلغ، وصفر = إلغاء)"""
+        p = self.patient()
+        r = self.visit(p['id'], '2025-09-01', [{'name': 'تاج (تلبيس) - زركون', 'tooth_no': 'UR6', 'cost': 200000, 'lab': 'مختبر النور', 'paid_now': 150000}])
+        v, pay = r['visit'], r['payment']
+        self.assertEqual(v['procedures'][0]['lab'], 'مختبر النور')
+        self.pay(p['id'], '2025-09-01', 20000)                                           # دفعة أخرى بنفس تاريخ الزيارة
+        self.pay(p['id'], '2025-09-05', 10000)                                           # يوم آخر: لا تتأثر
+        self.assertEqual(self.c.ok('GET', '/api/labs')['labs'], ['مختبر النور'])
+        procs = [{'id': x['id'], 'name': x['name'], 'tooth_no': x['tooth_no'], 'status': x['status'], 'cost': x['cost'], 'lab': x['lab']} for x in v['procedures']]
+        same_day = [y for y in self.c.ok('GET', '/api/patients/%d' % p['id'])['payments'] if y['pay_date'] == '2025-09-01' and y['id'] != pay['id']][0]
+        self.c.ok('PUT', '/api/visits/%d' % v['id'], {'visit_date': '2025-09-03', 'procedures': procs,
+                                                     'payments': [{'id': pay['id'], 'amount': 170000}, {'id': same_day['id'], 'amount': 0}]})
+        pays = {y['id']: y for y in self.c.ok('GET', '/api/patients/%d' % p['id'])['payments']}
+        self.assertEqual((pays[pay['id']]['amount'], pays[pay['id']]['pay_date']), (170000, '2025-09-03'))
+        self.assertNotIn(same_day['id'], pays)                                            # صفر = أُلغيت
+        self.assertEqual(sorted(y['pay_date'] for y in pays.values()), ['2025-09-03', '2025-09-05'])
+        self.assertEqual(self.summary(p['id'])['remaining'], 200000 - 170000 - 10000)
+        # دفعة لا تتبع الزيارة مرفوضة؛ والاستقبال لا يعدّل الدفعات من الزيارة
+        other = [y for y in pays.values() if y['pay_date'] == '2025-09-05'][0]
+        self.assertEqual(self.c.call('PUT', '/api/visits/%d' % v['id'], {'visit_date': '2025-09-03', 'payments': [{'id': other['id'], 'amount': 1}]})[0], 400)
+        self.c.ok('POST', '/api/users', {'username': 'rec5', 'password': PW, 'role': 'reception'})
+        rec = Client(self.srv.server_address[1]); rec.login('rec5')
+        self.assertEqual(rec.call('PUT', '/api/visits/%d' % v['id'], {'visit_date': '2025-09-04', 'payments': [{'id': pay['id'], 'amount': 1}]})[0], 200)
+        self.assertEqual({y['id']: y for y in self.c.ok('GET', '/api/patients/%d' % p['id'])['payments']}[pay['id']]['amount'], 170000)
+
     def test_old_database_is_upgraded(self):
         """قاعدة بيانات من الإصدار السابق (بدون عمود الطبيب) تُرقّى تلقائياً دون فقدان البيانات"""
         import core

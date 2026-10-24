@@ -10,10 +10,19 @@ async function pageSettings(main, tab) {
   ({ clinic: stClinic, account: stAccount, users: stUsers, import: stImport, network: stNetwork, backup: stBackup, audit: stAudit }[tab] || stClinic)($('#st'));
 }
 
+/* حجم العرض على هذا الجهاز */
+const scaleCard = () => `<section class="card"><h3>حجم العرض على هذا الجهاز</h3>
+  <div class="scale-row"><button type="button" class="btn" data-action="ui-scale" data-d="-0.05" aria-label="تصغير">${'أصغر −'}</button>
+    <b id="scaleVal" class="num">${Math.round(uiScale() * 100)}%</b>
+    <button type="button" class="btn" data-action="ui-scale" data-d="0.05" aria-label="تكبير">${'أكبر +'}</button>
+    <button type="button" class="btn sm" data-action="ui-scale" data-reset>الافتراضي</button></div>
+  <p class="muted small">يكبّر أو يصغّر الخط والأزرار في البرنامج كله على هذا الجهاز فقط (كل لابتوب أو موبايل له حجمه). الطباعة لا تتأثر.</p></section>`;
+ACTIONS['ui-scale'] = b => { const v = b.dataset.reset !== undefined ? setUiScale(UI_SCALE_DEFAULT) : setUiScale(uiScale() + parseFloat(b.dataset.d)); const el = $('#scaleVal'); if (el) el.textContent = Math.round(v * 100) + '%'; };
+
 async function stClinic(host) {
   const { settings: s } = await api('GET', '/api/settings');
   let docs = []; try { docs = JSON.parse(s.doctors || '[]'); } catch (e) { }
-  host.innerHTML = `<section class="card"><form id="cf" class="form-grid c2" novalidate>
+  host.innerHTML = scaleCard() + `<section class="card"><form id="cf" class="form-grid c2" novalidate>
     ${['clinic_name|اسم العيادة (يظهر في رأس التقارير)|full', 'clinic_phone|هاتف العيادة|', 'clinic_address|العنوان|', 'currency_label|اسم العملة|', 'currency_symbol|رمز العملة المعروض|', 'currency_code|رمز العملة (ISO)|', 'receipt_footer|عبارة أسفل الإيصالات والتقارير|full'].map(x => { const [n, l, c] = x.split('|'); return `<label class="fld ${c}"><span>${l}</span><input name="${n}" value="${esc(s[n])}" autocomplete="off"></label>`; }).join('')}
     <label class="fld"><span>القفل التلقائي بعد (دقائق من عدم الاستخدام، 0 = معطّل)</span><input name="idle_minutes" inputmode="numeric" value="${esc(s.idle_minutes)}"></label>
     <label class="fld full"><span>مجلد صور الأشعة (نفس «Image Path» في برنامج السنسر Woodpecker، على الجهاز الرئيسي)</span>

@@ -143,6 +143,8 @@ def migrate(db):
     # أسماء قديمة لمراجعين دُمجت ملفاتهم، حتى يتعرف عليها الاستيراد من Excel لاحقاً
     db.execute('CREATE TABLE IF NOT EXISTS patient_aliases(name_key TEXT PRIMARY KEY, patient_id INTEGER NOT NULL REFERENCES patients(id))')
     cols = {r['name'] for r in db.execute('PRAGMA table_info(procedures)')}
+    if 'lab' not in cols:        # المختبر الذي عُمل عنده التاج/الجسر/التقويم
+        db.execute('ALTER TABLE procedures ADD COLUMN lab TEXT')
     if 'rc_steps' not in cols:   # مراحل حشوة الجذر (access,obturation,buildup) وقياسات الجذور
         db.execute('ALTER TABLE procedures ADD COLUMN rc_steps TEXT')
         db.execute('ALTER TABLE procedures ADD COLUMN rc_measure TEXT')
