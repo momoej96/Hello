@@ -48,18 +48,27 @@ function showApp() {
     ${S.demo ? '<span class="demo-badge">وضع تجريبي</span>' : ''}${can('patients') ? `<button type="button" class="btn primary" data-action="new-patient">${icon('plus', 16)} مراجع جديد</button>` : ''}</header><main id="main"></main></div></div>`;
   renderSide();
   const tq = $('#tq'), tres = $('#tres'); let t, seq = 0;
-  tq.addEventListener('input', () => {
-    clearTimeout(t);
-    t = setTimeout(async () => {
-      const q = tq.value.trim(); if (!q) { tres.innerHTML = ''; return; }
-      const my = ++seq;
-      try {
-        const d = await api('GET', '/api/patients?' + qs({ q, limit: 7 })); if (my !== seq) return;
-        tres.innerHTML = d.patients.map(p => `<a href="#/patient/${p.id}" data-pick><b>${esc(p.full_name)}</b><span class="muted"> ملف <bdi>${p.file_no}</bdi> · <bdi>${esc(p.phone || '')}</bdi></span></a>`).join('') + (can('patients') ? addNewItem(q) : '');   // مثل جهات الاتصال: آخر سطر «إضافة … كمراجع جديد»
-      } catch (e) { }
-    }, 180);
+  // نتائج البحث السريع؛ tres.dataset.q = النص الذي تخصّه النتائج المعروضة
+  async function search(q) {
+    const my = ++seq;
+    if (!q) { tres.innerHTML = ''; tres.dataset.q = ''; return; }
+    try {
+      const d = await api('GET', '/api/patients?' + qs({ q, limit: 7 })); if (my !== seq) return;
+      tres.innerHTML = d.patients.map(p => `<a href="#/patient/${p.id}" data-pick><b>${esc(p.full_name)}</b><span class="muted"> ملف <bdi>${p.file_no}</bdi> · <bdi>${esc(p.phone || '')}</bdi></span></a>`).join('') + (can('patients') ? addNewItem(q) : '');   // مثل جهات الاتصال: آخر سطر «إضافة … كمراجع جديد»
+      tres.dataset.q = q;
+    } catch (e) { }
+  }
+  tq.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => search(tq.value.trim()), 180); });
+  tq.addEventListener('keydown', async e => {
+    if (e.key === 'Escape') { tres.innerHTML = ''; return; }
+    if (e.key !== 'Enter') return;
+    const q = tq.value.trim(); if (!q) return;
+    // Enter قبل وصول نتائج النص الحالي: نبحث الآن، حتى لا تُفتح نتيجة بحث سابق
+    if (tres.dataset.q !== q) { clearTimeout(t); await search(q); if (tq.value.trim() !== q) return; }
+    const a = $('a[href]', tres);
+    if (a) { location.hash = a.getAttribute('href'); tq.value = ''; tres.innerHTML = ''; tres.dataset.q = ''; }
+    else { const n = $('.add-new', tres); if (n) n.click(); }
   });
-  tq.addEventListener('keydown', e => { if (e.key === 'Enter') { const a = $('a[href]', tres); if (a) { location.hash = a.getAttribute('href'); tq.value = ''; tres.innerHTML = ''; } else { const n = $('.add-new', tres); if (n) n.click(); } } if (e.key === 'Escape') { tres.innerHTML = ''; } });
   document.addEventListener('click', e => { if (e.target.closest('[data-pick]')) { tq.value = ''; tres.innerHTML = ''; } else if (!e.target.closest('.tsearch')) tres.innerHTML = ''; });
 }
 
