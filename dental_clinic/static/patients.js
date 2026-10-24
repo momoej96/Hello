@@ -113,8 +113,8 @@ async function pagePatient(main, id, tab) {
       <div class="pt-meta">${p.phone ? `<span>${icon('clock', 15)} <bdi>${esc(p.phone)}</bdi></span>` : ''}${age !== '' ? `<span>العمر: <bdi>${age}</bdi></span>` : ''}${p.gender ? `<span>${genderAr(p.gender)}</span>` : ''}${p.doctor ? `<span>الطبيب: <b>${esc(p.doctor)}</b></span>` : ''}<span>أول زيارة: ${dateH(p.first_visit_date)}</span></div>
       ${p.notes ? `<p class="pt-notes">${nl2br(p.notes)}</p>` : ''}</div>
     <div class="pt-actions">
-      ${money ? `<button type="button" class="btn primary lg" data-action="new-payment">${icon('wallet', 18)} تسجيل دفعة جديدة</button><button type="button" class="btn lg" data-action="receipts">${icon('print', 18)} طباعة وصل</button>` : ''}
-      <button type="button" class="btn lg" data-action="new-visit">${icon('plus', 18)} زيارة جديدة</button>
+      <button type="button" class="btn primary lg main-act" data-action="new-visit">${icon('plus', 20)} زيارة جديدة</button>
+      ${money ? `<button type="button" class="btn lg" data-action="receipts">${icon('print', 18)} طباعة وصل</button><button type="button" class="btn lg" data-action="new-payment">${icon('wallet', 18)} تسجيل دفعة جديدة</button>` : ''}
       ${can('visits') ? `<button type="button" class="btn lg" data-action="xray-capture">${icon('tooth', 18)} استقبال أشعة</button>` : ''}
       <div class="more">
         <button type="button" class="btn sm" data-action="edit-patient">${icon('edit', 15)} تعديل البيانات</button>

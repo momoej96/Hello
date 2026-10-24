@@ -233,3 +233,4 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
 .pp-types{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.7rem;padding:.6rem .8rem;border:1px dashed var(--teal);border-radius:10px;background:#fff}
 .pp-types[hidden]{display:none}.pp-types .btn:not(.sm){padding:.45rem 1.2rem}.pp-done{margin-inline-start:auto}
 @media (max-width:760px){.pp-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.main-act{font-size:1.12rem;font-weight:800;letter-spacing:.2px}
