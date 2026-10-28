@@ -22,12 +22,8 @@ public final class CarAcShell {
             String cmd = args.length > 0 ? args[0] : "";
             int prev = args.length > 1 ? parse(args[1], -1) : -1;
             int last = args.length > 2 ? parse(args[2], 1) : 1;
-            if ("water".equals(cmd)) {
-                line = "CARAC|OK|" + CarGauge.readRaw(shellContext()) + "|0|0";
-            } else {
-                String[] r = CarAc.run(shellContext(), cmd, prev, last);
-                line = "CARAC|OK|" + r[0] + "|" + r[1] + "|" + r[2];
-            }
+            String[] r = CarAc.run(shellContext(), cmd, prev, last);
+            line = "CARAC|OK|" + r[0] + "|" + r[1] + "|" + r[2];
         } catch (Throwable t) {
             line = "CARAC|ERR|" + CarAc.reason(t);
         }

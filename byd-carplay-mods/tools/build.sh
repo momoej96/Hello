@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Rebuilds the modded DiPlay APK from the original DiPlay-0.2.21.apk.
+# Rebuilds the modded DiPlay APK from the original DiPlay-0.2.22.apk.
 # Needs: Java 17+, apktool 2.10.0, uber-apk-signer 1.3.0, dalvik-dx 9.0.0_r3,
 #        and an API-level android.jar for compiling (any 4.1+ works; only standard APIs are used).
-# Usage: tools/build.sh <DiPlay-0.2.21.apk> <tools-dir> <out.apk> [versionCode] [versionName]
+# Usage: tools/build.sh <DiPlay-0.2.22.apk> <tools-dir> <out.apk> [versionCode] [versionName]
 set -euo pipefail
-APK=$1; TOOLS=$2; OUT=$3; VCODE=${4:-200}; VNAME=${5:-0.2.21-mod}
+APK=$1; TOOLS=$2; OUT=$3; VCODE=${4:-200}; VNAME=${5:-0.2.22-mod}
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
 
 # 1) Decompile and apply the smali/manifest changes.
 java -jar "$TOOLS/apktool.jar" d -f -o "$WORK/project" "$APK"
-patch -p1 -d "$WORK/project" < "$HERE/smali-patches/diplay-0.2.21-mods.diff"
+patch -p1 -d "$WORK/project" < "$HERE/smali-patches/diplay-0.2.22-mods.diff"
 sed -i "s/versionCode: .*/versionCode: $VCODE/; s/versionName: .*/versionName: $VNAME/" "$WORK/project/apktool.yml"
 
 # 2) Compile the Java helpers (stubs are compile-time only) and convert to dex.

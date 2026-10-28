@@ -1,6 +1,6 @@
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali
---- orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-27 18:34:57.168795190 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 10:19:35.538374272 +0000
+--- orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 12:53:18.594283521 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 13:07:44.206465157 +0000
 @@ -97,7 +97,7 @@
  
      const-string p2, "android.intent.action.BOOT_COMPLETED"
@@ -11,57 +11,55 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali project/s
      move-result p0
  
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali
---- orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-27 18:34:57.648507993 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 00:21:39.724401784 +0000
-@@ -12159,7 +12159,7 @@
+--- orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 12:53:19.462607687 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 13:08:31.370024224 +0000
+@@ -12383,7 +12383,7 @@
  
      invoke-virtual {v10, v2}, Landroid/widget/FrameLayout;->setElevation(F)V
  
 -    const/4 v2, 0x7
 +    const/16 v2, 0x8
  
-     .line 2825
+     .line 2924
      new-array v2, v2, [Lkotlin/Pair;
-@@ -12276,6 +12276,27 @@
+@@ -12500,6 +12500,25 @@
  
-     aput-object v3, v2, v7
+     aput-object v3, v2, v4
  
-+    # === DiPlay: Audio tab (uses only v3 and v13; v13 restored to its original 0), placed after Display ===
++    # === DiPlay: Audio tab after Display (v3 and v4 are rewritten before their next read) ===
 +    sget v3, Lcom/shilapi/xcertplay/host/R$string;->audio:I
 +
 +    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
 +
 +    move-result-object v3
 +
-+    const-string v13, "audio"
++    const-string v4, "audio"
 +
-+    invoke-static {v13, v3}, Lkotlin/TuplesKt;->to(Ljava/lang/Object;Ljava/lang/Object;)Lkotlin/Pair;
++    invoke-static {v4, v3}, Lkotlin/TuplesKt;->to(Ljava/lang/Object;Ljava/lang/Object;)Lkotlin/Pair;
 +
 +    move-result-object v3
 +
-+    const/16 v13, 0x7
++    const/4 v4, 0x7
 +
-+    aput-object v3, v2, v13
-+
-+    const/4 v13, 0x0
++    aput-object v3, v2, v4
 +
 +    invoke-static {v2}, Lcom/shilapi/xcertplay/PopupOrder;->audioAfterDisplay([Ljava/lang/Object;)V
 +
-     .line 2824
+     .line 2923
      invoke-static {v2}, Lkotlin/collections/CollectionsKt;->listOf([Ljava/lang/Object;)Ljava/util/List;
  
-@@ -12423,6 +12444,8 @@
-     .line 2835
-     invoke-interface {v1, v13, v12}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+@@ -12645,6 +12664,8 @@
+     .line 2934
+     invoke-interface {v12, v1, v13}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
  
-+    invoke-static {v13, v12, v0}, Lcom/shilapi/xcertplay/DiplayPopup;->maybeAddAudioPage(Ljava/lang/String;Landroid/widget/LinearLayout;Landroid/content/Context;)V
++    invoke-static {v1, v13, v0}, Lcom/shilapi/xcertplay/DiplayPopup;->maybeAddAudioPage(Ljava/lang/String;Landroid/widget/LinearLayout;Landroid/content/Context;)V
 +
-     move-object/from16 v4, v20
+     move-object/from16 v2, v21
  
-     move-object/from16 v6, v21
+     move-object/from16 v4, v22
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	2026-10-27 20:23:16.805615113 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	2026-10-28 13:07:44.216697491 +0000
 @@ -0,0 +1,290 @@
 +.class public final Lcom/shilapi/xcertplay/ClimateShortcut;
 +.super Ljava/lang/Object;
@@ -353,33 +351,10 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali projec
 +    const/4 v0, 0x0
 +    return v0
 +.end method
-diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali project/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali
---- orig/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali	2026-10-27 18:34:57.526538216 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali	2026-10-28 00:22:15.809708332 +0000
-@@ -908,9 +908,17 @@
-     .line 181
-     iget-object v7, p0, Lcom/shilapi/xcertplay/ClusterSpeedometerView;->unitPaint:Landroid/graphics/Paint;
- 
--    const/4 v8, 0x4
-+    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
- 
--    const-string v10, "km/h"
-+    move-result-object v10
-+
-+    invoke-static {v10}, Lcom/shilapi/xcertplay/CarGauge;->unit(Landroid/content/Context;)Ljava/lang/String;
-+
-+    move-result-object v10
-+
-+    invoke-virtual {v10}, Ljava/lang/String;->length()I
-+
-+    move-result v8
- 
-     invoke-virtual {v7, v10, v9, v8, v6}, Landroid/graphics/Paint;->getTextBounds(Ljava/lang/String;IILandroid/graphics/Rect;)V
- 
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali
---- orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-27 18:34:58.217500196 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 00:22:15.819543844 +0000
-@@ -17570,6 +17570,9 @@
+--- orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 12:53:20.275286549 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 13:07:44.225106700 +0000
+@@ -18185,6 +18185,9 @@
  
      invoke-direct {p0, p1, v0}, Lcom/shilapi/xcertplay/DiPlayActivity;->renderSections(Landroid/widget/LinearLayout;Ljava/util/Set;)V
  
@@ -389,24 +364,15 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project
      return-void
  .end method
  
-@@ -25842,6 +25845,8 @@
- 
-     invoke-static/range {v1 .. v9}, Lcom/shilapi/xcertplay/DiPlayActivity;->toggle$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;ZZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Landroid/widget/Switch;
- 
-+    invoke-static {v1, v2}, Lcom/shilapi/xcertplay/CarGauge;->settings(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
-+
-     .line 3876
-     sget-object p0, Lcom/shilapi/xcertplay/AirPlayPersistence;->INSTANCE:Lcom/shilapi/xcertplay/AirPlayPersistence;
- 
-@@ -62115,6 +62120,7 @@
+@@ -64053,6 +64056,7 @@
  
      if-nez v1, :cond_0
  
 +    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/CarControlsUi;->build(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
      return-void
  
-     .line 4249
-@@ -62423,6 +62429,9 @@
+     .line 4322
+@@ -64361,6 +64365,9 @@
  
      invoke-direct {p0, p1, v1, v2}, Lcom/shilapi/xcertplay/DiPlayActivity;->wheelKeyAssignButton(Landroid/widget/LinearLayout;Lcom/shilapi/xcertplay/WheelZoomSettings$Role;Ljava/lang/String;)V
  
@@ -416,7 +382,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project
      return-void
  .end method
  
-@@ -72120,3 +72129,58 @@
+@@ -74175,3 +74182,58 @@
  
      return-void
  .end method
@@ -477,7 +443,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali project/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali	2026-10-28 00:21:59.733744484 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali	2026-10-28 13:07:44.231728988 +0000
 @@ -0,0 +1,163 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayAudioContent;
 +.super Ljava/lang/Object;
@@ -644,7 +610,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali pro
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali project/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali	2026-10-27 18:47:53.587752909 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali	2026-10-28 13:07:44.232152087 +0000
 @@ -0,0 +1,43 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayAudioToggle;
 +.super Ljava/lang/Object;
@@ -691,7 +657,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali proj
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali project/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali	2026-10-27 20:24:05.248123821 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali	2026-10-28 13:07:44.232456649 +0000
 @@ -0,0 +1,39 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayClimateAction;
 +.super Ljava/lang/Object;
@@ -734,7 +700,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali pr
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali project/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali	2026-10-27 18:47:53.587847405 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali	2026-10-28 13:07:44.232709723 +0000
 @@ -0,0 +1,42 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayClimatePick;
 +.super Ljava/lang/Object;
@@ -780,7 +746,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali proj
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali project/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali	2026-10-27 20:24:05.263210419 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali	2026-10-28 13:07:44.232951202 +0000
 @@ -0,0 +1,44 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayClimateToggle;
 +.super Ljava/lang/Object;
@@ -828,7 +794,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali pr
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali project/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali	2026-10-27 18:47:53.587658576 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali	2026-10-28 13:07:44.233265753 +0000
 @@ -0,0 +1,20 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayCommit;
 +.super Ljava/lang/Object;
@@ -852,7 +818,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali project/s
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali project/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali	2026-10-27 18:47:53.587317384 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali	2026-10-28 13:07:44.233519171 +0000
 @@ -0,0 +1,58 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayDescribe;
 +.super Ljava/lang/Object;
@@ -914,7 +880,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali project
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali project/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali	2026-10-28 00:21:59.733475536 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali	2026-10-28 13:07:44.233950197 +0000
 @@ -0,0 +1,283 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayPopup;
 +.super Ljava/lang/Object;
@@ -1201,7 +1167,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali project/sm
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali project/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali	2026-10-27 18:53:18.868608931 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali	2026-10-28 13:07:44.234364215 +0000
 @@ -0,0 +1,71 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayPopupSeek;
 +.super Ljava/lang/Object;
@@ -1276,7 +1242,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali projec
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali project/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali	2026-10-27 18:47:53.587546250 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali	2026-10-28 13:07:44.234679587 +0000
 @@ -0,0 +1,38 @@
 +.class public final Lcom/shilapi/xcertplay/DiplaySave;
 +.super Ljava/lang/Object;
@@ -1318,7 +1284,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali project/sma
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali project/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali	2026-10-27 20:24:05.263839057 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali	2026-10-28 13:07:44.234928572 +0000
 @@ -0,0 +1,237 @@
 +.class public final Lcom/shilapi/xcertplay/DiplayUi;
 +.super Ljava/lang/Object;
@@ -1558,8 +1524,8 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali project/smali
 +    return-void
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali
---- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-27 18:34:58.012413835 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-27 20:45:46.235813761 +0000
+--- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 12:53:20.004806132 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 13:07:44.235498968 +0000
 @@ -2250,6 +2250,12 @@
  
      invoke-static {p1, p0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
@@ -1574,8 +1540,8 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.sm
      sget-object p0, Lcom/shilapi/xcertplay/WheelZoomSettings;->INSTANCE:Lcom/shilapi/xcertplay/WheelZoomSettings;
  
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali
---- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-27 18:34:58.036027386 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-28 10:19:35.539574560 +0000
+--- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-28 12:53:19.978334839 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-28 13:07:44.236286730 +0000
 @@ -4200,12 +4200,26 @@
  .end method
  
@@ -1615,7 +1581,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali projec
      .line 107
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	2026-10-27 16:33:10.968347603 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	2026-10-28 13:07:44.236975573 +0000
 @@ -0,0 +1,295 @@
 +.class public final Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;
 +.super Ljava/lang/Object;
@@ -1914,7 +1880,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.sma
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali	2026-10-27 18:25:31.735457195 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali	2026-10-28 13:07:44.237139676 +0000
 @@ -0,0 +1,424 @@
 +.class public final Lcom/shilapi/xcertplay/audio/AudioSettingsSection;
 +.super Ljava/lang/Object;
@@ -2342,7 +2308,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.s
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali	2026-10-27 15:14:30.571226435 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali	2026-10-28 13:07:44.237494385 +0000
 @@ -0,0 +1,48 @@
 +.class public final Lcom/shilapi/xcertplay/audio/AudioSliderListener;
 +.super Ljava/lang/Object;
@@ -2394,7 +2360,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.sm
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali	2026-10-27 15:14:30.573991004 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali	2026-10-28 13:07:44.238224287 +0000
 @@ -0,0 +1,36 @@
 +.class public final Lcom/shilapi/xcertplay/audio/AudioSwitchListener;
 +.super Ljava/lang/Object;
@@ -2434,7 +2400,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.sm
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali	2026-10-27 16:06:40.554758966 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali	2026-10-28 13:07:44.238488966 +0000
 @@ -0,0 +1,57 @@
 +.class public final Lcom/shilapi/xcertplay/climate/ClimatePicker;
 +.super Ljava/lang/Object;
@@ -2495,7 +2461,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali 
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali	2026-10-27 16:06:40.554807608 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali	2026-10-28 13:07:44.238575723 +0000
 @@ -0,0 +1,62 @@
 +.class public final Lcom/shilapi/xcertplay/climate/ClimatePickerClick;
 +.super Ljava/lang/Object;
@@ -2561,7 +2527,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.s
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali project/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali	2026-10-27 16:06:40.554365763 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali	2026-10-28 13:07:44.238714760 +0000
 @@ -0,0 +1,19 @@
 +.class public final Lcom/shilapi/xcertplay/climate/PickAppClickListener;
 +.super Ljava/lang/Object;
@@ -2584,7 +2550,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali project/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali	2026-10-27 16:06:40.554296594 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali	2026-10-28 13:07:44.238831321 +0000
 @@ -0,0 +1,32 @@
 +.class public final Lcom/shilapi/xcertplay/climate/VoiceModeListener;
 +.super Ljava/lang/Object;
@@ -2620,7 +2586,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.sm
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali project/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali	1970-01-01 00:00:00.000000000 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali	2026-10-27 18:13:43.874198248 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali	2026-10-28 13:07:44.239024362 +0000
 @@ -0,0 +1,72 @@
 +.class public final Lcom/shilapi/xcertplay/climate/WheelKeyExtras;
 +.super Ljava/lang/Object;
@@ -2694,31 +2660,22 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
 +    :done
 +    return-object v0
 +.end method
-diff -ruN orig/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali project/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali
---- orig/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali	2026-10-27 18:34:58.398812257 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali	2026-10-28 00:22:15.808292799 +0000
-@@ -88,6 +88,23 @@
- .method static final observe$lambda$3(Lkotlin/jvm/functions/Function1;Landroid/content/Context;Lcom/shilapi/xcertplay/hud/BydAdbShell;)V
-     .locals 5
- 
-+    # === DiPlay: gauge shows engine water temperature ===
-+    invoke-static {p1}, Lcom/shilapi/xcertplay/CarGauge;->showsWaterTemp(Landroid/content/Context;)Z
-+
-+    move-result v0
-+
-+    if-eqz v0, :diplay_gauge_speed
-+
-+    invoke-static {p1}, Lcom/shilapi/xcertplay/CarGauge;->waterTemp(Landroid/content/Context;)Ljava/lang/Integer;
-+
-+    move-result-object v0
-+
-+    invoke-interface {p0, v0}, Lkotlin/jvm/functions/Function1;->invoke(Ljava/lang/Object;)Ljava/lang/Object;
-+
-+    return-void
-+
-+    :diplay_gauge_speed
-+
-     .line 18
-     invoke-static {}, Landroid/os/SystemClock;->elapsedRealtime()J
- 
-Binary files orig/AndroidManifest.xml and project/AndroidManifest.xml differ
+--- orig/AndroidManifest.xml	2026-10-28 12:53:19.740418082 +0000
++++ project/AndroidManifest.xml	2026-10-28 13:08:59.773313317 +0000
+@@ -1,4 +1,7 @@
+ <?xml version="1.0" encoding="utf-8" standalone="no"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" android:compileSdkVersion="37" android:compileSdkVersionCodename="17" package="com.shihab.diplay" platformBuildVersionCode="37" platformBuildVersionName="17">
++    <uses-permission android:name="android.permission.BYDAUTO_AC_COMMON"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_GET"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_SET"/>
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+     <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+@@ -66,7 +69,7 @@
+         <meta-data android:name="BYD_SUPPORT_SPLIT_ACTIVITY" android:value="1"/>
+         <receiver android:enabled="true" android:exported="true" android:name="com.shilapi.xcertplay.BootReceiver">
+             <intent-filter>
+-                <action android:name="android.intent.action.BOOT_COMPLETED"/>
++                <action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.QUICKBOOT_POWERON"/><action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+             </intent-filter>
+         </receiver>
+         <receiver android:enabled="true" android:exported="true" android:name="com.shilapi.xcertplay.PhoneBluetoothReceiver">

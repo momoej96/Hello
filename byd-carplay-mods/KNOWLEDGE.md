@@ -1,9 +1,10 @@
 # BYD DiLink 3 + DiPlay: what we learned
 
-Notes from modding **DiPlay 0.2.21** (CarPlay head-unit app, package `com.shihab.diplay`,
+Notes from modding **DiPlay** (CarPlay head-unit app, package `com.shihab.diplay`,
 code in `com.shilapi.xcertplay.*`) for a **BYD Qin L 2024**. Everything here was tested on
-that car unless marked *untested*. Last modded build: **v23** (`versionCode 123`,
-`versionName 0.2.21-mod23`).
+that car unless marked *untested*. The mods started on 0.2.21 (builds v1–v23) and moved to
+**0.2.22** at **v24** (`versionCode 124`, `versionName 0.2.22-mod24`; the engine-water-temperature
+gauge was dropped in the move).
 
 ## The car
 
@@ -107,12 +108,27 @@ Key codes (taken from Diplus `res/xml/keydown_preferences.xml`):
 
 ## Things that did not work (don't retry blindly)
 
-* **Engine water temperature:** the id exists (`BYDAutoFeatureIds.STATISTIC_WATER_TEMPERATURE = 2858`, device
+* **Engine water temperature (removed from the mod in v24):** the id exists (`BYDAutoFeatureIds.STATISTIC_WATER_TEMPERATURE = 2858`, device
   1014; Diplus reads it with `BYDAutoStatisticDevice.getWaterTemperature()`), but the car refused all three routes:
   in-app `[getInt] permission deny!`, `service call autoservice 5 i32 1014 i32 2858` → `-10011`,
   app_process → `-10011`, even after granting `BYDAUTO_STATISTIC_COMMON`. Not checked: whether it only reports
   with the engine running. How Diplus gets past this is unknown.
 * Using `BOOT_COMPLETED` alone to auto-start.
+
+## Open problem: wheel keys after the car wakes
+
+After switching the car off and on, DiPlay shows "Wheel key service: allowed, starting…": the service is enabled
+in settings but the system doesn't bind it again until DiPlay is force-stopped and reopened. Auto-start
+(`CarWake`) runs from that service, so it stops too. 0.2.22 doesn't change `WheelKeyService`. Next step: read a
+DiPlay report taken in that state before choosing a fix (planned fix: re-toggle the service in
+`enabled_accessibility_services` over ADB when it is allowed but not connected).
+
+## DiPlay 0.2.22 (developer release) adds
+
+Dashboard map shape half/full (re-applied whenever the map appears), `ClusterProjectionWatchdog` (re-asserts the
+cluster projection, likely the fix for the map shrinking after reverse), lane guidance, navigation prompts
+taking audio focus, calls at their own audio rate, connection-failure causes with fixes, album-colour
+speedometer background, auto-activated cluster music card, HEVC video, custom size, Geely support.
 
 ## Modding lessons
 
@@ -132,13 +148,17 @@ Key codes (taken from Diplus `res/xml/keydown_preferences.xml`):
 * Every build is signed with uber-apk-signer's embedded debug key (cert SHA-256 `1e08a903…5953`), so each build
   installs over the previous one. Raise `versionCode` every time. Only the first switch from the developer's
   original needs an uninstall.
+* **Check every patch hunk's placement when porting to a new version.** `patch` with fuzz put the Audio-tab
+  block of `CarPlayHostActivity` into a *different method* 24,000 lines away (0.2.22 renumbered registers).
+  Re-apply such hunks by hand, using registers you've confirmed are rewritten before their next read.
+  The manifest hunk was also skipped quietly.
 * `ClusterSpeedometerView.onDraw` measured "km/h" with a hard-coded length of 4; any other unit text must use
   `length()`.
 
 ## Files here
 
-* `smali-patches/diplay-0.2.21-mods.diff`: every smali/manifest change against the original APK
-  (`sha256 916c0708beb1022d…`).
+* `smali-patches/diplay-0.2.22-mods.diff`: every smali/manifest change against the original DiPlay 0.2.22 APK.
 * `java-src/src`: the helper classes (car keys, AC, gauge, wake, audio reset, tab order).
   `java-src/stub` holds compile-time stubs only.
-* `tools/build.sh`: rebuilds the modded APK from the original. Tested: the rebuilt APK has the same size as v23 (18,938,852 bytes).
+* `tools/build.sh`: rebuilds the modded APK from the original. Tested on 0.2.22: applies with no offset or fuzz,
+  and the result has the same size as v24 (19,278,895 bytes).
