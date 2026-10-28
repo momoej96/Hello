@@ -1,0 +1,85 @@
+diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
+--- orig/AndroidManifest.xml	2026-10-28 11:35:34.113160779 +0000
++++ project/AndroidManifest.xml	2026-10-28 11:35:48.967013911 +0000
+@@ -50,6 +50,9 @@
+     <permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature"/>
+     <uses-permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
+     <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_COMMON"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_GET"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_SET"/>
+     <application android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
+         <service android:exported="false" android:name="com.andrerinas.openheadunit.aap.DummyVpnService" android:permission="android.permission.BIND_VPN_SERVICE">
+             <intent-filter>
+@@ -222,5 +225,12 @@
+             </intent-filter>
+         </receiver>
+         <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true"/>
++        <activity android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:exported="false" android:label="@string/byd_car_controls" android:name="com.andrerinas.openheadunit.byd.CarControlsActivity" android:theme="@style/AppTheme"/>
++        <service android:exported="true" android:label="@string/byd_wheel_keys" android:name="com.andrerinas.openheadunit.byd.WheelKeyService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
++            <intent-filter>
++                <action android:name="android.accessibilityservice.AccessibilityService"/>
++            </intent-filter>
++            <meta-data android:name="android.accessibilityservice" android:resource="@xml/byd_wheel_keys"/>
++        </service>
+     </application>
+ </manifest>
+\ No newline at end of file
+diff -ruN orig/res/values/strings.xml project/res/values/strings.xml
+--- orig/res/values/strings.xml	2026-10-28 11:35:34.086765073 +0000
++++ project/res/values/strings.xml	2026-10-28 11:35:48.967838605 +0000
+@@ -1053,4 +1053,7 @@
+     <string name="wireless_mode_helper">Wireless Helper</string>
+     <string name="wireless_mode_native">Native</string>
+     <string name="wireless_mode_server">Headunit Server</string>
++    <string name="byd_car_controls">BYD car controls</string>
++    <string name="byd_wheel_keys">DiAuto wheel keys</string>
++    <string name="byd_wheel_keys_desc">Lets DiAuto see the steering-wheel and console keys so they can run car actions (AC, climate screen), and start DiAuto again when the car wakes.</string>
+ </resources>
+diff -ruN orig/res/xml/byd_wheel_keys.xml project/res/xml/byd_wheel_keys.xml
+--- orig/res/xml/byd_wheel_keys.xml	1970-01-01 00:00:00.000000000 +0000
++++ project/res/xml/byd_wheel_keys.xml	2026-10-28 11:35:48.967986162 +0000
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
++    android:accessibilityEventTypes="typeWindowStateChanged"
++    android:accessibilityFeedbackType="feedbackGeneric"
++    android:accessibilityFlags="flagRequestFilterKeyEvents"
++    android:canRequestFilterKeyEvents="true"
++    android:canRetrieveWindowContent="false"
++    android:description="@string/byd_wheel_keys_desc"
++    android:notificationTimeout="100" />
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:35:33.575391979 +0000
++++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:36:01.371129058 +0000
+@@ -344,7 +344,7 @@
+ 
+     .line 17
+     .line 18
+-    const/16 v0, 0xf
++    const/16 v0, 0x10
+ 
+     .line 19
+     .line 20
+@@ -522,6 +522,12 @@
+     .line 102
+     aput-object v1, v0, v2
+ 
++    const-string v1, "bydCarControls"
++
++    const/16 v2, 0xf
++
++    aput-object v1, v0, v2
++
+     .line 103
+     .line 104
+     invoke-static {v0}, Lb5/k0;->g([Ljava/lang/Object;)Ljava/util/Set;
+@@ -33702,6 +33708,8 @@
+ 
+     invoke-interface {v0, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+ 
++    invoke-static {v0, v1}, Lcom/andrerinas/openheadunit/byd/SettingsHook;->addEntry(Ljava/util/List;Ljava/lang/Object;)V
++
+     .line 362
+     new-instance v29, Lcom/andrerinas/openheadunit/main/settings/SettingItem$ToggleSettingEntry;
+ 
