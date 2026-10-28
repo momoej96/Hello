@@ -1,0 +1,2724 @@
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-27 18:34:57.168795190 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 10:19:35.538374272 +0000
+@@ -97,7 +97,7 @@
+ 
+     const-string p2, "android.intent.action.BOOT_COMPLETED"
+ 
+-    invoke-static {p0, p2}, Lkotlin/jvm/internal/Intrinsics;->areEqual(Ljava/lang/Object;Ljava/lang/Object;)Z
++    invoke-static {p0}, Lcom/shilapi/xcertplay/CarWake;->isBootAction(Ljava/lang/String;)Z
+ 
+     move-result p0
+ 
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-27 18:34:57.648507993 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 00:21:39.724401784 +0000
+@@ -12159,7 +12159,7 @@
+ 
+     invoke-virtual {v10, v2}, Landroid/widget/FrameLayout;->setElevation(F)V
+ 
+-    const/4 v2, 0x7
++    const/16 v2, 0x8
+ 
+     .line 2825
+     new-array v2, v2, [Lkotlin/Pair;
+@@ -12276,6 +12276,27 @@
+ 
+     aput-object v3, v2, v7
+ 
++    # === DiPlay: Audio tab (uses only v3 and v13; v13 restored to its original 0), placed after Display ===
++    sget v3, Lcom/shilapi/xcertplay/host/R$string;->audio:I
++
++    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++
++    move-result-object v3
++
++    const-string v13, "audio"
++
++    invoke-static {v13, v3}, Lkotlin/TuplesKt;->to(Ljava/lang/Object;Ljava/lang/Object;)Lkotlin/Pair;
++
++    move-result-object v3
++
++    const/16 v13, 0x7
++
++    aput-object v3, v2, v13
++
++    const/4 v13, 0x0
++
++    invoke-static {v2}, Lcom/shilapi/xcertplay/PopupOrder;->audioAfterDisplay([Ljava/lang/Object;)V
++
+     .line 2824
+     invoke-static {v2}, Lkotlin/collections/CollectionsKt;->listOf([Ljava/lang/Object;)Ljava/util/List;
+ 
+@@ -12423,6 +12444,8 @@
+     .line 2835
+     invoke-interface {v1, v13, v12}, Ljava/util/Map;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+ 
++    invoke-static {v13, v12, v0}, Lcom/shilapi/xcertplay/DiplayPopup;->maybeAddAudioPage(Ljava/lang/String;Landroid/widget/LinearLayout;Landroid/content/Context;)V
++
+     move-object/from16 v4, v20
+ 
+     move-object/from16 v6, v21
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	2026-10-27 20:23:16.805615113 +0000
+@@ -0,0 +1,290 @@
++.class public final Lcom/shilapi/xcertplay/ClimateShortcut;
++.super Ljava/lang/Object;
++.source "ClimateShortcut.java"
++
++
++.field private static lastMs:J
++
++
++.method static constructor <clinit>()V
++    .locals 2
++    const-wide/16 v0, 0x0
++    sput-wide v0, Lcom/shilapi/xcertplay/ClimateShortcut;->lastMs:J
++    return-void
++.end method
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static toast(Landroid/content/Context;Ljava/lang/String;)V
++    .locals 1
++    :try_start_0
++    const/4 v0, 0x0
++    invoke-static {p0, p1, v0}, Landroid/widget/Toast;->makeText(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;
++    move-result-object p0
++    invoke-virtual {p0}, Landroid/widget/Toast;->show()V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :goto_0
++    :catch_0
++    :goto_0
++    return-void
++.end method
++
++.method public static openApp(Landroid/content/Context;)V
++    .locals 5
++    :try_start_0
++    const-string v0, "diplay_audio"
++    const/4 v1, 0x0
++    invoke-virtual {p0, v0, v1}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v0
++    const-string v2, "climate_component"
++    invoke-interface {v0, v2, v1}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
++    move-result-object v0
++    if-eqz v0, :cond_global
++    invoke-virtual {v0}, Ljava/lang/String;->length()I
++    move-result v1
++    if-nez v1, :cond_havestr
++    :cond_global
++    invoke-virtual {p0}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
++    move-result-object v1
++    const-string v2, "diplay_climate_component"
++    invoke-static {v1, v2}, Landroid/provider/Settings$Global;->getString(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;
++    move-result-object v0
++    :cond_havestr
++    const/4 v1, 0x0
++    if-eqz v0, :cond_0
++    invoke-virtual {v0}, Ljava/lang/String;->length()I
++    move-result v2
++    if-eqz v2, :cond_0
++    invoke-static {v0}, Landroid/content/ComponentName;->unflattenFromString(Ljava/lang/String;)Landroid/content/ComponentName;
++    move-result-object v0
++    if-eqz v0, :cond_0
++    new-instance v1, Landroid/content/Intent;
++    invoke-direct {v1}, Landroid/content/Intent;-><init>()V
++    invoke-virtual {v1, v0}, Landroid/content/Intent;->setComponent(Landroid/content/ComponentName;)Landroid/content/Intent;
++    :cond_0
++    if-nez v1, :cond_1
++    invoke-virtual {p0}, Landroid/content/Context;->getPackageManager()Landroid/content/pm/PackageManager;
++    move-result-object v0
++    const-string v2, "com.byd.carsettings"
++    invoke-virtual {v0, v2}, Landroid/content/pm/PackageManager;->getLaunchIntentForPackage(Ljava/lang/String;)Landroid/content/Intent;
++    move-result-object v1
++    :cond_1
++    if-eqz v1, :cond_2
++    const/high16 v0, 0x10000000
++    invoke-virtual {v1, v0}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
++    invoke-virtual {p0, v1}, Landroid/content/Context;->startActivity(Landroid/content/Intent;)V
++    const-string v0, "Opening climate"
++    invoke-static {p0, v0}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    goto :goto_0
++    :cond_2
++    const-string v0, "Choose a climate app in Settings first"
++    invoke-static {p0, v0}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    :goto_0
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :goto_1
++    :catch_0
++    move-exception v0
++    const-string v1, "Couldn't open the climate app"
++    invoke-static {p0, v1}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    :goto_1
++    return-void
++.end method
++
++.method public static launch(Landroid/content/Context;)V
++    .locals 3
++    const-string v0, "diplay_audio"
++    const/4 v1, 0x0
++    invoke-virtual {p0, v0, v1}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v0
++    const-string v2, "climate_action"
++    invoke-interface {v0, v2, v1}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
++    move-result v0
++    if-nez v0, :cond_app
++    invoke-static {p0}, Lcom/shilapi/xcertplay/ClimateShortcut;->acToggle(Landroid/content/Context;)Z
++    move-result v0
++    if-eqz v0, :cond_fail
++    return-void
++    :cond_fail
++    const-string v0, "AC control not allowed. Open DiPlay Settings and allow car control."
++    invoke-static {p0, v0}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    return-void
++    :cond_app
++    invoke-static {p0}, Lcom/shilapi/xcertplay/ClimateShortcut;->openApp(Landroid/content/Context;)V
++    return-void
++.end method
++
++.method public static acStopSource()I
++    .locals 2
++    :try_start_0
++    const-string v0, "android.hardware.bydauto.BYDAutoFeatureIds$Setting"
++    invoke-static {v0}, Ljava/lang/Class;->forName(Ljava/lang/String;)Ljava/lang/Class;
++    move-result-object v0
++    const-string v1, "SET_RIGHT_LANE_LINE_Y_DISTANCE"
++    invoke-virtual {v0, v1}, Ljava/lang/Class;->getField(Ljava/lang/String;)Ljava/lang/reflect/Field;
++    move-result-object v0
++    const/4 v1, 0x0
++    invoke-virtual {v0, v1}, Ljava/lang/reflect/Field;->getInt(Ljava/lang/Object;)I
++    move-result v0
++    return v0
++    :try_end_0
++    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    const/4 v0, 0x0
++    return v0
++.end method
++
++.method public static acDevice(Landroid/content/Context;)Ljava/lang/Object;
++    .locals 5
++    :try_start_0
++    const-string v0, "android.hardware.bydauto.ac.BYDAutoAcDevice"
++    invoke-static {v0}, Ljava/lang/Class;->forName(Ljava/lang/String;)Ljava/lang/Class;
++    move-result-object v0
++    const/4 v1, 0x1
++    new-array v2, v1, [Ljava/lang/Class;
++    const/4 v3, 0x0
++    const-class v4, Landroid/content/Context;
++    aput-object v4, v2, v3
++    const-string v4, "getInstance"
++    invoke-virtual {v0, v4, v2}, Ljava/lang/Class;->getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;
++    move-result-object v4
++    new-array v2, v1, [Ljava/lang/Object;
++    aput-object p0, v2, v3
++    const/4 v0, 0x0
++    invoke-virtual {v4, v0, v2}, Ljava/lang/reflect/Method;->invoke(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
++    move-result-object v0
++    return-object v0
++    :try_end_0
++    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    const/4 v0, 0x0
++    return-object v0
++.end method
++
++.method public static acToggle(Landroid/content/Context;)Z
++    .locals 9
++    :try_start_0
++    invoke-static {p0}, Lcom/shilapi/xcertplay/ClimateShortcut;->acDevice(Landroid/content/Context;)Ljava/lang/Object;
++    move-result-object v4
++    if-nez v4, :cond_have
++    const/4 v0, 0x0
++    return v0
++    :cond_have
++    invoke-virtual {v4}, Ljava/lang/Object;->getClass()Ljava/lang/Class;
++    move-result-object v0
++    const/4 v1, 0x1
++    const/4 v3, 0x0
++    new-array v2, v3, [Ljava/lang/Class;
++    const-string v5, "getAcStartState"
++    invoke-virtual {v0, v5, v2}, Ljava/lang/Class;->getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;
++    move-result-object v5
++    new-array v2, v3, [Ljava/lang/Object;
++    invoke-virtual {v5, v4, v2}, Ljava/lang/reflect/Method;->invoke(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
++    move-result-object v5
++    check-cast v5, Ljava/lang/Number;
++    invoke-virtual {v5}, Ljava/lang/Number;->intValue()I
++    move-result v6
++    if-ne v6, v1, :cond_turnon
++    invoke-static {}, Lcom/shilapi/xcertplay/ClimateShortcut;->acStopSource()I
++    move-result v6
++    new-array v2, v1, [Ljava/lang/Class;
++    sget-object v7, Ljava/lang/Integer;->TYPE:Ljava/lang/Class;
++    aput-object v7, v2, v3
++    const-string v7, "stop"
++    invoke-virtual {v0, v7, v2}, Ljava/lang/Class;->getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;
++    move-result-object v7
++    new-array v2, v1, [Ljava/lang/Object;
++    invoke-static {v6}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v8
++    aput-object v8, v2, v3
++    invoke-virtual {v7, v4, v2}, Ljava/lang/reflect/Method;->invoke(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
++    const-string v7, "AC off"
++    invoke-static {p0, v7}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    return v1
++    :cond_turnon
++    const/4 v6, 0x2
++    new-array v2, v6, [Ljava/lang/Class;
++    sget-object v7, Ljava/lang/Integer;->TYPE:Ljava/lang/Class;
++    aput-object v7, v2, v3
++    aput-object v7, v2, v1
++    const-string v7, "setAcControlMode"
++    invoke-virtual {v0, v7, v2}, Ljava/lang/Class;->getMethod(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;
++    move-result-object v7
++    new-array v2, v6, [Ljava/lang/Object;
++    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v8
++    aput-object v8, v2, v3
++    aput-object v8, v2, v1
++    invoke-virtual {v7, v4, v2}, Ljava/lang/reflect/Method;->invoke(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;
++    const-string v7, "AC on (Auto)"
++    invoke-static {p0, v7}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    return v1
++    :try_end_0
++    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    const/4 v0, 0x0
++    return v0
++.end method
++
++.method public static askAcPermission(Landroid/content/Context;)V
++    .locals 4
++    :try_start_0
++    instance-of v0, p0, Landroid/app/Activity;
++    if-eqz v0, :cond_0
++    check-cast p0, Landroid/app/Activity;
++    const-string v0, "android.permission.BYDAUTO_AC_COMMON"
++    const-string v1, "android.permission.BYDAUTO_AC_GET"
++    const-string v2, "android.permission.BYDAUTO_AC_SET"
++    filled-new-array {v0, v1, v2}, [Ljava/lang/String;
++    move-result-object v0
++    const/16 v1, 0x5a1
++    invoke-virtual {p0, v0, v1}, Landroid/app/Activity;->requestPermissions([Ljava/lang/String;I)V
++    :cond_0
++    :try_end_0
++    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
++
++.method public static onVoiceKey(Landroid/content/Context;J)Z
++    .locals 7
++    # only act when climate mode enabled (else let Siri work)
++    const-string v0, "diplay_audio"
++    const/4 v1, 0x0
++    invoke-virtual {p0, v0, v1}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v0
++    const-string v1, "voicekey_mode"
++    const/4 v2, 0x0
++    invoke-interface {v0, v1, v2}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
++    move-result v0
++    const/4 v1, 0x1
++    if-eq v0, v1, :cond_enabled
++    const/4 v0, 0x0
++    return v0
++    :cond_enabled
++    sget-wide v0, Lcom/shilapi/xcertplay/ClimateShortcut;->lastMs:J
++    sput-wide p1, Lcom/shilapi/xcertplay/ClimateShortcut;->lastMs:J
++    const-wide/16 v2, 0x0
++    cmp-long v4, v0, v2
++    if-eqz v4, :cond_0
++    sub-long v2, p1, v0
++    const-wide/16 v4, 0x0
++    cmp-long v6, v2, v4
++    if-lez v6, :cond_0
++    const-wide/16 v4, 0x258
++    cmp-long v6, v2, v4
++    if-gtz v6, :cond_0
++    const-wide/16 v0, 0x0
++    sput-wide v0, Lcom/shilapi/xcertplay/ClimateShortcut;->lastMs:J
++    invoke-static {p0}, Lcom/shilapi/xcertplay/ClimateShortcut;->launch(Landroid/content/Context;)V
++    const/4 v0, 0x1
++    return v0
++    :cond_0
++    const/4 v0, 0x0
++    return v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali project/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali	2026-10-27 18:34:57.526538216 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/ClusterSpeedometerView.smali	2026-10-28 00:22:15.809708332 +0000
+@@ -908,9 +908,17 @@
+     .line 181
+     iget-object v7, p0, Lcom/shilapi/xcertplay/ClusterSpeedometerView;->unitPaint:Landroid/graphics/Paint;
+ 
+-    const/4 v8, 0x4
++    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
+ 
+-    const-string v10, "km/h"
++    move-result-object v10
++
++    invoke-static {v10}, Lcom/shilapi/xcertplay/CarGauge;->unit(Landroid/content/Context;)Ljava/lang/String;
++
++    move-result-object v10
++
++    invoke-virtual {v10}, Ljava/lang/String;->length()I
++
++    move-result v8
+ 
+     invoke-virtual {v7, v10, v9, v8, v6}, Landroid/graphics/Paint;->getTextBounds(Ljava/lang/String;IILandroid/graphics/Rect;)V
+ 
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-27 18:34:58.217500196 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 00:22:15.819543844 +0000
+@@ -17570,6 +17570,9 @@
+ 
+     invoke-direct {p0, p1, v0}, Lcom/shilapi/xcertplay/DiPlayActivity;->renderSections(Landroid/widget/LinearLayout;Ljava/util/Set;)V
+ 
++    # === DiPlay: native-styled sound adjustments card ===
++    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/DiplayUi;->audioSection(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++
+     return-void
+ .end method
+ 
+@@ -25842,6 +25845,8 @@
+ 
+     invoke-static/range {v1 .. v9}, Lcom/shilapi/xcertplay/DiPlayActivity;->toggle$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;ZZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Landroid/widget/Switch;
+ 
++    invoke-static {v1, v2}, Lcom/shilapi/xcertplay/CarGauge;->settings(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++
+     .line 3876
+     sget-object p0, Lcom/shilapi/xcertplay/AirPlayPersistence;->INSTANCE:Lcom/shilapi/xcertplay/AirPlayPersistence;
+ 
+@@ -62115,6 +62120,7 @@
+ 
+     if-nez v1, :cond_0
+ 
++    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/CarControlsUi;->build(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
+     return-void
+ 
+     .line 4249
+@@ -62423,6 +62429,9 @@
+ 
+     invoke-direct {p0, p1, v1, v2}, Lcom/shilapi/xcertplay/DiPlayActivity;->wheelKeyAssignButton(Landroid/widget/LinearLayout;Lcom/shilapi/xcertplay/WheelZoomSettings$Role;Ljava/lang/String;)V
+ 
++    # === DiPlay: native-styled climate rows ===
++    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/CarControlsUi;->build(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++
+     return-void
+ .end method
+ 
+@@ -72120,3 +72129,58 @@
+ 
+     return-void
+ .end method
++
++.method public static diplayButton(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)Landroid/widget/Button;
++    .locals 3
++    const/4 v0, 0x0
++    invoke-direct {p0, p2, v0, p3}, Lcom/shilapi/xcertplay/DiPlayActivity;->button(Ljava/lang/String;ZLkotlin/jvm/functions/Function0;)Lcom/shilapi/xcertplay/DiPlayActivity$SettingButton;
++    move-result-object v1
++    const/16 v0, 0x8
++    const/16 v2, 0x3c
++    invoke-direct {p0, v0, v2}, Lcom/shilapi/xcertplay/DiPlayActivity;->matchButton(II)Landroid/widget/LinearLayout$LayoutParams;
++    move-result-object v2
++    invoke-virtual {p1, v1, v2}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
++    return-object v1
++.end method
++
++.method public static diplayNote(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;)Landroid/widget/TextView;
++    .locals 9
++    invoke-direct {p0}, Lcom/shilapi/xcertplay/DiPlayActivity;->getMUTED()I
++    move-result v4
++    move-object v1, p0
++    move-object v2, p2
++    const/16 v3, 0xe
++    const/4 v5, 0x0
++    const/4 v6, 0x0
++    const/16 v7, 0x18
++    const/4 v8, 0x0
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiPlayActivity;->label$default(Lcom/shilapi/xcertplay/DiPlayActivity;Ljava/lang/String;IIZZILjava/lang/Object;)Landroid/widget/TextView;
++    move-result-object v0
++    const/4 v1, 0x0
++    const/16 v2, 0x6
++    invoke-direct {p0, v2}, Lcom/shilapi/xcertplay/DiPlayActivity;->dp(I)I
++    move-result v2
++    invoke-virtual {v0, v1, v2, v1, v1}, Landroid/widget/TextView;->setPadding(IIII)V
++    invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    return-object v0
++.end method
++
++.method public static diplayTitle(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;)Landroid/widget/TextView;
++    .locals 6
++    invoke-direct {p0}, Lcom/shilapi/xcertplay/DiPlayActivity;->getTEXT()I
++    move-result v3
++    move-object v0, p0
++    move-object v1, p2
++    const/16 v2, 0x11
++    const/4 v4, 0x1
++    const/4 v5, 0x0
++    invoke-direct/range {v0 .. v5}, Lcom/shilapi/xcertplay/DiPlayActivity;->label(Ljava/lang/String;IIZZ)Landroid/widget/TextView;
++    move-result-object v0
++    const/4 v1, 0x0
++    const/16 v2, 0x12
++    invoke-direct {p0, v2}, Lcom/shilapi/xcertplay/DiPlayActivity;->dp(I)I
++    move-result v2
++    invoke-virtual {v0, v1, v2, v1, v1}, Landroid/widget/TextView;->setPadding(IIII)V
++    invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali project/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayAudioContent.smali	2026-10-28 00:21:59.733744484 +0000
+@@ -0,0 +1,163 @@
++.class public final Lcom/shilapi/xcertplay/DiplayAudioContent;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final act:Lcom/shilapi/xcertplay/DiPlayActivity;
++
++.method public constructor <init>(Lcom/shilapi/xcertplay/DiPlayActivity;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayAudioContent;->act:Lcom/shilapi/xcertplay/DiPlayActivity;
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 10
++    :try_start_0
++    check-cast p1, Landroid/widget/LinearLayout;
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayAudioContent;->act:Lcom/shilapi/xcertplay/DiPlayActivity;
++    const-string v5, "diplay_audio_enabled"
++    const/4 v6, 0x1
++    invoke-static {v0, v5, v6}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v5
++    if-eqz v5, :chk_off
++    const/4 v5, 0x1
++    goto :chk_set
++    :chk_off
++    const/4 v5, 0x0
++    :chk_set
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Enable sound adjustments"
++    const-string v4, "Applies bass, surround, loudness and the 10-band equalizer to CarPlay audio. Slider changes apply when you release them."
++    const/4 v6, 0x1
++    new-instance v7, Lcom/shilapi/xcertplay/DiplayAudioToggle;
++    invoke-direct {v7, v0}, Lcom/shilapi/xcertplay/DiplayAudioToggle;-><init>(Landroid/content/Context;)V
++    const/4 v8, 0x0
++    const/4 v9, 0x0
++    invoke-static/range {v1 .. v9}, Lcom/shilapi/xcertplay/DiPlayActivity;->toggle$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;ZZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Landroid/widget/Switch;
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Bass boost"
++    const-string v4, "diplay_audio_bass"
++    const/16 v5, 0x0
++    const/16 v6, 0x3e8
++    const/16 v7, 0x32
++    const/16 v8, 0x0
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Surround (virtualizer)"
++    const-string v4, "diplay_audio_virt"
++    const/16 v5, 0x0
++    const/16 v6, 0x3e8
++    const/16 v7, 0x32
++    const/16 v8, 0x0
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Loudness boost"
++    const-string v4, "diplay_audio_loud"
++    const/16 v5, 0x0
++    const/16 v6, 0x7d0
++    const/16 v7, 0x64
++    const/16 v8, 0x1
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 31 Hz"
++    const-string v4, "diplay_audio_eq0"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 63 Hz"
++    const-string v4, "diplay_audio_eq1"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 125 Hz"
++    const-string v4, "diplay_audio_eq2"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 250 Hz"
++    const-string v4, "diplay_audio_eq3"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 500 Hz"
++    const-string v4, "diplay_audio_eq4"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 1 kHz"
++    const-string v4, "diplay_audio_eq5"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 2 kHz"
++    const-string v4, "diplay_audio_eq6"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 4 kHz"
++    const-string v4, "diplay_audio_eq7"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 8 kHz"
++    const-string v4, "diplay_audio_eq8"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v1, v0
++    move-object v2, p1
++    const-string v3, "Equalizer \u00b7 16 kHz"
++    const-string v4, "diplay_audio_eq9"
++    const/16 v5, -0xf
++    const/16 v6, 0xf
++    const/16 v7, 0x1
++    const/16 v8, 0x2
++    invoke-static/range {v1 .. v8}, Lcom/shilapi/xcertplay/DiplayUi;->slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    iget-object v9, p0, Lcom/shilapi/xcertplay/DiplayAudioContent;->act:Lcom/shilapi/xcertplay/DiPlayActivity;
++    invoke-static {v9, p1}, Lcom/shilapi/xcertplay/AudioReset;->addMain(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali project/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayAudioToggle.smali	2026-10-27 18:47:53.587752909 +0000
+@@ -0,0 +1,43 @@
++.class public final Lcom/shilapi/xcertplay/DiplayAudioToggle;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final ctx:Landroid/content/Context;
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayAudioToggle;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 5
++    :try_start_0
++    check-cast p1, Ljava/lang/Boolean;
++    invoke-virtual {p1}, Ljava/lang/Boolean;->booleanValue()Z
++    move-result v4
++    const/4 v2, 0x1
++    if-nez v4, :on
++    const/4 v2, 0x0
++    :on
++    move v4, v2
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayAudioToggle;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    const-string v2, "diplay_audio_enabled"
++    invoke-interface {v1, v2, v4}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayAudioToggle;->ctx:Landroid/content/Context;
++    invoke-static {v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->apply(Landroid/content/Context;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali project/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimateAction.smali	2026-10-27 20:24:05.248123821 +0000
+@@ -0,0 +1,39 @@
++.class public final Lcom/shilapi/xcertplay/DiplayClimateAction;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final ctx:Landroid/content/Context;
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayClimateAction;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 5
++    :try_start_0
++    check-cast p1, Ljava/lang/Number;
++    invoke-virtual {p1}, Ljava/lang/Number;->intValue()I
++    move-result v4
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayClimateAction;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    const-string v2, "climate_action"
++    invoke-interface {v1, v2, v4}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
++    if-nez v4, :cond_0
++    invoke-static {v0}, Lcom/shilapi/xcertplay/ClimateShortcut;->askAcPermission(Landroid/content/Context;)V
++    :cond_0
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali project/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimatePick.smali	2026-10-27 18:47:53.587847405 +0000
+@@ -0,0 +1,42 @@
++.class public final Lcom/shilapi/xcertplay/DiplayClimatePick;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final ctx:Landroid/content/Context;
++.field private final comps:Ljava/util/List;
++
++.method public constructor <init>(Landroid/content/Context;Ljava/util/List;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayClimatePick;->ctx:Landroid/content/Context;
++    iput-object p2, p0, Lcom/shilapi/xcertplay/DiplayClimatePick;->comps:Ljava/util/List;
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 5
++    :try_start_0
++    check-cast p1, Ljava/lang/Number;
++    invoke-virtual {p1}, Ljava/lang/Number;->intValue()I
++    move-result v4
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayClimatePick;->comps:Ljava/util/List;
++    invoke-interface {v0, v4}, Ljava/util/List;->get(I)Ljava/lang/Object;
++    move-result-object v4
++    check-cast v4, Ljava/lang/String;
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayClimatePick;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    const-string v2, "climate_component"
++    invoke-interface {v1, v2, v4}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali project/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayClimateToggle.smali	2026-10-27 20:24:05.263210419 +0000
+@@ -0,0 +1,44 @@
++.class public final Lcom/shilapi/xcertplay/DiplayClimateToggle;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final ctx:Landroid/content/Context;
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayClimateToggle;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 5
++    :try_start_0
++    check-cast p1, Ljava/lang/Boolean;
++    invoke-virtual {p1}, Ljava/lang/Boolean;->booleanValue()Z
++    move-result v4
++    const/4 v2, 0x1
++    if-nez v4, :on
++    const/4 v2, 0x0
++    :on
++    move v4, v2
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayClimateToggle;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    const-string v2, "voicekey_mode"
++    invoke-interface {v1, v2, v4}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
++    if-eqz v4, :cond_skip
++    invoke-static {v0}, Lcom/shilapi/xcertplay/ClimateShortcut;->askAcPermission(Landroid/content/Context;)V
++    :cond_skip
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali project/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayCommit.smali	2026-10-27 18:47:53.587658576 +0000
+@@ -0,0 +1,20 @@
++.class public final Lcom/shilapi/xcertplay/DiplayCommit;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function0;
++
++.field private final ctx:Landroid/content/Context;
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayCommit;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public invoke()Ljava/lang/Object;
++    .locals 1
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayCommit;->ctx:Landroid/content/Context;
++    invoke-static {v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->apply(Landroid/content/Context;)V
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali project/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayDescribe.smali	2026-10-27 18:47:53.587317384 +0000
+@@ -0,0 +1,58 @@
++.class public final Lcom/shilapi/xcertplay/DiplayDescribe;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final mode:I
++
++.method public constructor <init>(I)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput p1, p0, Lcom/shilapi/xcertplay/DiplayDescribe;->mode:I
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 4
++    check-cast p1, Ljava/lang/Number;
++    invoke-virtual {p1}, Ljava/lang/Number;->intValue()I
++    move-result v0
++    iget v1, p0, Lcom/shilapi/xcertplay/DiplayDescribe;->mode:I
++    new-instance v2, Ljava/lang/StringBuilder;
++    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
++    if-eqz v1, :mode0
++    add-int/lit8 v1, v1, -0x1
++    if-eqz v1, :mode1
++    if-lez v0, :band_np
++    const-string v3, "+"
++    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    :band_np
++    invoke-virtual {v2, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
++    const-string v3, " dB"
++    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    goto :out
++    :mode1
++    if-nez v0, :m1v
++    const-string v3, "Off"
++    return-object v3
++    :m1v
++    div-int/lit8 v0, v0, 0x64
++    const-string v3, "+"
++    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    invoke-virtual {v2, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
++    const-string v3, " dB"
++    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    goto :out
++    :mode0
++    if-nez v0, :m0v
++    const-string v3, "Off"
++    return-object v3
++    :m0v
++    div-int/lit8 v0, v0, 0xa
++    invoke-virtual {v2, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
++    const-string v3, "%"
++    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    :out
++    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
++    move-result-object v3
++    return-object v3
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali project/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayPopup.smali	2026-10-28 00:21:59.733475536 +0000
+@@ -0,0 +1,283 @@
++.class public final Lcom/shilapi/xcertplay/DiplayPopup;
++.super Ljava/lang/Object;
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static maybeAddAudioPage(Ljava/lang/String;Landroid/widget/LinearLayout;Landroid/content/Context;)V
++    .locals 12
++    :try_start_0
++    const-string v0, "audio"
++    invoke-virtual {v0, p0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++    move-result v0
++    if-eqz v0, :ret
++    const-string v2, "diplay_audio_enabled"
++    const/4 v3, 0x1
++    invoke-static {p2, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v4
++    if-eqz v4, :chk_off
++    const/4 v4, 0x1
++    goto :chk_set
++    :chk_off
++    const/4 v4, 0x0
++    :chk_set
++    sget-object v0, Lcom/shilapi/xcertplay/settings/SettingsWidgets;->INSTANCE:Lcom/shilapi/xcertplay/settings/SettingsWidgets;
++    move-object v1, p2
++    const-string v2, "Enable sound adjustments"
++    const-string v3, "Bass, surround, loudness and a 10-band equalizer for CarPlay audio"
++    sget-object v5, Lcom/shilapi/xcertplay/settings/SettingsTheme;->OVERLAY:Lcom/shilapi/xcertplay/settings/SettingsTheme;
++    const-string v6, "Enable sound adjustments"
++    const/4 v7, 0x0
++    const/high16 v8, 0x41a00000
++    new-instance v9, Lcom/shilapi/xcertplay/DiplayAudioToggle;
++    invoke-direct {v9, p2}, Lcom/shilapi/xcertplay/DiplayAudioToggle;-><init>(Landroid/content/Context;)V
++    const/16 v10, 0x40
++    const/4 v11, 0x0
++    invoke-static/range {v0 .. v11}, Lcom/shilapi/xcertplay/settings/SettingsWidgets;->createSwitchRow$default(Lcom/shilapi/xcertplay/settings/SettingsWidgets;Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;ZLcom/shilapi/xcertplay/settings/SettingsTheme;Ljava/lang/String;ZFLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lcom/shilapi/xcertplay/settings/SettingsWidgets$SwitchRowResult;
++    move-result-object v0
++    invoke-virtual {v0}, Lcom/shilapi/xcertplay/settings/SettingsWidgets$SwitchRowResult;->getRowView()Landroid/view/View;
++    move-result-object v0
++    invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Bass boost"
++    const-string v3, "diplay_audio_bass"
++    const/16 v4, 0x0
++    const/16 v5, 0x3e8
++    const/16 v6, 0x32
++    const/16 v7, 0x0
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Surround (virtualizer)"
++    const-string v3, "diplay_audio_virt"
++    const/16 v4, 0x0
++    const/16 v5, 0x3e8
++    const/16 v6, 0x32
++    const/16 v7, 0x0
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Loudness boost"
++    const-string v3, "diplay_audio_loud"
++    const/16 v4, 0x0
++    const/16 v5, 0x7d0
++    const/16 v6, 0x64
++    const/16 v7, 0x1
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 31 Hz"
++    const-string v3, "diplay_audio_eq0"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 63 Hz"
++    const-string v3, "diplay_audio_eq1"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 125 Hz"
++    const-string v3, "diplay_audio_eq2"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 250 Hz"
++    const-string v3, "diplay_audio_eq3"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 500 Hz"
++    const-string v3, "diplay_audio_eq4"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 1 kHz"
++    const-string v3, "diplay_audio_eq5"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 2 kHz"
++    const-string v3, "diplay_audio_eq6"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 4 kHz"
++    const-string v3, "diplay_audio_eq7"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 8 kHz"
++    const-string v3, "diplay_audio_eq8"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    move-object v0, p2
++    move-object v1, p1
++    const-string v2, "Equalizer \u00b7 16 kHz"
++    const-string v3, "diplay_audio_eq9"
++    const/16 v4, -0xf
++    const/16 v5, 0xf
++    const/16 v6, 0x1
++    const/16 v7, 0x2
++    invoke-static/range {v0 .. v7}, Lcom/shilapi/xcertplay/DiplayPopup;->popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    invoke-static {p2, p1}, Lcom/shilapi/xcertplay/AudioReset;->addPopup(Landroid/content/Context;Landroid/widget/LinearLayout;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    :ret
++    return-void
++.end method
++
++.method public static popupSlider(Landroid/content/Context;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    .locals 10
++    :try_start_0
++    const/4 v0, 0x0
++    invoke-static {p0, p3, v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v0
++    if-ge v0, p4, :c1
++    move v0, p4
++    :c1
++    if-le v0, p5, :c2
++    move v0, p5
++    :c2
++    move/from16 v5, p6
++    sub-int v4, v0, p4
++    div-int/2addr v4, v5
++    mul-int/2addr v4, v5
++    add-int v0, p4, v4
++    sget-object v1, Lcom/shilapi/xcertplay/settings/SettingsTheme;->OVERLAY:Lcom/shilapi/xcertplay/settings/SettingsTheme;
++    invoke-static {p4, p5, v5}, Lcom/shilapi/xcertplay/DiplayUi;->steps(III)Ljava/util/List;
++    move-result-object v2
++
++    new-instance v3, Landroid/widget/LinearLayout;
++    invoke-direct {v3, p0}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
++    const/4 v4, 0x0
++    invoke-virtual {v3, v4}, Landroid/widget/LinearLayout;->setOrientation(I)V
++    const/16 v4, 0x10
++    invoke-virtual {v3, v4}, Landroid/widget/LinearLayout;->setGravity(I)V
++
++    new-instance v6, Landroid/widget/TextView;
++    invoke-direct {v6, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    invoke-virtual {v6, p2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1}, Lcom/shilapi/xcertplay/settings/SettingsTheme;->getTextPrimary()I
++    move-result v7
++    invoke-virtual {v6, v7}, Landroid/widget/TextView;->setTextColor(I)V
++    const/high16 v7, 0x41a00000
++    invoke-virtual {v6, v7}, Landroid/widget/TextView;->setTextSize(F)V
++    new-instance v7, Landroid/widget/LinearLayout$LayoutParams;
++    const/4 v8, 0x0
++    const/4 v9, -0x2
++    const/high16 v4, 0x3f800000
++    invoke-direct {v7, v8, v9, v4}, Landroid/widget/LinearLayout$LayoutParams;-><init>(IIF)V
++    invoke-virtual {v3, v6, v7}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
++
++    new-instance v5, Landroid/widget/TextView;
++    invoke-direct {v5, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    move/from16 v8, p7
++    new-instance v9, Lcom/shilapi/xcertplay/DiplayDescribe;
++    invoke-direct {v9, v8}, Lcom/shilapi/xcertplay/DiplayDescribe;-><init>(I)V
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v4
++    invoke-virtual {v9, v4}, Lcom/shilapi/xcertplay/DiplayDescribe;->invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    move-result-object v4
++    check-cast v4, Ljava/lang/CharSequence;
++    invoke-virtual {v5, v4}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1}, Lcom/shilapi/xcertplay/settings/SettingsTheme;->getAccent()I
++    move-result v7
++    invoke-virtual {v5, v7}, Landroid/widget/TextView;->setTextColor(I)V
++    const/high16 v7, 0x41a00000
++    invoke-virtual {v5, v7}, Landroid/widget/TextView;->setTextSize(F)V
++    const/4 v7, 0x0
++    const/4 v4, 0x1
++    invoke-virtual {v5, v7, v4}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;I)V
++    invoke-virtual {v3, v5}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    invoke-virtual {p0}, Landroid/content/Context;->getResources()Landroid/content/res/Resources;
++    move-result-object v4
++    invoke-virtual {v4}, Landroid/content/res/Resources;->getDisplayMetrics()Landroid/util/DisplayMetrics;
++    move-result-object v4
++    iget v4, v4, Landroid/util/DisplayMetrics;->density:F
++    new-instance v7, Landroid/widget/LinearLayout$LayoutParams;
++    const/4 v8, -0x1
++    const/4 v6, -0x2
++    invoke-direct {v7, v8, v6}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
++    const/high16 v6, 0x41800000
++    mul-float/2addr v6, v4
++    float-to-int v6, v6
++    iput v6, v7, Landroid/view/ViewGroup$MarginLayoutParams;->topMargin:I
++    invoke-virtual {p1, v3, v7}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
++
++    new-instance v6, Landroid/widget/SeekBar;
++    invoke-direct {v6, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    invoke-interface {v2}, Ljava/util/List;->size()I
++    move-result v7
++    add-int/lit8 v7, v7, -0x1
++    invoke-virtual {v6, v7}, Landroid/widget/SeekBar;->setMax(I)V
++    invoke-static {v0}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v7
++    invoke-interface {v2, v7}, Ljava/util/List;->indexOf(Ljava/lang/Object;)I
++    move-result v7
++    if-gez v7, :idx_ok
++    const/4 v7, 0x0
++    :idx_ok
++    invoke-virtual {v6, v7}, Landroid/widget/SeekBar;->setProgress(I)V
++    invoke-virtual {v1}, Lcom/shilapi/xcertplay/settings/SettingsTheme;->getAccent()I
++    move-result v7
++    invoke-static {v7}, Landroid/content/res/ColorStateList;->valueOf(I)Landroid/content/res/ColorStateList;
++    move-result-object v8
++    invoke-virtual {v6, v8}, Landroid/widget/SeekBar;->setProgressTintList(Landroid/content/res/ColorStateList;)V
++    invoke-virtual {v6, v8}, Landroid/widget/SeekBar;->setThumbTintList(Landroid/content/res/ColorStateList;)V
++    new-instance v8, Lcom/shilapi/xcertplay/DiplayPopupSeek;
++    invoke-direct {v8, p0, p3, v5, v2}, Lcom/shilapi/xcertplay/DiplayPopupSeek;-><init>(Landroid/content/Context;Ljava/lang/String;Landroid/widget/TextView;Ljava/util/List;)V
++    invoke-virtual {v8, v9}, Lcom/shilapi/xcertplay/DiplayPopupSeek;->setD(Lkotlin/jvm/functions/Function1;)V
++    invoke-virtual {v6, v8}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    new-instance v7, Landroid/widget/LinearLayout$LayoutParams;
++    const/4 v8, -0x1
++    const/high16 v9, 0x42300000
++    mul-float/2addr v9, v4
++    float-to-int v9, v9
++    invoke-direct {v7, v8, v9}, Landroid/widget/LinearLayout$LayoutParams;-><init>(II)V
++    invoke-virtual {p1, v6, v7}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali project/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayPopupSeek.smali	2026-10-27 18:53:18.868608931 +0000
+@@ -0,0 +1,71 @@
++.class public final Lcom/shilapi/xcertplay/DiplayPopupSeek;
++.super Ljava/lang/Object;
++.implements Landroid/widget/SeekBar$OnSeekBarChangeListener;
++
++.field private final ctx:Landroid/content/Context;
++.field private final key:Ljava/lang/String;
++.field private final tv:Landroid/widget/TextView;
++.field private final list:Ljava/util/List;
++.field private d:Lkotlin/jvm/functions/Function1;
++
++.method public constructor <init>(Landroid/content/Context;Ljava/lang/String;Landroid/widget/TextView;Ljava/util/List;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->ctx:Landroid/content/Context;
++    iput-object p2, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->key:Ljava/lang/String;
++    iput-object p3, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->tv:Landroid/widget/TextView;
++    iput-object p4, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->list:Ljava/util/List;
++    return-void
++.end method
++
++.method public setD(Lkotlin/jvm/functions/Function1;)V
++    .locals 0
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->d:Lkotlin/jvm/functions/Function1;
++    return-void
++.end method
++
++.method public onProgressChanged(Landroid/widget/SeekBar;IZ)V
++    .locals 5
++    :try_start_0
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->list:Ljava/util/List;
++    invoke-interface {v0, p2}, Ljava/util/List;->get(I)Ljava/lang/Object;
++    move-result-object v0
++    check-cast v0, Ljava/lang/Number;
++    invoke-virtual {v0}, Ljava/lang/Number;->intValue()I
++    move-result v1
++    iget-object v2, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->d:Lkotlin/jvm/functions/Function1;
++    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v3
++    invoke-interface {v2, v3}, Lkotlin/jvm/functions/Function1;->invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    move-result-object v3
++    check-cast v3, Ljava/lang/CharSequence;
++    iget-object v2, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->tv:Landroid/widget/TextView;
++    invoke-virtual {v2, v3}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v0
++    invoke-interface {v0}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v0
++    iget-object v2, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->key:Ljava/lang/String;
++    invoke-interface {v0, v2, v1}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v0
++    invoke-interface {v0}, Landroid/content/SharedPreferences$Editor;->apply()V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
++
++.method public onStartTrackingTouch(Landroid/widget/SeekBar;)V
++    .locals 0
++    return-void
++.end method
++
++.method public onStopTrackingTouch(Landroid/widget/SeekBar;)V
++    .locals 1
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplayPopupSeek;->ctx:Landroid/content/Context;
++    invoke-static {v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->apply(Landroid/content/Context;)V
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali project/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplaySave.smali	2026-10-27 18:47:53.587546250 +0000
+@@ -0,0 +1,38 @@
++.class public final Lcom/shilapi/xcertplay/DiplaySave;
++.super Ljava/lang/Object;
++.implements Lkotlin/jvm/functions/Function1;
++
++.field private final ctx:Landroid/content/Context;
++.field private final key:Ljava/lang/String;
++
++.method public constructor <init>(Landroid/content/Context;Ljava/lang/String;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/DiplaySave;->ctx:Landroid/content/Context;
++    iput-object p2, p0, Lcom/shilapi/xcertplay/DiplaySave;->key:Ljava/lang/String;
++    return-void
++.end method
++
++.method public invoke(Ljava/lang/Object;)Ljava/lang/Object;
++    .locals 5
++    :try_start_0
++    check-cast p1, Ljava/lang/Number;
++    invoke-virtual {p1}, Ljava/lang/Number;->intValue()I
++    move-result v4
++    iget-object v0, p0, Lcom/shilapi/xcertplay/DiplaySave;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    iget-object v2, p0, Lcom/shilapi/xcertplay/DiplaySave;->key:Ljava/lang/String;
++    invoke-interface {v1, v2, v4}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences$Editor;->apply()V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit;
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali project/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali	2026-10-27 20:24:05.263839057 +0000
+@@ -0,0 +1,237 @@
++.class public final Lcom/shilapi/xcertplay/DiplayUi;
++.super Ljava/lang/Object;
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static steps(III)Ljava/util/List;
++    .locals 3
++    new-instance v0, Ljava/util/ArrayList;
++    invoke-direct {v0}, Ljava/util/ArrayList;-><init>()V
++    move v1, p0
++    :loop
++    if-gt v1, p1, :done
++    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v2
++    invoke-virtual {v0, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    add-int/2addr v1, p2
++    goto :loop
++    :done
++    return-object v0
++.end method
++
++.method public static slider(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;IIII)V
++    .locals 8
++    :try_start_0
++    const/4 v0, 0x0
++    invoke-static {p0, p3, v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v0
++    if-ge v0, p4, :c1
++    move v0, p4
++    :c1
++    if-le v0, p5, :c2
++    move v0, p5
++    :c2
++    sub-int v1, v0, p4
++    div-int/2addr v1, p6
++    mul-int/2addr v1, p6
++    add-int v6, p4, v1
++    invoke-static {p4, p5, p6}, Lcom/shilapi/xcertplay/DiplayUi;->steps(III)Ljava/util/List;
++    move-result-object v5
++    new-instance v7, Lcom/shilapi/xcertplay/DiplayDescribe;
++    invoke-direct {v7, p7}, Lcom/shilapi/xcertplay/DiplayDescribe;-><init>(I)V
++    move-object v4, p2
++    move-object v3, p0
++    move-object v2, p0
++    new-instance v1, Lcom/shilapi/xcertplay/DiPlayActivity$OverlaySliderRow;
++    invoke-direct/range {v1 .. v7}, Lcom/shilapi/xcertplay/DiPlayActivity$OverlaySliderRow;-><init>(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/content/Context;Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/functions/Function1;)V
++    new-instance v2, Lcom/shilapi/xcertplay/DiplaySave;
++    invoke-direct {v2, p0, p3}, Lcom/shilapi/xcertplay/DiplaySave;-><init>(Landroid/content/Context;Ljava/lang/String;)V
++    invoke-virtual {v1, v2}, Lcom/shilapi/xcertplay/DiPlayActivity$OverlaySliderRow;->setOnSave(Lkotlin/jvm/functions/Function1;)V
++    new-instance v2, Lcom/shilapi/xcertplay/DiplayCommit;
++    invoke-direct {v2, p0}, Lcom/shilapi/xcertplay/DiplayCommit;-><init>(Landroid/content/Context;)V
++    invoke-virtual {v1, v2}, Lcom/shilapi/xcertplay/DiPlayActivity$OverlaySliderRow;->setOnCommit(Lkotlin/jvm/functions/Function0;)V
++    invoke-virtual {p1, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
++
++.method public static audioSection(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    .locals 7
++    :try_start_0
++    move-object v0, p0
++    move-object v1, p1
++    const-string v2, "Sound adjustments"
++    sget v3, Lcom/shilapi/xcertplay/host/R$drawable;->ic_dp_audio:I
++    invoke-static {v3}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
++    move-result-object v3
++    new-instance v4, Lcom/shilapi/xcertplay/DiplayAudioContent;
++    invoke-direct {v4, p0}, Lcom/shilapi/xcertplay/DiplayAudioContent;-><init>(Lcom/shilapi/xcertplay/DiPlayActivity;)V
++    const/4 v5, 0x0
++    const/4 v6, 0x0
++    invoke-static/range {v0 .. v6}, Lcom/shilapi/xcertplay/DiPlayActivity;->section$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/Integer;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
++
++.method public static climateRows(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    .locals 10
++    :try_start_0
++    const-string v1, "diplay_audio"
++    const/4 v2, 0x0
++    invoke-virtual {p0, v1, v2}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    const-string v2, "voicekey_mode"
++    const/4 v3, 0x0
++    invoke-interface {v1, v2, v3}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
++    move-result v5
++    if-eqz v5, :chk_off
++    const/4 v5, 0x1
++    goto :chk_set
++    :chk_off
++    const/4 v5, 0x0
++    :chk_set
++    move-object v1, p0
++    move-object v2, p1
++    const-string v3, "Call button controls climate"
++    const-string v4, "Double-press the steering-wheel call button to switch the AC on or off, or to open the climate app. A single press still answers calls."
++    const/4 v6, 0x1
++    new-instance v7, Lcom/shilapi/xcertplay/DiplayClimateToggle;
++    invoke-direct {v7, p0}, Lcom/shilapi/xcertplay/DiplayClimateToggle;-><init>(Landroid/content/Context;)V
++    const/4 v8, 0x0
++    const/4 v9, 0x0
++    invoke-static/range {v1 .. v9}, Lcom/shilapi/xcertplay/DiPlayActivity;->toggle$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/lang/String;ZZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Landroid/widget/Switch;
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/DiplayUi;->climateActionChoice(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/DiplayUi;->climateChoice(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    return-void
++.end method
++
++.method public static climateActionChoice(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    .locals 13
++    :try_start_0
++    new-instance v0, Ljava/util/ArrayList;
++    invoke-direct {v0}, Ljava/util/ArrayList;-><init>()V
++    const-string v1, "Turn AC on / off"
++    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    const-string v1, "Open climate app"
++    invoke-virtual {v0, v1}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    const-string v1, "diplay_audio"
++    const/4 v2, 0x0
++    invoke-virtual {p0, v1, v2}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    const-string v3, "climate_action"
++    invoke-interface {v1, v3, v2}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
++    move-result v6
++    if-ltz v6, :selbad
++    const/4 v1, 0x1
++    if-le v6, v1, :selok
++    :selbad
++    const/4 v6, 0x0
++    :selok
++    new-instance v10, Lcom/shilapi/xcertplay/DiplayClimateAction;
++    invoke-direct {v10, p0}, Lcom/shilapi/xcertplay/DiplayClimateAction;-><init>(Landroid/content/Context;)V
++    move-object v5, v0
++    const-string v4, "Double-press action"
++    move-object v3, p1
++    move-object v2, p0
++    const/4 v7, 0x0
++    const/4 v8, 0x0
++    const/4 v9, 0x0
++    const/16 v11, 0x60
++    const/4 v12, 0x0
++    invoke-static/range {v2 .. v12}, Lcom/shilapi/xcertplay/DiPlayActivity;->choice$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/util/List;IZZZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
++
++.method public static climateChoice(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;)V
++    .locals 13
++    :try_start_0
++    new-instance v0, Ljava/util/ArrayList;
++    invoke-direct {v0}, Ljava/util/ArrayList;-><init>()V
++    new-instance v1, Ljava/util/ArrayList;
++    invoke-direct {v1}, Ljava/util/ArrayList;-><init>()V
++    const-string v2, "Not set"
++    invoke-virtual {v0, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    const-string v2, ""
++    invoke-virtual {v1, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    invoke-virtual {p0}, Landroid/content/Context;->getPackageManager()Landroid/content/pm/PackageManager;
++    move-result-object v2
++    new-instance v3, Landroid/content/Intent;
++    const-string v4, "android.intent.action.MAIN"
++    invoke-direct {v3, v4}, Landroid/content/Intent;-><init>(Ljava/lang/String;)V
++    const-string v4, "android.intent.category.LAUNCHER"
++    invoke-virtual {v3, v4}, Landroid/content/Intent;->addCategory(Ljava/lang/String;)Landroid/content/Intent;
++    const/4 v4, 0x0
++    invoke-virtual {v2, v3, v4}, Landroid/content/pm/PackageManager;->queryIntentActivities(Landroid/content/Intent;I)Ljava/util/List;
++    move-result-object v3
++    invoke-interface {v3}, Ljava/util/List;->size()I
++    move-result v4
++    const/4 v5, 0x0
++    :loop
++    if-ge v5, v4, :loopdone
++    invoke-interface {v3, v5}, Ljava/util/List;->get(I)Ljava/lang/Object;
++    move-result-object v6
++    check-cast v6, Landroid/content/pm/ResolveInfo;
++    invoke-virtual {v6, v2}, Landroid/content/pm/ResolveInfo;->loadLabel(Landroid/content/pm/PackageManager;)Ljava/lang/CharSequence;
++    move-result-object v7
++    invoke-virtual {v7}, Ljava/lang/Object;->toString()Ljava/lang/String;
++    move-result-object v7
++    invoke-virtual {v0, v7}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    iget-object v7, v6, Landroid/content/pm/ResolveInfo;->activityInfo:Landroid/content/pm/ActivityInfo;
++    new-instance v8, Ljava/lang/StringBuilder;
++    invoke-direct {v8}, Ljava/lang/StringBuilder;-><init>()V
++    iget-object v9, v7, Landroid/content/pm/PackageItemInfo;->packageName:Ljava/lang/String;
++    invoke-virtual {v8, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    const-string v9, "/"
++    invoke-virtual {v8, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    iget-object v9, v7, Landroid/content/pm/PackageItemInfo;->name:Ljava/lang/String;
++    invoke-virtual {v8, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    invoke-virtual {v8}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
++    move-result-object v8
++    invoke-virtual {v1, v8}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
++    add-int/lit8 v5, v5, 0x1
++    goto :loop
++    :loopdone
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {p0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v2
++    const-string v3, "climate_component"
++    const-string v4, ""
++    invoke-interface {v2, v3, v4}, Landroid/content/SharedPreferences;->getString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
++    move-result-object v2
++    invoke-virtual {v1, v2}, Ljava/util/ArrayList;->indexOf(Ljava/lang/Object;)I
++    move-result v6
++    if-gez v6, :selok
++    const/4 v6, 0x0
++    :selok
++    new-instance v10, Lcom/shilapi/xcertplay/DiplayClimatePick;
++    invoke-direct {v10, p0, v1}, Lcom/shilapi/xcertplay/DiplayClimatePick;-><init>(Landroid/content/Context;Ljava/util/List;)V
++    move-object v5, v0
++    const-string v4, "Climate app"
++    move-object v3, p1
++    move-object v2, p0
++    const/4 v7, 0x0
++    const/4 v8, 0x0
++    const/4 v9, 0x0
++    const/16 v11, 0x60
++    const/4 v12, 0x0
++    invoke-static/range {v2 .. v12}, Lcom/shilapi/xcertplay/DiPlayActivity;->choice$default(Lcom/shilapi/xcertplay/DiPlayActivity;Landroid/widget/LinearLayout;Ljava/lang/String;Ljava/util/List;IZZZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-27 18:34:58.012413835 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-27 20:45:46.235813761 +0000
+@@ -2250,6 +2250,12 @@
+ 
+     invoke-static {p1, p0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+ 
++    invoke-static {p1}, Lcom/shilapi/xcertplay/CarKeys;->anyConfigured(Landroid/content/Context;)Z
++
++    move-result p0
++
++    if-nez p0, :cond_1
++
+     .line 599
+     sget-object p0, Lcom/shilapi/xcertplay/WheelZoomSettings;->INSTANCE:Lcom/shilapi/xcertplay/WheelZoomSettings;
+ 
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-27 18:34:58.036027386 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-28 10:19:35.539574560 +0000
+@@ -4200,12 +4200,26 @@
+ .end method
+ 
+ .method protected onKeyEvent(Landroid/view/KeyEvent;)Z
+-    .locals 2
++    .locals 4
+ 
+     const-string v0, "event"
+ 
+     invoke-static {p1, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+ 
++    # === DiPlay: car-control wheel-key slots ===
++    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/CarKeys;->onKey(Landroid/content/Context;Landroid/view/KeyEvent;)Z
++
++    move-result v0
++
++    if-eqz v0, :diplay_carkeys_skip
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :diplay_carkeys_skip
++    # === end DiPlay climate hook ===
++
+     const/4 v0, 0x0
+ 
+     .line 155
+@@ -4238,6 +4252,8 @@
+ .method protected onServiceConnected()V
+     .locals 4
+ 
++    invoke-static {p0}, Lcom/shilapi/xcertplay/CarWake;->attach(Landroid/content/Context;)V
++
+     const/4 v0, 0x0
+ 
+     .line 107
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	2026-10-27 16:33:10.968347603 +0000
+@@ -0,0 +1,295 @@
++.class public final Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;
++.super Ljava/lang/Object;
++.source "AudioEffectsEngine.java"
++
++
++.field private static bass:Landroid/media/audiofx/BassBoost;
++.field private static dp:Landroid/media/audiofx/DynamicsProcessing;
++.field private static FREQS:[F
++.field private static loud:Landroid/media/audiofx/LoudnessEnhancer;
++.field private static virt:Landroid/media/audiofx/Virtualizer;
++
++
++.method static constructor <clinit>()V
++    .locals 3
++    const/16 v0, 0xa
++    new-array v0, v0, [F
++    const/16 v1, 0x0
++    const v2, 0x41f80000
++    aput v2, v0, v1
++    const/16 v1, 0x1
++    const v2, 0x427c0000
++    aput v2, v0, v1
++    const/16 v1, 0x2
++    const v2, 0x42fa0000
++    aput v2, v0, v1
++    const/16 v1, 0x3
++    const v2, 0x437a0000
++    aput v2, v0, v1
++    const/16 v1, 0x4
++    const v2, 0x43fa0000
++    aput v2, v0, v1
++    const/16 v1, 0x5
++    const v2, 0x447a0000
++    aput v2, v0, v1
++    const/16 v1, 0x6
++    const v2, 0x44fa0000
++    aput v2, v0, v1
++    const/16 v1, 0x7
++    const v2, 0x457a0000
++    aput v2, v0, v1
++    const/16 v1, 0x8
++    const v2, 0x45fa0000
++    aput v2, v0, v1
++    const/16 v1, 0x9
++    const v2, 0x467a0000
++    aput v2, v0, v1
++    sput-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->FREQS:[F
++    return-void
++.end method
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    .locals 3
++    const-string v0, "diplay_audio"
++    const/4 v1, 0x0
++    invoke-virtual {p0, v0, v1}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v0
++    invoke-interface {v0, p1}, Landroid/content/SharedPreferences;->contains(Ljava/lang/String;)Z
++    move-result v1
++    if-eqz v1, :cond_miss
++    invoke-interface {v0, p1, p2}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
++    move-result v0
++    return v0
++    :cond_miss
++    :try_start_0
++    invoke-virtual {p0}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
++    move-result-object v0
++    invoke-static {v0, p1}, Landroid/provider/Settings$Global;->getString(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;
++    move-result-object v0
++    if-eqz v0, :cond_0
++    invoke-virtual {v0}, Ljava/lang/String;->length()I
++    move-result v1
++    if-eqz v1, :cond_0
++    invoke-static {v0}, Ljava/lang/Integer;->parseInt(Ljava/lang/String;)I
++    move-result v0
++    return v0
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    :catch_0
++    :cond_0
++    return p2
++.end method
++
++.method private static releaseInternal()V
++    .locals 2
++    const/4 v1, 0x0
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->dp:Landroid/media/audiofx/DynamicsProcessing;
++    if-eqz v0, :a0
++    :try_start_0
++    invoke-virtual {v0}, Landroid/media/audiofx/AudioEffect;->release()V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :c0
++    :c0
++    :a0
++    sput-object v1, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->dp:Landroid/media/audiofx/DynamicsProcessing;
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->bass:Landroid/media/audiofx/BassBoost;
++    if-eqz v0, :a1
++    :try_start_1
++    invoke-virtual {v0}, Landroid/media/audiofx/AudioEffect;->release()V
++    :try_end_1
++    .catch Ljava/lang/Exception; {:try_start_1 .. :try_end_1} :c1
++    :c1
++    :a1
++    sput-object v1, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->bass:Landroid/media/audiofx/BassBoost;
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->virt:Landroid/media/audiofx/Virtualizer;
++    if-eqz v0, :a2
++    :try_start_2
++    invoke-virtual {v0}, Landroid/media/audiofx/AudioEffect;->release()V
++    :try_end_2
++    .catch Ljava/lang/Exception; {:try_start_2 .. :try_end_2} :c2
++    :c2
++    :a2
++    sput-object v1, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->virt:Landroid/media/audiofx/Virtualizer;
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->loud:Landroid/media/audiofx/LoudnessEnhancer;
++    if-eqz v0, :a3
++    :try_start_3
++    invoke-virtual {v0}, Landroid/media/audiofx/AudioEffect;->release()V
++    :try_end_3
++    .catch Ljava/lang/Exception; {:try_start_3 .. :try_end_3} :c3
++    :c3
++    :a3
++    sput-object v1, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->loud:Landroid/media/audiofx/LoudnessEnhancer;
++    return-void
++.end method
++
++.method private static createAll()V
++    .locals 12
++    :try_eq_start
++    new-instance v2, Landroid/media/audiofx/DynamicsProcessing$Config$Builder;
++    const/4 v3, 0x0
++    const/4 v4, 0x2
++    const/4 v5, 0x0
++    const/4 v6, 0x0
++    const/4 v7, 0x0
++    const/4 v8, 0x0
++    const/4 v9, 0x1
++    const/16 v10, 0xa
++    const/4 v11, 0x0
++    invoke-direct/range {v2 .. v11}, Landroid/media/audiofx/DynamicsProcessing$Config$Builder;-><init>(IIZIZIZIZ)V
++    invoke-virtual {v2}, Landroid/media/audiofx/DynamicsProcessing$Config$Builder;->build()Landroid/media/audiofx/DynamicsProcessing$Config;
++    move-result-object v2
++    new-instance v3, Landroid/media/audiofx/DynamicsProcessing;
++    const/4 v4, 0x0
++    const/4 v5, 0x0
++    invoke-direct {v3, v4, v5, v2}, Landroid/media/audiofx/DynamicsProcessing;-><init>(IILandroid/media/audiofx/DynamicsProcessing$Config;)V
++    const/4 v4, 0x1
++    invoke-virtual {v3, v4}, Landroid/media/audiofx/AudioEffect;->setEnabled(Z)I
++    sput-object v3, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->dp:Landroid/media/audiofx/DynamicsProcessing;
++    :try_eq_end
++    .catch Ljava/lang/Exception; {:try_eq_start .. :try_eq_end} :c_eq
++    goto :after_eq
++    :c_eq
++    :after_eq
++    :try_b_start
++    new-instance v0, Landroid/media/audiofx/BassBoost;
++    const/4 v1, 0x0
++    const/4 v2, 0x0
++    invoke-direct {v0, v1, v2}, Landroid/media/audiofx/BassBoost;-><init>(II)V
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/media/audiofx/AudioEffect;->setEnabled(Z)I
++    sput-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->bass:Landroid/media/audiofx/BassBoost;
++    :try_b_end
++    .catch Ljava/lang/Exception; {:try_b_start .. :try_b_end} :c_b
++    goto :after_b
++    :c_b
++    :after_b
++    :try_v_start
++    new-instance v0, Landroid/media/audiofx/Virtualizer;
++    const/4 v1, 0x0
++    const/4 v2, 0x0
++    invoke-direct {v0, v1, v2}, Landroid/media/audiofx/Virtualizer;-><init>(II)V
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/media/audiofx/AudioEffect;->setEnabled(Z)I
++    sput-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->virt:Landroid/media/audiofx/Virtualizer;
++    :try_v_end
++    .catch Ljava/lang/Exception; {:try_v_start .. :try_v_end} :c_v
++    goto :after_v
++    :c_v
++    :after_v
++    :try_l_start
++    new-instance v0, Landroid/media/audiofx/LoudnessEnhancer;
++    const/4 v1, 0x0
++    invoke-direct {v0, v1}, Landroid/media/audiofx/LoudnessEnhancer;-><init>(I)V
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/media/audiofx/AudioEffect;->setEnabled(Z)I
++    sput-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->loud:Landroid/media/audiofx/LoudnessEnhancer;
++    :try_l_end
++    .catch Ljava/lang/Exception; {:try_l_start .. :try_l_end} :c_l
++    goto :after_l
++    :c_l
++    :after_l
++    return-void
++.end method
++
++.method private static updateParams(Landroid/content/Context;)V
++    .locals 6
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->dp:Landroid/media/audiofx/DynamicsProcessing;
++    if-eqz v0, :skip_bands
++    :try_bands_start
++    const/4 v1, 0x0
++    :band_loop
++    const/16 v2, 0xa
++    if-ge v1, v2, :band_done
++    new-instance v2, Ljava/lang/StringBuilder;
++    const-string v3, "diplay_audio_eq"
++    invoke-direct {v2, v3}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
++    invoke-virtual {v2, v1}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
++    move-result-object v2
++    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
++    move-result-object v2
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    int-to-float v2, v2
++    sget-object v3, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->FREQS:[F
++    aget v3, v3, v1
++    new-instance v4, Landroid/media/audiofx/DynamicsProcessing$EqBand;
++    const/4 v5, 0x1
++    invoke-direct {v4, v5, v3, v2}, Landroid/media/audiofx/DynamicsProcessing$EqBand;-><init>(ZFF)V
++    sget-object v5, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->dp:Landroid/media/audiofx/DynamicsProcessing;
++    invoke-virtual {v5, v1, v4}, Landroid/media/audiofx/DynamicsProcessing;->setPostEqBandAllChannelsTo(ILandroid/media/audiofx/DynamicsProcessing$EqBand;)V
++    add-int/lit8 v1, v1, 0x1
++    goto :band_loop
++    :band_done
++    :try_bands_end
++    .catch Ljava/lang/Exception; {:try_bands_start .. :try_bands_end} :catch_bands
++    goto :skip_bands
++    :catch_bands
++    :skip_bands
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->bass:Landroid/media/audiofx/BassBoost;
++    if-eqz v0, :skip_bass
++    :try_bass_start
++    const-string v1, "diplay_audio_bass"
++    const/4 v2, 0x0
++    invoke-static {p0, v1, v2}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v1
++    int-to-short v1, v1
++    invoke-virtual {v0, v1}, Landroid/media/audiofx/BassBoost;->setStrength(S)V
++    :try_bass_end
++    .catch Ljava/lang/Exception; {:try_bass_start .. :try_bass_end} :catch_bass
++    goto :skip_bass
++    :catch_bass
++    :skip_bass
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->virt:Landroid/media/audiofx/Virtualizer;
++    if-eqz v0, :skip_virt
++    :try_virt_start
++    const-string v1, "diplay_audio_virt"
++    const/4 v2, 0x0
++    invoke-static {p0, v1, v2}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v1
++    int-to-short v1, v1
++    invoke-virtual {v0, v1}, Landroid/media/audiofx/Virtualizer;->setStrength(S)V
++    :try_virt_end
++    .catch Ljava/lang/Exception; {:try_virt_start .. :try_virt_end} :catch_virt
++    goto :skip_virt
++    :catch_virt
++    :skip_virt
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->loud:Landroid/media/audiofx/LoudnessEnhancer;
++    if-eqz v0, :skip_loud
++    :try_loud_start
++    const-string v1, "diplay_audio_loud"
++    const/4 v2, 0x0
++    invoke-static {p0, v1, v2}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v1
++    invoke-virtual {v0, v1}, Landroid/media/audiofx/LoudnessEnhancer;->setTargetGain(I)V
++    :try_loud_end
++    .catch Ljava/lang/Exception; {:try_loud_start .. :try_loud_end} :catch_loud
++    goto :skip_loud
++    :catch_loud
++    :skip_loud
++    return-void
++.end method
++
++.method public static apply(Landroid/content/Context;)V
++    .locals 2
++    const-string v0, "diplay_audio_enabled"
++    const/4 v1, 0x1
++    invoke-static {p0, v0, v1}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v0
++    if-nez v0, :cond_enabled
++    invoke-static {}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->releaseInternal()V
++    return-void
++    :cond_enabled
++    sget-object v0, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->dp:Landroid/media/audiofx/DynamicsProcessing;
++    if-nez v0, :cond_ready
++    invoke-static {}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->createAll()V
++    :cond_ready
++    invoke-static {p0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->updateParams(Landroid/content/Context;)V
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSettingsSection.smali	2026-10-27 18:25:31.735457195 +0000
+@@ -0,0 +1,424 @@
++.class public final Lcom/shilapi/xcertplay/audio/AudioSettingsSection;
++.super Ljava/lang/Object;
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static build(Landroid/content/Context;Lcom/shilapi/xcertplay/settings/SettingsTheme;)Landroid/view/View;
++    .locals 1
++    invoke-virtual {p1}, Lcom/shilapi/xcertplay/settings/SettingsTheme;->getTextPrimary()I
++    move-result v0
++    invoke-static {p0, v0}, Lcom/shilapi/xcertplay/audio/AudioSettingsSection;->buildCore(Landroid/content/Context;I)Landroid/view/View;
++    move-result-object p0
++    return-object p0
++.end method
++
++.method public static buildPlain(Landroid/content/Context;)Landroid/view/View;
++    .locals 1
++    const v0, -0x1
++    invoke-static {p0, v0}, Lcom/shilapi/xcertplay/audio/AudioSettingsSection;->buildCore(Landroid/content/Context;I)Landroid/view/View;
++    move-result-object p0
++    return-object p0
++.end method
++
++.method public static maybeAddAudioPage(Ljava/lang/String;Landroid/widget/LinearLayout;Landroid/content/Context;)V
++    .locals 1
++    :try_start_0
++    const-string v0, "audio"
++    invoke-virtual {p0, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
++    move-result v0
++    if-eqz v0, :cond_done
++    invoke-static {p2}, Lcom/shilapi/xcertplay/audio/AudioSettingsSection;->buildPlain(Landroid/content/Context;)Landroid/view/View;
++    move-result-object v0
++    invoke-virtual {p1, v0}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :cond_done
++    :catch_0
++    move-exception v0
++    :cond_done
++    return-void
++.end method
++
++.method public static buildCore(Landroid/content/Context;I)Landroid/view/View;
++    .locals 5
++    new-instance v0, Landroid/widget/LinearLayout;
++    invoke-direct {v0, p0}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->setOrientation(I)V
++
++    :try_start_0
++    const/16 v1, 0x20
++    invoke-virtual {v0, v1, v1, v1, v1}, Landroid/widget/LinearLayout;->setPadding(IIII)V
++
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u062a\u0639\u062f\u064a\u0644\u0627\u062a \u0627\u0644\u0635\u0648\u062a"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    const/high16 v2, 0x41900000
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setTextSize(F)V
++    const/4 v2, 0x0
++    const/4 v3, 0x1
++    invoke-virtual {v1, v2, v3}, Landroid/widget/TextView;->setTypeface(Landroid/graphics/Typeface;I)V
++    const/16 v2, 0xc
++    const/4 v4, 0x0
++    invoke-virtual {v1, v4, v2, v4, v2}, Landroid/widget/TextView;->setPadding(IIII)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    new-instance v1, Landroid/widget/Switch;
++    invoke-direct {v1, p0}, Landroid/widget/Switch;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u062a\u0641\u0639\u064a\u0644 \u062a\u0639\u062f\u064a\u0644\u0627\u062a \u0627\u0644\u0635\u0648\u062a"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    const-string v2, "diplay_audio_enabled"
++    const/4 v3, 0x1
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    if-eqz v2, :cond_off
++    const/4 v2, 0x1
++    goto :set_chk
++    :cond_off
++    const/4 v2, 0x0
++    :set_chk
++    invoke-virtual {v1, v2}, Landroid/widget/CompoundButton;->setChecked(Z)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSwitchListener;
++    invoke-direct {v2, p0}, Lcom/shilapi/xcertplay/audio/AudioSwitchListener;-><init>(Landroid/content/Context;)V
++    invoke-virtual {v1, v2}, Landroid/widget/CompoundButton;->setOnCheckedChangeListener(Landroid/widget/CompoundButton$OnCheckedChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_bass
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u0627\u0644\u0628\u0627\u0635 (Bass)"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x3e8
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_bass"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, 0x0
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_bass"
++    const/16 v4, 0x0
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_virt
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u0645\u062d\u064a\u0637\u064a (Virtualizer)"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x3e8
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_virt"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, 0x0
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_virt"
++    const/16 v4, 0x0
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_loud
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u0631\u0641\u0639 \u0627\u0644\u0635\u0648\u062a (Loudness)"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x7d0
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_loud"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, 0x0
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_loud"
++    const/16 v4, 0x0
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq0
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "31Hz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq0"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq0"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq1
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "63Hz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq1"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq1"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq2
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "125Hz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq2"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq2"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq3
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "250Hz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq3"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq3"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq4
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "500Hz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq4"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq4"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq5
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "1kHz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq5"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq5"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq6
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "2kHz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq6"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq6"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq7
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "4kHz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq7"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq7"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq8
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "8kHz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq8"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq8"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    # diplay_audio_eq9
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "16kHz"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    invoke-virtual {v1, p1}, Landroid/widget/TextView;->setTextColor(I)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    new-instance v1, Landroid/widget/SeekBar;
++    invoke-direct {v1, p0}, Landroid/widget/SeekBar;-><init>(Landroid/content/Context;)V
++    const/16 v2, 0x1e
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setMax(I)V
++    const-string v2, "diplay_audio_eq9"
++    const/4 v3, 0x0
++    invoke-static {p0, v2, v3}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->readInt(Landroid/content/Context;Ljava/lang/String;I)I
++    move-result v2
++    const/16 v3, -0xf
++    sub-int/2addr v2, v3
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setProgress(I)V
++    new-instance v2, Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++    const-string v3, "diplay_audio_eq9"
++    const/16 v4, -0xf
++    invoke-direct {v2, p0, v3, v4}, Lcom/shilapi/xcertplay/audio/AudioSliderListener;-><init>(Landroid/content/Context;Ljava/lang/String;I)V
++    invoke-virtual {v1, v2}, Landroid/widget/SeekBar;->setOnSeekBarChangeListener(Landroid/widget/SeekBar$OnSeekBarChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :done
++    :catch_0
++    move-exception v1
++    :done
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSliderListener.smali	2026-10-27 15:14:30.571226435 +0000
+@@ -0,0 +1,48 @@
++.class public final Lcom/shilapi/xcertplay/audio/AudioSliderListener;
++.super Ljava/lang/Object;
++.implements Landroid/widget/SeekBar$OnSeekBarChangeListener;
++
++
++.field private final ctx:Landroid/content/Context;
++.field private final key:Ljava/lang/String;
++.field private final offset:I
++
++
++.method public constructor <init>(Landroid/content/Context;Ljava/lang/String;I)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->ctx:Landroid/content/Context;
++    iput-object p2, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->key:Ljava/lang/String;
++    iput p3, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->offset:I
++    return-void
++.end method
++
++.method public onProgressChanged(Landroid/widget/SeekBar;IZ)V
++    .locals 4
++    iget v0, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->offset:I
++    add-int/2addr v0, p2
++    iget-object v1, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v1, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    iget-object v2, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->key:Ljava/lang/String;
++    invoke-interface {v1, v2, v0}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v0
++    invoke-interface {v0}, Landroid/content/SharedPreferences$Editor;->apply()V
++    return-void
++.end method
++
++.method public onStartTrackingTouch(Landroid/widget/SeekBar;)V
++    .locals 0
++    return-void
++.end method
++
++.method public onStopTrackingTouch(Landroid/widget/SeekBar;)V
++    .locals 1
++    iget-object v0, p0, Lcom/shilapi/xcertplay/audio/AudioSliderListener;->ctx:Landroid/content/Context;
++    invoke-static {v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->apply(Landroid/content/Context;)V
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioSwitchListener.smali	2026-10-27 15:14:30.573991004 +0000
+@@ -0,0 +1,36 @@
++.class public final Lcom/shilapi/xcertplay/audio/AudioSwitchListener;
++.super Ljava/lang/Object;
++.implements Landroid/widget/CompoundButton$OnCheckedChangeListener;
++
++
++.field private final ctx:Landroid/content/Context;
++
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/audio/AudioSwitchListener;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public onCheckedChanged(Landroid/widget/CompoundButton;Z)V
++    .locals 4
++    const/4 v0, 0x1
++    if-nez p2, :cond_on
++    const/4 v0, 0x0
++    :cond_on
++    iget-object v1, p0, Lcom/shilapi/xcertplay/audio/AudioSwitchListener;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v1, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    const-string v2, "diplay_audio_enabled"
++    invoke-interface {v1, v2, v0}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v0
++    invoke-interface {v0}, Landroid/content/SharedPreferences$Editor;->apply()V
++    iget-object v0, p0, Lcom/shilapi/xcertplay/audio/AudioSwitchListener;->ctx:Landroid/content/Context;
++    invoke-static {v0}, Lcom/shilapi/xcertplay/audio/AudioEffectsEngine;->apply(Landroid/content/Context;)V
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePicker.smali	2026-10-27 16:06:40.554758966 +0000
+@@ -0,0 +1,57 @@
++.class public final Lcom/shilapi/xcertplay/climate/ClimatePicker;
++.super Ljava/lang/Object;
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static show(Landroid/content/Context;)V
++    .locals 6
++    :try_start_0
++    invoke-virtual {p0}, Landroid/content/Context;->getPackageManager()Landroid/content/pm/PackageManager;
++    move-result-object v0
++    new-instance v1, Landroid/content/Intent;
++    const-string v2, "android.intent.action.MAIN"
++    invoke-direct {v1, v2}, Landroid/content/Intent;-><init>(Ljava/lang/String;)V
++    const-string v2, "android.intent.category.LAUNCHER"
++    invoke-virtual {v1, v2}, Landroid/content/Intent;->addCategory(Ljava/lang/String;)Landroid/content/Intent;
++    const/4 v2, 0x0
++    invoke-virtual {v0, v1, v2}, Landroid/content/pm/PackageManager;->queryIntentActivities(Landroid/content/Intent;I)Ljava/util/List;
++    move-result-object v1
++    invoke-interface {v1}, Ljava/util/List;->size()I
++    move-result v2
++    new-array v3, v2, [Ljava/lang/CharSequence;
++    const/4 v4, 0x0
++    :loop_0
++    if-ge v4, v2, :loopend_0
++    invoke-interface {v1, v4}, Ljava/util/List;->get(I)Ljava/lang/Object;
++    move-result-object v5
++    check-cast v5, Landroid/content/pm/ResolveInfo;
++    invoke-virtual {v5, v0}, Landroid/content/pm/ResolveInfo;->loadLabel(Landroid/content/pm/PackageManager;)Ljava/lang/CharSequence;
++    move-result-object v5
++    aput-object v5, v3, v4
++    add-int/lit8 v4, v4, 0x1
++    goto :loop_0
++    :loopend_0
++    new-instance v4, Landroid/app/AlertDialog$Builder;
++    invoke-direct {v4, p0}, Landroid/app/AlertDialog$Builder;-><init>(Landroid/content/Context;)V
++    const-string v5, "\u0627\u062e\u062a\u0631 \u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u062a\u0628\u0631\u064a\u062f"
++    invoke-virtual {v4, v5}, Landroid/app/AlertDialog$Builder;->setTitle(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;
++    move-result-object v4
++    new-instance v5, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;
++    invoke-direct {v5, p0, v1}, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;-><init>(Landroid/content/Context;Ljava/util/List;)V
++    invoke-virtual {v4, v3, v5}, Landroid/app/AlertDialog$Builder;->setItems([Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;
++    move-result-object v4
++    invoke-virtual {v4}, Landroid/app/AlertDialog$Builder;->show()Landroid/app/AlertDialog;
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :done
++    :catch_0
++    move-exception v0
++    const-string v1, "\u062a\u0639\u0630\u0651\u0631 \u0641\u062a\u062d \u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u062a\u0637\u0628\u064a\u0642\u0627\u062a"
++    invoke-static {p0, v1}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    :done
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/ClimatePickerClick.smali	2026-10-27 16:06:40.554807608 +0000
+@@ -0,0 +1,62 @@
++.class public final Lcom/shilapi/xcertplay/climate/ClimatePickerClick;
++.super Ljava/lang/Object;
++.implements Landroid/content/DialogInterface$OnClickListener;
++
++.field private final ctx:Landroid/content/Context;
++.field private final list:Ljava/util/List;
++
++.method public constructor <init>(Landroid/content/Context;Ljava/util/List;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;->ctx:Landroid/content/Context;
++    iput-object p2, p0, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;->list:Ljava/util/List;
++    return-void
++.end method
++
++.method public onClick(Landroid/content/DialogInterface;I)V
++    .locals 6
++    :try_start_0
++    iget-object v0, p0, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;->list:Ljava/util/List;
++    invoke-interface {v0, p2}, Ljava/util/List;->get(I)Ljava/lang/Object;
++    move-result-object v0
++    check-cast v0, Landroid/content/pm/ResolveInfo;
++    iget-object v0, v0, Landroid/content/pm/ResolveInfo;->activityInfo:Landroid/content/pm/ActivityInfo;
++    iget-object v1, v0, Landroid/content/pm/PackageItemInfo;->packageName:Ljava/lang/String;
++    iget-object v0, v0, Landroid/content/pm/PackageItemInfo;->name:Ljava/lang/String;
++    new-instance v2, Ljava/lang/StringBuilder;
++    invoke-direct {v2}, Ljava/lang/StringBuilder;-><init>()V
++    invoke-virtual {v2, v1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    move-result-object v2
++    const-string v3, "/"
++    invoke-virtual {v2, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    move-result-object v2
++    invoke-virtual {v2, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
++    move-result-object v2
++    invoke-virtual {v2}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
++    move-result-object v2
++    iget-object v3, p0, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;->ctx:Landroid/content/Context;
++    const-string v4, "diplay_audio"
++    const/4 v5, 0x0
++    invoke-virtual {v3, v4, v5}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v3
++    invoke-interface {v3}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v3
++    const-string v4, "climate_component"
++    invoke-interface {v3, v4, v2}, Landroid/content/SharedPreferences$Editor;->putString(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;
++    move-result-object v3
++    const-string v4, "voicekey_mode"
++    const/4 v5, 0x1
++    invoke-interface {v3, v4, v5}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v3
++    invoke-interface {v3}, Landroid/content/SharedPreferences$Editor;->apply()V
++    iget-object v3, p0, Lcom/shilapi/xcertplay/climate/ClimatePickerClick;->ctx:Landroid/content/Context;
++    const-string v4, "\u062a\u0645 \u0627\u062e\u062a\u064a\u0627\u0631 \u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u062a\u0628\u0631\u064a\u062f \u2713"
++    invoke-static {v3, v4}, Lcom/shilapi/xcertplay/ClimateShortcut;->toast(Landroid/content/Context;Ljava/lang/String;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :done
++    :catch_0
++    move-exception v0
++    :done
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali project/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/PickAppClickListener.smali	2026-10-27 16:06:40.554365763 +0000
+@@ -0,0 +1,19 @@
++.class public final Lcom/shilapi/xcertplay/climate/PickAppClickListener;
++.super Ljava/lang/Object;
++.implements Landroid/view/View$OnClickListener;
++
++.field private final ctx:Landroid/content/Context;
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/climate/PickAppClickListener;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public onClick(Landroid/view/View;)V
++    .locals 1
++    iget-object v0, p0, Lcom/shilapi/xcertplay/climate/PickAppClickListener;->ctx:Landroid/content/Context;
++    invoke-static {v0}, Lcom/shilapi/xcertplay/climate/ClimatePicker;->show(Landroid/content/Context;)V
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali project/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/VoiceModeListener.smali	2026-10-27 16:06:40.554296594 +0000
+@@ -0,0 +1,32 @@
++.class public final Lcom/shilapi/xcertplay/climate/VoiceModeListener;
++.super Ljava/lang/Object;
++.implements Landroid/widget/CompoundButton$OnCheckedChangeListener;
++
++.field private final ctx:Landroid/content/Context;
++
++.method public constructor <init>(Landroid/content/Context;)V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    iput-object p1, p0, Lcom/shilapi/xcertplay/climate/VoiceModeListener;->ctx:Landroid/content/Context;
++    return-void
++.end method
++
++.method public onCheckedChanged(Landroid/widget/CompoundButton;Z)V
++    .locals 4
++    const/4 v0, 0x1
++    if-nez p2, :cond_on
++    const/4 v0, 0x0
++    :cond_on
++    iget-object v1, p0, Lcom/shilapi/xcertplay/climate/VoiceModeListener;->ctx:Landroid/content/Context;
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {v1, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v1
++    invoke-interface {v1}, Landroid/content/SharedPreferences;->edit()Landroid/content/SharedPreferences$Editor;
++    move-result-object v1
++    const-string v2, "voicekey_mode"
++    invoke-interface {v1, v2, v0}, Landroid/content/SharedPreferences$Editor;->putInt(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;
++    move-result-object v0
++    invoke-interface {v0}, Landroid/content/SharedPreferences$Editor;->apply()V
++    return-void
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali project/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali	1970-01-01 00:00:00.000000000 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali	2026-10-27 18:13:43.874198248 +0000
+@@ -0,0 +1,72 @@
++.class public final Lcom/shilapi/xcertplay/climate/WheelKeyExtras;
++.super Ljava/lang/Object;
++
++.method public constructor <init>()V
++    .locals 0
++    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
++    return-void
++.end method
++
++.method public static build(Landroid/content/Context;)Landroid/view/View;
++    .locals 5
++    new-instance v0, Landroid/widget/LinearLayout;
++    invoke-direct {v0, p0}, Landroid/widget/LinearLayout;-><init>(Landroid/content/Context;)V
++    const/4 v1, 0x1
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->setOrientation(I)V
++
++    :try_start_0
++    const/16 v1, 0x18
++    invoke-virtual {v0, v1, v1, v1, v1}, Landroid/widget/LinearLayout;->setPadding(IIII)V
++
++    new-instance v1, Landroid/widget/TextView;
++    invoke-direct {v1, p0}, Landroid/widget/TextView;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u0627\u062e\u062a\u0635\u0627\u0631 \u0632\u0631 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 (\u0646\u0642\u0631 \u0645\u0632\u062f\u0648\u062c)"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    const v2, -0x1
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setTextColor(I)V
++    const/high16 v2, 0x41800000
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setTextSize(F)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    new-instance v1, Landroid/widget/Switch;
++    invoke-direct {v1, p0}, Landroid/widget/Switch;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u0627\u0644\u0646\u0642\u0631 \u0627\u0644\u0645\u0632\u062f\u0648\u062c \u0644\u0632\u0631 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u064a\u0641\u062a\u062d \u0627\u0644\u062a\u0628\u0631\u064a\u062f"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    const v2, -0x1
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setTextColor(I)V
++    const-string v2, "diplay_audio"
++    const/4 v3, 0x0
++    invoke-virtual {p0, v2, v3}, Landroid/content/Context;->getSharedPreferences(Ljava/lang/String;I)Landroid/content/SharedPreferences;
++    move-result-object v2
++    const-string v3, "voicekey_mode"
++    const/4 v4, 0x0
++    invoke-interface {v2, v3, v4}, Landroid/content/SharedPreferences;->getInt(Ljava/lang/String;I)I
++    move-result v2
++    if-eqz v2, :cond_off
++    const/4 v2, 0x1
++    goto :set_chk
++    :cond_off
++    const/4 v2, 0x0
++    :set_chk
++    invoke-virtual {v1, v2}, Landroid/widget/CompoundButton;->setChecked(Z)V
++    new-instance v2, Lcom/shilapi/xcertplay/climate/VoiceModeListener;
++    invoke-direct {v2, p0}, Lcom/shilapi/xcertplay/climate/VoiceModeListener;-><init>(Landroid/content/Context;)V
++    invoke-virtual {v1, v2}, Landroid/widget/CompoundButton;->setOnCheckedChangeListener(Landroid/widget/CompoundButton$OnCheckedChangeListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++
++    new-instance v1, Landroid/widget/Button;
++    invoke-direct {v1, p0}, Landroid/widget/Button;-><init>(Landroid/content/Context;)V
++    const-string v2, "\u0627\u062e\u062a\u0631 \u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u062a\u0628\u0631\u064a\u062f"
++    invoke-virtual {v1, v2}, Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V
++    new-instance v2, Lcom/shilapi/xcertplay/climate/PickAppClickListener;
++    invoke-direct {v2, p0}, Lcom/shilapi/xcertplay/climate/PickAppClickListener;-><init>(Landroid/content/Context;)V
++    invoke-virtual {v1, v2}, Landroid/view/View;->setOnClickListener(Landroid/view/View$OnClickListener;)V
++    invoke-virtual {v0, v1}, Landroid/widget/LinearLayout;->addView(Landroid/view/View;)V
++    :try_end_0
++    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
++    goto :done
++    :catch_0
++    move-exception v1
++    :done
++    return-object v0
++.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali project/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali	2026-10-27 18:34:58.398812257 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/hud/BydClusterSpeedReader.smali	2026-10-28 00:22:15.808292799 +0000
+@@ -88,6 +88,23 @@
+ .method static final observe$lambda$3(Lkotlin/jvm/functions/Function1;Landroid/content/Context;Lcom/shilapi/xcertplay/hud/BydAdbShell;)V
+     .locals 5
+ 
++    # === DiPlay: gauge shows engine water temperature ===
++    invoke-static {p1}, Lcom/shilapi/xcertplay/CarGauge;->showsWaterTemp(Landroid/content/Context;)Z
++
++    move-result v0
++
++    if-eqz v0, :diplay_gauge_speed
++
++    invoke-static {p1}, Lcom/shilapi/xcertplay/CarGauge;->waterTemp(Landroid/content/Context;)Ljava/lang/Integer;
++
++    move-result-object v0
++
++    invoke-interface {p0, v0}, Lkotlin/jvm/functions/Function1;->invoke(Ljava/lang/Object;)Ljava/lang/Object;
++
++    return-void
++
++    :diplay_gauge_speed
++
+     .line 18
+     invoke-static {}, Landroid/os/SystemClock;->elapsedRealtime()J
+ 
+Binary files orig/AndroidManifest.xml and project/AndroidManifest.xml differ
