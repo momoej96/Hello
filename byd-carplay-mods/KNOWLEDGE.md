@@ -133,6 +133,23 @@ An ADB call with no answer (ADB not ready right after a wake) is retried on the 
 opens DiPlay when CarPlay isn't running. The outcome shows as "Last car start: …" in Car controls.
 *(Built, not yet confirmed.)*
 
+**User finding (28 Oct):** switching the car off and on again within ~1 minute leaves the wheel keys dead —
+in DiPlay *and* in Diplus — until the car is off long enough for Bluetooth to disconnect; after that everything
+works. So it's the head unit coming back from a half-sleep, not the app. In that state the service may look bound
+while key events don't arrive, which the v26 watchdog can't see. Ideas not built yet: a forced re-toggle when the
+screen comes back after <1 min off, and a manual "Refresh wheel keys" button.
+Also reported: DiPlay's start-at-boot permission seemed lost after several updates (where exactly: not yet known);
+idea: re-apply the boot exemptions (`cmd deviceidle whitelist +pkg`, appops `RUN_IN_BACKGROUND`) over ADB after
+each update.
+
+## Diplus key commands (for reference)
+
+The command box takes Chinese command names only (`空调自动`, `关空调`, `内循环`, …), `,` runs commands in sequence
+and `/` separates successive presses. `打开应用<label or package>` opens only apps with a launcher entry;
+`打开应用pkg/activity` would run `am start -n` but can't be used from a key because of the `/` rule, so BYD's
+climate screen (no launcher entry) can't be opened from a Diplus key. Other types: `延迟`, `播报`, `TOAST:`,
+`HTTPGET:`, `HTTPPOST:`.
+
 ## CarPlay keeps disconnecting: causes found in reports
 
 * "Small-window navi · separate positions" = **Auto**: every Small/Full navi switch reconnects CarPlay (by design),
