@@ -115,16 +115,30 @@ Key codes (taken from Diplus `res/xml/keydown_preferences.xml`):
   with the engine running. How Diplus gets past this is unknown.
 * Using `BOOT_COMPLETED` alone to auto-start.
 
-## Open problem: wheel keys after the car wakes
+## Wheel keys after the car wakes
 
-After switching the car off and on, DiPlay shows "Wheel key service: allowed, starting…": the service is enabled
-in settings but the system doesn't bind it again until DiPlay is force-stopped and reopened. Auto-start
-(`CarWake`) runs from that service, so it stops too. 0.2.22 doesn't change `WheelKeyService`. Next step: read a
-DiPlay report taken in that state. v25 adds a repair on car Bluetooth (`CarWake.onBluetooth`, hooked into
-`PhoneBluetoothReceiver`, a manifest receiver): if the service is allowed but not connected and CarPlay isn't
-running, it re-toggles the service in `enabled_accessibility_services` over ADB, and if that doesn't bind it
-within 3 s it runs `am force-stop` + `am start` detached in the ADB shell (the user's manual fix, and what Diplus
-does). The outcome shows as "Last car start: …" in Car controls. *(Built, not yet confirmed.)*
+After switching the car off and on, DiPlay could show "Wheel key service: allowed, starting…" (report:
+`allowedInSettings=true bound=false lastRestore=attempt=2`): enabled in settings, but the system doesn't bind it
+again until DiPlay is force-stopped and reopened. Auto-start (`CarWake`) runs from that service, so it stopped too.
+
+Diplus solves the same problem with a **watchdog every 5 s** in its always-running `MainService`
+(`com.van.diplus.service.w.d()`): if its service isn't bound, it first adds itself to
+`enabled_accessibility_services`, and if it's still not bound 5 s later it runs
+`am force-stop com.van.diplus; am start -n com.van.diplus/.activity.StartMainServiceActivity` over ADB.
+
+v26 copies that (`CarWake.watch`), started from every entry point (both activities' `onCreate`, `BootReceiver`,
+`PhoneBluetoothReceiver`, `WheelKeyService.onServiceConnected`): stuck ~10 s → re-toggle the service in settings
+over ADB; still stuck ~10 s later → `setsid sh -c 'am force-stop …; am start …'` over ADB, at most once per 10 min.
+An ADB call with no answer (ADB not ready right after a wake) is retried on the next tick. On car Bluetooth it also
+opens DiPlay when CarPlay isn't running. The outcome shows as "Last car start: …" in Car controls.
+*(Built, not yet confirmed.)*
+
+## CarPlay keeps disconnecting: causes found in reports
+
+* "Small-window navi · separate positions" = **Auto**: every Small/Full navi switch reconnects CarPlay (by design),
+  and the cluster flips Full→Small→Full at every start. Set it to Off (or On).
+* Quick menu on **3 fingers**: BYD's three-finger swipe opens its AC panel, CarPlay goes to the background and the
+  session ends. Use 4 fingers.
 
 ## DiPlay 0.2.22 (developer release) adds
 

@@ -1,7 +1,16 @@
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 12:53:18.594283521 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 13:07:44.206465157 +0000
-@@ -97,7 +97,7 @@
++++ project/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali	2026-10-28 14:09:08.394185617 +0000
+@@ -90,6 +90,8 @@
+ 
+     invoke-static {p2, p0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+ 
++    invoke-static {p1}, Lcom/shilapi/xcertplay/CarWake;->watch(Landroid/content/Context;)V
++
+     .line 12
+     invoke-virtual {p2}, Landroid/content/Intent;->getAction()Ljava/lang/String;
+ 
+@@ -97,7 +99,7 @@
  
      const-string p2, "android.intent.action.BOOT_COMPLETED"
  
@@ -12,7 +21,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/BootReceiver.smali project/s
  
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 12:53:19.462607687 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 13:08:31.370024224 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali	2026-10-28 14:09:08.391211457 +0000
 @@ -12383,7 +12383,7 @@
  
      invoke-virtual {v10, v2}, Landroid/widget/FrameLayout;->setElevation(F)V
@@ -57,6 +66,15 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/CarPlayHostActivity.smali pr
      move-object/from16 v2, v21
  
      move-object/from16 v4, v22
+@@ -50688,6 +50709,8 @@
+ .method protected onCreate(Landroid/os/Bundle;)V
+     .locals 7
+ 
++    invoke-static {p0}, Lcom/shilapi/xcertplay/CarWake;->watch(Landroid/content/Context;)V
++
+     .line 853
+     invoke-super {p0, p1}, Landroidx/activity/ComponentActivity;->onCreate(Landroid/os/Bundle;)V
+ 
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	1970-01-01 00:00:00.000000000 +0000
 +++ project/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali	2026-10-28 13:07:44.216697491 +0000
@@ -353,7 +371,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/ClimateShortcut.smali projec
 +.end method
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 12:53:20.275286549 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 13:07:44.225106700 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali	2026-10-28 14:09:08.373438960 +0000
 @@ -18185,6 +18185,9 @@
  
      invoke-direct {p0, p1, v0}, Lcom/shilapi/xcertplay/DiPlayActivity;->renderSections(Landroid/widget/LinearLayout;Ljava/util/Set;)V
@@ -382,7 +400,16 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiPlayActivity.smali project
      return-void
  .end method
  
-@@ -74175,3 +74182,58 @@
+@@ -72756,6 +72763,8 @@
+ .method protected onCreate(Landroid/os/Bundle;)V
+     .locals 8
+ 
++    invoke-static {p0}, Lcom/shilapi/xcertplay/CarWake;->watch(Landroid/content/Context;)V
++
+     .line 377
+     invoke-super {p0, p1}, Landroidx/activity/ComponentActivity;->onCreate(Landroid/os/Bundle;)V
+ 
+@@ -74175,3 +74184,58 @@
  
      return-void
  .end method
