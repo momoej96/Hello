@@ -33,6 +33,9 @@ public final class CarControlsUi {
         DiPlayActivity.diplayNote(a, card,
                 "Choose what each car key does. A single press replaces the key's normal job; with only a double press set, a single press keeps working.");
 
+        String wake = CarWake.lastNote(a);
+        if (wake != null) DiPlayActivity.diplayNote(a, card, "Last car start: " + wake);
+
         serviceRows(a, card);
 
         for (int b = 0; b < CarKeys.BTN_CODE.length; b++) buttonRows(a, card, b);

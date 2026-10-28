@@ -1523,6 +1523,19 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/DiplayUi.smali project/smali
 +    :catch_0
 +    return-void
 +.end method
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/PhoneBluetoothReceiver.smali project/smali_classes3/com/shilapi/xcertplay/PhoneBluetoothReceiver.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/PhoneBluetoothReceiver.smali	2026-10-28 12:53:19.806079179 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/PhoneBluetoothReceiver.smali	2026-10-28 13:27:39.165632446 +0000
+@@ -117,6 +117,9 @@
+ 
+     invoke-static {p2, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+ 
++    # === DiPlay: repair the wheel-key service on car Bluetooth, then open DiPlay ===
++    invoke-static {p1, p2}, Lcom/shilapi/xcertplay/CarWake;->onBluetooth(Landroid/content/Context;Landroid/content/Intent;)V
++
+     .line 16
+     invoke-virtual {p2}, Landroid/content/Intent;->getAction()Ljava/lang/String;
+ 
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 12:53:20.004806132 +0000
 +++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 13:07:44.235498968 +0000

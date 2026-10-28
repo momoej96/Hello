@@ -120,8 +120,11 @@ Key codes (taken from Diplus `res/xml/keydown_preferences.xml`):
 After switching the car off and on, DiPlay shows "Wheel key service: allowed, starting…": the service is enabled
 in settings but the system doesn't bind it again until DiPlay is force-stopped and reopened. Auto-start
 (`CarWake`) runs from that service, so it stops too. 0.2.22 doesn't change `WheelKeyService`. Next step: read a
-DiPlay report taken in that state before choosing a fix (planned fix: re-toggle the service in
-`enabled_accessibility_services` over ADB when it is allowed but not connected).
+DiPlay report taken in that state. v25 adds a repair on car Bluetooth (`CarWake.onBluetooth`, hooked into
+`PhoneBluetoothReceiver`, a manifest receiver): if the service is allowed but not connected and CarPlay isn't
+running, it re-toggles the service in `enabled_accessibility_services` over ADB, and if that doesn't bind it
+within 3 s it runs `am force-stop` + `am start` detached in the ADB shell (the user's manual fix, and what Diplus
+does). The outcome shows as "Last car start: …" in Car controls. *(Built, not yet confirmed.)*
 
 ## DiPlay 0.2.22 (developer release) adds
 
