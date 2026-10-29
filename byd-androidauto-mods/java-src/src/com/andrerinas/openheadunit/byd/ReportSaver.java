@@ -35,6 +35,54 @@ public final class ReportSaver {
 
     /** Replaces DiAuto's own save step. Returns a Uri the share sheet can use. */
     public static Uri save(Context c, Uri destination, String name) throws Exception {
+        lastFailure = "";
+        try {
+            return saveNow(c, destination, name, false);
+        } catch (Throwable t) {
+            if (lastFailure.length() == 0) lastFailure = String.valueOf(t);
+            Log.w(TAG, "report not saved: " + lastFailure, t);
+            throw new java.io.IOException(lastFailure);
+        }
+    }
+
+    /** DiAuto's "could not save" text, followed by what actually failed. */
+    public static String withFailure(String text) {
+        String f = lastFailure;
+        return f == null || f.length() == 0 ? text : text + "\n\n" + f;
+    }
+
+    /** "Choose save location" with no file picker on the unit: save without one instead. */
+    public static void noPicker(final Context context) {
+        final Context c = context.getApplicationContext();
+        CarActions.toast(c, "No file picker on this unit, saving the report without one…");
+        new Thread(new Runnable() {
+            public void run() {
+                String name = "DiAuto-report-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",
+                        java.util.Locale.US).format(new java.util.Date()) + ".txt";
+                try {
+                    saveNow(c, null, name, true);
+                    longToast(c, "Report saved: " + where + name);
+                } catch (Throwable t) {
+                    longToast(c, "Report not saved: " + (lastFailure.length() > 0 ? lastFailure : String.valueOf(t)));
+                }
+            }
+        }, "DiAuto-Report").start();
+    }
+
+    private static volatile String lastFailure = "";
+
+    private static void longToast(final Context c, final String text) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+            public void run() {
+                try {
+                    android.widget.Toast.makeText(c, text, android.widget.Toast.LENGTH_LONG).show();
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
+    private static Uri saveNow(Context c, Uri destination, String name, boolean appFolderFirst) throws Exception {
         String report = build(c);
         StringBuilder failures = new StringBuilder();
 
@@ -45,34 +93,51 @@ public final class ReportSaver {
         }
 
         // 1) DiAuto's own way: MediaStore Downloads/DiAuto.
-        if (Build.VERSION.SDK_INT >= 29) {
+        if (!appFolderFirst && Build.VERSION.SDK_INT >= 29) {
             try {
                 Uri uri = g1.w.a.a(c.getContentResolver(), name, report);
                 where = "Downloads/DiAuto/";
                 return uri;
             } catch (Throwable t) {
-                failures.append("MediaStore: ").append(t).append('\n');
+                failures.append("Downloads (MediaStore): ").append(t).append('\n');
                 Log.w(TAG, "MediaStore save failed", t);
             }
         }
 
         // 2) Straight into /sdcard/Download/DiAuto (needs storage permission).
         File pub = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DiAuto");
-        try {
-            File f = write(pub, name, report);
-            where = pub.getAbsolutePath() + "/";
-            return Uri.fromFile(f);
-        } catch (Throwable t) {
-            failures.append("Download folder: ").append(t).append('\n');
+        if (!appFolderFirst) {
+            try {
+                File f = write(pub, name, report);
+                where = pub.getAbsolutePath() + "/";
+                return Uri.fromFile(f);
+            } catch (Throwable t) {
+                failures.append("Download folder: ").append(t).append('\n');
+            }
         }
 
-        // 3) DiAuto's own external folder: always writable, readable by file managers and adb pull.
-        File ext = c.getExternalFilesDir(null);
-        File dir = ext != null ? new File(ext, "reports") : new File(c.getFilesDir(), "reports");
-        File f = write(dir, name, report + "\n\n===== Save attempts =====\n" + failures);
-        where = dir.getAbsolutePath() + "/";
-        copyOverAdb(c, f, pub, name);
-        return shareUri(c, f);
+        // 3) DiAuto's own external folder: readable by file managers and adb pull.
+        //    4) Its private folder as a last resort (adb / run-as only).
+        File ext = null;
+        try {
+            ext = c.getExternalFilesDir(null);
+        } catch (Throwable t) {
+            failures.append("App folder: ").append(t).append('\n');
+        }
+        File[] dirs = {ext != null ? new File(ext, "reports") : null, new File(c.getFilesDir(), "reports")};
+        for (File dir : dirs) {
+            if (dir == null) continue;
+            try {
+                File f = write(dir, name, report + "\n\n===== Save attempts =====\n" + failures);
+                where = dir.getAbsolutePath() + "/";
+                copyOverAdb(c, f, pub, name);
+                return shareUri(c, f);
+            } catch (Throwable t) {
+                failures.append(dir.getAbsolutePath()).append(": ").append(t).append('\n');
+            }
+        }
+        lastFailure = failures.toString().trim();
+        throw new java.io.IOException(lastFailure);
     }
 
     private static File write(File dir, String name, String text) throws Exception {

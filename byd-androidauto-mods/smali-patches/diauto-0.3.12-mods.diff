@@ -199,7 +199,7 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export
      :goto_1
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali
 --- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-28 11:35:33.556062361 +0000
-+++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 05:53:48.976659369 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 05:59:54.207597924 +0000
 @@ -779,7 +779,9 @@
      .line 175
      .line 176
@@ -211,6 +211,66 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export
  
      .line 178
      .line 179
+@@ -950,6 +952,10 @@
+     .line 263
+     move-result-object v1
+ 
++    invoke-static {v1}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->withFailure(Ljava/lang/String;)Ljava/lang/String;
++
++    move-result-object v1
++
+     .line 264
+     invoke-virtual {p1, v1}, Lb4/b;->K(Ljava/lang/CharSequence;)Lb4/b;
+ 
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-28 11:35:33.556146387 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-29 05:59:54.207143565 +0000
+@@ -176,44 +176,12 @@
+     .line 34
+     if-eqz v0, :cond_0
+ 
+-    .line 35
+-    .line 36
+     invoke-virtual {p0}, Landroidx/fragment/app/Fragment;->requireContext()Landroid/content/Context;
+ 
+-    .line 37
+-    .line 38
+-    .line 39
+     move-result-object v0
+ 
+-    .line 40
+-    sget v1, Lu0/s;->a2:I
++    invoke-static {v0}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->noPicker(Landroid/content/Context;)V
+ 
+-    .line 41
+-    .line 42
+-    invoke-virtual {p0, v1}, Landroidx/fragment/app/Fragment;->getString(I)Ljava/lang/String;
+-
+-    .line 43
+-    .line 44
+-    .line 45
+-    move-result-object v1
+-
+-    .line 46
+-    const/4 v2, 0x1
+-
+-    .line 47
+-    invoke-static {v0, v1, v2}, Landroid/widget/Toast;->makeText(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;
+-
+-    .line 48
+-    .line 49
+-    .line 50
+-    move-result-object v0
+-
+-    .line 51
+-    invoke-virtual {v0}, Landroid/widget/Toast;->show()V
+-
+-    .line 52
+-    .line 53
+-    .line 54
+     :cond_0
+     return-void
+ .end method
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
 --- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:35:33.575391979 +0000
 +++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:36:01.371129058 +0000

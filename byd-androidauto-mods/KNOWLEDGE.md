@@ -5,7 +5,8 @@ head-unit app). Read `byd-carplay-mods/KNOWLEDGE.md` first: the car facts (keys,
 sleep and wake) apply here unchanged. The engine water temperature gauge was left out on purpose.
 
 Builds: **mod1** (`versionCode 1001`) car controls; **mod2** (`versionCode 1002`, `0.3.12-mod2`) adds the
-diagnostic-report fix. *Neither tested in the car yet.*
+diagnostic-report fix; **mod3** (`1003`) handles "Choose save location" without a picker and shows why a save
+failed. *Not tested in the car yet.*
 
 ## The app
 
@@ -57,6 +58,13 @@ The report gains a "BYD car controls" section (firmware, service state, ADB, per
 the app's own logcat. When the report has to fall back to steps 3 or 4, the failures from the earlier steps are
 appended to it. The "Report saved" dialog shows the real folder (`ReportSaver.wherePrefix`). If DiAuto's own
 report builder (`g1.z.a`) throws, the error text is saved in its place.
+
+In the car (mod2 photo), the unit showed DiAuto's own toast "No file picker is available". That toast comes from
+`chooseLocation`, which is reached either from the button or from the "Could not save" dialog. mod3 changes two
+things:
+* `chooseLocation`: when the picker is missing, it calls `ReportSaver.noPicker`, which saves straight to the app
+  folder and shows the path in a long toast.
+* The "Could not save the report" dialog now appends what each save attempt hit (`ReportSaver.withFailure`).
 
 ## Smali changes (`smali-patches/diauto-0.3.12-mods.diff`)
 
