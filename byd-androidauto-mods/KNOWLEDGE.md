@@ -85,6 +85,11 @@ things:
   (`10.207.103.248`) while it hosts the Wi-Fi Direct group, so one radio serves both. On Android 9 the group can't
   be moved to 5 GHz. The fix is configuration: make the car forget or disconnect that Wi-Fi network, or use DiAuto's
   hotspot mode.
+* Throughput numbers from the session: in every 5 s window `fed` equals `rendered`, the decoder's input wait is
+  tiny, and nothing is dropped, so decoding is never the bottleneck. Frames arrive in bursts (up to 54 fps) and
+  then nothing for 5 to 11 s. The AudioTrack underruns fall in the same gaps. Both stalls have one cause: the
+  link from the phone. A smaller, separate loss sits in the display: in one window the decoder produced 85 frames
+  and the TextureView showed 23. Recommended settings: View mode SurfaceView, FPS limit 30.
 * The file that came back is a raw logcat, without DiAuto's report header or the BYD section.
 
 ## Smali changes (`smali-patches/diauto-0.3.12-mods.diff`)
