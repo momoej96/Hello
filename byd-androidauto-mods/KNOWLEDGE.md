@@ -10,7 +10,7 @@ failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting 
 the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
 WiFi Direct group to 2.4 GHz channel 6; **mod7** (`1007`) is WiFi Direct only: the group follows the car's Wi-Fi
 channel and is recreated on every join failure, and the app starts with the car; **mod8** (`1008`) connects over
-the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback. *Not tested in the car yet.*
+the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. *mod9 not tested in the car yet.*
 
 ## The app
 
@@ -238,3 +238,41 @@ to keep them.
 2. Turn on the wheel key service. Check that the keys arrive, both while Android Auto is showing and while it isn't.
 3. Check that the AC actions work in-process once `BYDAUTO_AC_COMMON` is granted.
 4. Check that DiAuto comes back after the car sleeps and wakes.
+
+## mod9: only start with the car and connect by itself, 2026-10-29
+
+The user asked for no extra features: the app should start with the car and connect over Wi-Fi without touching
+the phone (a hotspot that the app switches on by itself is fine; the phone's own hotspot, even through a Samsung
+routine, is not). mod8 was tried in the car and the phone did not connect; no report could be taken.
+
+Removed: the "BYD car controls" page and its Settings row (`SettingsFragment` hunks), wheel-key actions (`CarKeys`),
+AC and climate screen (`CarAc`, `CarAcShell`, `PermissiveContext`), the audio/video buffer (`AvBuffer`, the `c1.s`
+and `decoder.g` hunks, `tools/buffer-sim`), the `BYDAUTO_AC_*` permissions. `CarActions` keeps only prefs, toast and
+ADB. The prefs file stays `byd_car_controls` so values from earlier builds carry over.
+
+Kept: the connection fixes (mod4 credential-refresh loop, mod5 poke guard and Bluetooth-settings crash, mod7
+WiFi Direct channel and recreate-on-join-failure, mod8 local-only network), the report saver, `LocalAdb`.
+
+Changed:
+* `WheelKeyService` keeps its class name (an already enabled service stays enabled after the update) but no longer
+  filters keys (`flagRequestFilterKeyEvents` removed from `res/xml/byd_wheel_keys.xml`); its label is now
+  "DiAuto start with the car".
+* `CarWake`: besides the fresh-process case, the service registers a `SCREEN_ON`/`SCREEN_OFF` receiver and runs
+  DiAuto's boot receiver (`QUICKBOOT_POWERON`) when the screen comes on after at least 60 s off and no Android Auto
+  session is up. This covers a process that survived the car's sleep.
+* `CarDefaults`: every start clears `lohs_failed` and sets transport 1 (head unit hotspot = the car's local-only
+  network). Before, three refusals switched to WiFi Direct for good, and WiFi Direct never worked without the
+  phone's hotspot, so a single bad start could have left mod8 on the path that cannot work.
+* `StatusLine` (new): a small panel at the bottom of DiAuto's home screen (`MainActivity` only, never over
+  Android Auto) with "Start with the car: on/OFF" and the last 8 connection lines. It is fed by a hook at the top
+  of `g1.a.s(int, String)`, DiAuto's single log writer (INFO and above, filtered by topic words such as NativeAA,
+  handshake, p2p, hotspot, bluetooth, credential), and by `StatusLine.note` from the mod's classes. The first time
+  the home screen opens with the service off, it switches the service on over ADB and shows the result.
+
+Not done, on purpose: restarting the car's Bluetooth when the phone stops trying (the user declined).
+
+Possible reason mod8 did not connect (unconfirmed): after many failures the phone stops opening the Bluetooth
+channel until its Bluetooth is toggled (fourth log), and `lohs_failed` may have moved mod8 to WiFi Direct.
+
+Checks: `tools/verify.sh` 71,510 methods, 0 findings; signature `1e08a903…5953` (installs over mod8 without
+uninstalling); `tools/lohs-sim` 18/18 and `tools/p2p-sim` 13/13.

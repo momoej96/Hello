@@ -1,24 +1,20 @@
 diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
---- orig/AndroidManifest.xml	2026-10-28 11:35:34.113160779 +0000
-+++ project/AndroidManifest.xml	2026-10-29 08:12:06.155760050 +0000
-@@ -50,7 +50,10 @@
+--- orig/AndroidManifest.xml	2026-10-29 13:22:59.407096682 +0000
++++ project/AndroidManifest.xml	2026-10-29 13:22:59.776270166 +0000
+@@ -50,7 +50,7 @@
      <permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature"/>
      <uses-permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
      <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
 -    <application android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
-+    <uses-permission android:name="android.permission.BYDAUTO_AC_COMMON"/>
-+    <uses-permission android:name="android.permission.BYDAUTO_AC_GET"/>
-+    <uses-permission android:name="android.permission.BYDAUTO_AC_SET"/>
 +    <application android:requestLegacyExternalStorage="true" android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
          <service android:exported="false" android:name="com.andrerinas.openheadunit.aap.DummyVpnService" android:permission="android.permission.BIND_VPN_SERVICE">
              <intent-filter>
                  <action android:name="android.net.VpnService"/>
-@@ -222,5 +225,13 @@
+@@ -222,5 +222,12 @@
              </intent-filter>
          </receiver>
          <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true"/>
 +        <activity android:excludeFromRecents="true" android:exported="false" android:name="com.andrerinas.openheadunit.byd.HotspotActivity" android:noHistory="true" android:taskAffinity="" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
-+        <activity android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:exported="false" android:label="@string/byd_car_controls" android:name="com.andrerinas.openheadunit.byd.CarControlsActivity" android:theme="@style/AppTheme"/>
 +        <service android:exported="true" android:label="@string/byd_wheel_keys" android:name="com.andrerinas.openheadunit.byd.WheelKeyService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
 +            <intent-filter>
 +                <action android:name="android.accessibilityservice.AccessibilityService"/>
@@ -29,55 +25,29 @@ diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
  </manifest>
 \ No newline at end of file
 diff -ruN orig/res/values/strings.xml project/res/values/strings.xml
---- orig/res/values/strings.xml	2026-10-28 11:35:34.086765073 +0000
-+++ project/res/values/strings.xml	2026-10-28 11:35:48.967838605 +0000
-@@ -1053,4 +1053,7 @@
+--- orig/res/values/strings.xml	2026-10-29 13:22:59.398512292 +0000
++++ project/res/values/strings.xml	2026-10-29 13:22:59.776612775 +0000
+@@ -1053,4 +1053,6 @@
      <string name="wireless_mode_helper">Wireless Helper</string>
      <string name="wireless_mode_native">Native</string>
      <string name="wireless_mode_server">Headunit Server</string>
-+    <string name="byd_car_controls">BYD car controls</string>
-+    <string name="byd_wheel_keys">DiAuto wheel keys</string>
-+    <string name="byd_wheel_keys_desc">Lets DiAuto see the steering-wheel and console keys so they can run car actions (AC, climate screen), and start DiAuto again when the car wakes.</string>
++    <string name="byd_wheel_keys">DiAuto start with the car</string>
++    <string name="byd_wheel_keys_desc">Starts DiAuto and Android Auto by itself whenever the car wakes up. It reads no keys and no screen content.</string>
  </resources>
 diff -ruN orig/res/xml/byd_wheel_keys.xml project/res/xml/byd_wheel_keys.xml
 --- orig/res/xml/byd_wheel_keys.xml	1970-01-01 00:00:00.000000000 +0000
-+++ project/res/xml/byd_wheel_keys.xml	2026-10-28 11:35:48.967986162 +0000
-@@ -0,0 +1,9 @@
++++ project/res/xml/byd_wheel_keys.xml	2026-10-29 13:22:59.776898164 +0000
+@@ -0,0 +1,7 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
 +    android:accessibilityEventTypes="typeWindowStateChanged"
 +    android:accessibilityFeedbackType="feedbackGeneric"
-+    android:accessibilityFlags="flagRequestFilterKeyEvents"
-+    android:canRequestFilterKeyEvents="true"
 +    android:canRetrieveWindowContent="false"
 +    android:description="@string/byd_wheel_keys_desc"
 +    android:notificationTimeout="100" />
-diff -ruN orig/smali/c1/s.smali project/smali/c1/s.smali
---- orig/smali/c1/s.smali	2026-10-28 11:35:33.452265671 +0000
-+++ project/smali/c1/s.smali	2026-10-29 06:23:55.907093918 +0000
-@@ -1276,6 +1276,10 @@
-     .line 34
-     mul-int v9, v8, p5
- 
-+    invoke-static {v9, p2, v0}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->audioBufferSize(III)I
-+
-+    move-result v9
-+
-     .line 35
-     .line 36
-     goto :goto_2
-@@ -2876,7 +2880,7 @@
- 
-     .line 27
-     .line 28
--    invoke-virtual {v0, p1, v1, p2}, Landroid/media/AudioTrack;->write([BII)I
-+    invoke-static {v0, p1, p2}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->audioWrite(Landroid/media/AudioTrack;[BI)I
- 
-     .line 29
-     .line 30
 diff -ruN orig/smali/com/andrerinas/openheadunit/App.smali project/smali/com/andrerinas/openheadunit/App.smali
---- orig/smali/com/andrerinas/openheadunit/App.smali	2026-10-28 11:35:33.456877292 +0000
-+++ project/smali/com/andrerinas/openheadunit/App.smali	2026-10-29 06:23:55.908771312 +0000
+--- orig/smali/com/andrerinas/openheadunit/App.smali	2026-10-29 13:22:59.127804576 +0000
++++ project/smali/com/andrerinas/openheadunit/App.smali	2026-10-29 13:22:59.777012138 +0000
 @@ -277,6 +277,8 @@
      .line 1
      invoke-super {p0}, Landroid/app/Application;->onCreate()V
@@ -88,8 +58,8 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/App.smali project/smali/com/and
      .line 3
      .line 4
 diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/smali/com/andrerinas/openheadunit/aap/AapService.smali
---- orig/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-28 11:35:33.465943761 +0000
-+++ project/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 08:12:06.154383738 +0000
+--- orig/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 13:22:59.132255381 +0000
++++ project/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 13:22:59.777965340 +0000
 @@ -4127,6 +4127,8 @@
      .line 359
      invoke-virtual {p1, v0}, Lg1/a;->n(Ljava/lang/String;)V
@@ -142,31 +112,9 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/sm
      if-eqz p1, :cond_1e
  
      .line 610
-diff -ruN orig/smali/com/andrerinas/openheadunit/decoder/g.smali project/smali/com/andrerinas/openheadunit/decoder/g.smali
---- orig/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-28 11:35:33.548611177 +0000
-+++ project/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-29 06:23:55.908261963 +0000
-@@ -4905,6 +4905,18 @@
- .method private static final X(Lc1/n0;Lcom/andrerinas/openheadunit/decoder/g;Landroid/media/MediaCodec;I)Z
-     .locals 3
- 
-+    invoke-static {p2, p3}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->videoRelease(Landroid/media/MediaCodec;I)I
-+
-+    move-result v0
-+
-+    if-ltz v0, :byd_off
-+
-+    const/4 v0, 0x1
-+
-+    return v0
-+
-+    :byd_off
-+
-     .line 1
-     const/4 v0, 0x1
- 
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali
---- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-28 11:35:33.557167940 +0000
-+++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 05:53:48.975854544 +0000
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 13:22:59.172366570 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 13:22:59.779662414 +0000
 @@ -210,137 +210,20 @@
      .line 20
      .line 21
@@ -311,8 +259,8 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export
      .line 83
      :goto_1
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali
---- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-28 11:35:33.556062361 +0000
-+++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 05:59:54.207597924 +0000
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 13:22:59.172079600 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 13:22:59.779805999 +0000
 @@ -779,7 +779,9 @@
      .line 175
      .line 176
@@ -336,8 +284,8 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export
      invoke-virtual {p1, v1}, Lb4/b;->K(Ljava/lang/CharSequence;)Lb4/b;
  
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali
---- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-28 11:35:33.556146387 +0000
-+++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-29 05:59:54.207143565 +0000
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-29 13:22:59.172333911 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-29 13:22:59.780015201 +0000
 @@ -176,44 +176,12 @@
      .line 34
      if-eqz v0, :cond_0
@@ -385,8 +333,8 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali 
      return-void
  .end method
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali
---- orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-28 11:35:33.557085593 +0000
-+++ project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-29 06:33:34.719442527 +0000
+--- orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-29 13:22:59.172715008 +0000
++++ project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-29 13:22:59.780187197 +0000
 @@ -556,6 +556,10 @@
  
      .line 12
@@ -398,43 +346,21 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali project
      new-instance v0, Landroid/content/Intent;
  
      .line 13
-diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
---- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:35:33.575391979 +0000
-+++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:36:01.371129058 +0000
-@@ -344,7 +344,7 @@
+diff -ruN orig/smali/g1/a.smali project/smali/g1/a.smali
+--- orig/smali/g1/a.smali	2026-10-29 13:22:59.229095495 +0000
++++ project/smali/g1/a.smali	2026-10-29 13:23:06.768438218 +0000
+@@ -811,6 +811,8 @@
+ .method private final s(ILjava/lang/String;)V
+     .locals 2
  
-     .line 17
-     .line 18
--    const/16 v0, 0xf
-+    const/16 v0, 0x10
- 
-     .line 19
-     .line 20
-@@ -522,6 +522,12 @@
-     .line 102
-     aput-object v1, v0, v2
- 
-+    const-string v1, "bydCarControls"
++    invoke-static {p1, p2}, Lcom/andrerinas/openheadunit/byd/StatusLine;->log(ILjava/lang/String;)V
 +
-+    const/16 v2, 0xf
-+
-+    aput-object v1, v0, v2
-+
-     .line 103
-     .line 104
-     invoke-static {v0}, Lb5/k0;->g([Ljava/lang/Object;)Ljava/util/Set;
-@@ -33702,6 +33708,8 @@
- 
-     invoke-interface {v0, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
- 
-+    invoke-static {v0, v1}, Lcom/andrerinas/openheadunit/byd/SettingsHook;->addEntry(Ljava/util/List;Ljava/lang/Object;)V
-+
-     .line 362
-     new-instance v29, Lcom/andrerinas/openheadunit/main/settings/SettingItem$ToggleSettingEntry;
+     .line 1
+     sget-object v0, Lg1/y;->a:Lg1/y;
  
 diff -ruN orig/smali/y0/i0$e.smali project/smali/y0/i0$e.smali
---- orig/smali/y0/i0$e.smali	2026-10-28 11:35:33.823427813 +0000
-+++ project/smali/y0/i0$e.smali	2026-10-29 07:27:59.089790671 +0000
+--- orig/smali/y0/i0$e.smali	2026-10-29 13:22:59.288287829 +0000
++++ project/smali/y0/i0$e.smali	2026-10-29 13:22:59.780582900 +0000
 @@ -1096,6 +1096,8 @@
  
      invoke-virtual {v0, v1}, Lg1/a;->w(Ljava/lang/String;)V
@@ -445,8 +371,8 @@ diff -ruN orig/smali/y0/i0$e.smali project/smali/y0/i0$e.smali
      invoke-virtual {v4}, Lv0/j4$c;->b()Z
  
 diff -ruN orig/smali/y0/l2.smali project/smali/y0/l2.smali
---- orig/smali/y0/l2.smali	2026-10-28 11:35:33.827077605 +0000
-+++ project/smali/y0/l2.smali	2026-10-29 07:27:59.085707246 +0000
+--- orig/smali/y0/l2.smali	2026-10-29 13:22:59.289915051 +0000
++++ project/smali/y0/l2.smali	2026-10-29 13:22:59.781269269 +0000
 @@ -5372,7 +5372,7 @@
  
      .line 13

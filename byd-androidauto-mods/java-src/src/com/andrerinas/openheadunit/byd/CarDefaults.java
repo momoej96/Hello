@@ -9,8 +9,9 @@ import android.util.Log;
  * Settings for the BYD Qin Plus DM-i (MT6765, Android 9): connect over Wi-Fi by itself, starting with the car.
  *
  * Every start: the Native AA transport is the head unit hotspot, which LocalHotspot fills with the
- * car's own local-only network (WiFi Direct only if this unit refused that network), and the
- * "5 GHz on Android 9" requests are off (the unit has no 5 GHz).
+ * car's own local-only network, and the "5 GHz on Android 9" requests are off (the unit has no
+ * 5 GHz). A fallback to WiFi Direct after the car refused the local network lasts until the next
+ * start only, so every start tries the local network first again.
  * Once: SurfaceView (TextureView showed 23 of 85 decoded frames), 30 fps, and auto-start on
  * boot / screen-on, so getting in the car is enough.
  */
@@ -23,12 +24,12 @@ public final class CarDefaults {
 
     /** Called first thing in App.onCreate. */
     public static void apply(Context c) {
+        StatusLine.attach(c);
         try {
-            AvBuffer.load(c);
             SharedPreferences mine = CarActions.prefs(c);
+            mine.edit().putBoolean(LocalHotspot.KEY_FAILED, false).apply();
             SharedPreferences.Editor s = c.getSharedPreferences("settings", 0).edit();
-            boolean lohsFailed = mine.getBoolean(LocalHotspot.KEY_FAILED, false);
-            s.putInt("native-ap-transport", lohsFailed ? LocalHotspot.TRANSPORT_WIFI_DIRECT : LocalHotspot.TRANSPORT_HOTSPOT)
+            s.putInt("native-ap-transport", LocalHotspot.TRANSPORT_HOTSPOT)
                     .putBoolean("p2p-legacy-5ghz", false)
                     .putBoolean("p2p-legacy-5ghz-upper", false);
             if (!mine.getBoolean(DONE_V1, false)) {

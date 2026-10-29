@@ -191,7 +191,6 @@ public final class ReportSaver {
             b.append("ADB: ").append(LocalAdb.wasAllowed(c) ? "allowed before" : "never connected")
                     .append(", port ").append(CarActions.prefs(c).getInt("adb_port", LocalAdb.PORTS[0]))
                     .append(", last error: ").append(LocalAdb.lastError()).append('\n');
-            b.append("Car control: ").append(CarActions.acStatus(c)).append('\n');
             b.append("Settings:\n");
             for (java.util.Map.Entry<String, ?> e : CarActions.prefs(c).getAll().entrySet()) {
                 b.append("  ").append(e.getKey()).append(" = ").append(e.getValue()).append('\n');

@@ -3,13 +3,14 @@ package com.andrerinas.openheadunit.byd;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.content.Intent;
-import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 
 /**
- * Sees the steering-wheel and console keys before any app does (flagRequestFilterKeyEvents),
- * so a key can run a car action wherever the driver is. The system re-binds it after the car
- * wakes, which also lets DiAuto start again with the car (CarWake).
+ * Only there to start DiAuto with the car. BYD units sleep instead of switching off, and the
+ * system re-binds an enabled accessibility service when the car wakes (starting the process if
+ * the car killed it), so this is the one thing that reliably runs after a wake (CarWake).
+ * It reads no keys and no screen content. The class name is kept from the earlier builds, so a
+ * service the driver already switched on stays on after the update.
  */
 public final class WheelKeyService extends AccessibilityService {
     private static volatile WheelKeyService current;
@@ -25,12 +26,8 @@ public final class WheelKeyService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         current = this;
+        StatusLine.note("Start with the car: on");
         CarWake.attach(this);
-    }
-
-    @Override
-    protected boolean onKeyEvent(KeyEvent event) {
-        return CarKeys.onKey(this, event);
     }
 
     @Override
@@ -44,12 +41,14 @@ public final class WheelKeyService extends AccessibilityService {
     @Override
     public boolean onUnbind(Intent intent) {
         current = null;
+        CarWake.detach(this);
         return super.onUnbind(intent);
     }
 
     @Override
     public void onDestroy() {
         current = null;
+        CarWake.detach(this);
         super.onDestroy();
     }
 
