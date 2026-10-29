@@ -19,6 +19,7 @@ public final class CarDefaults {
     private static final String TAG = "DiAuto-CarDefaults";
     private static final String DONE_V1 = "car_defaults_v1";
     private static final String DONE_V2 = "car_defaults_v2";
+    private static final String DONE_V3 = "car_defaults_v3";
 
     private CarDefaults() {}
 
@@ -36,6 +37,13 @@ public final class CarDefaults {
                 s.putInt("view-mode", 0).putInt("fps-limit", 30);
             }
             s.apply();
+            if (!mine.getBoolean(DONE_V3, false)) {
+                // mod10, once: the values chosen from the car's laggy session (link-limited 2.4 GHz).
+                TuningActivity.applyRecommended(c);
+                mine.edit().putBoolean(DONE_V3, true).apply();
+                Log.i(TAG, "applied: H.265, 1280x720, 30 fps, SurfaceView, low latency, buffers");
+            }
+            AvBuffer.load(c);
             if (!mine.getBoolean(DONE_V2, false)) {
                 autoStart(c);
                 mine.edit().putBoolean(DONE_V1, true).putBoolean(DONE_V2, true).apply();

@@ -1,0 +1,2 @@
+package android.util;
+public class Log { public static int i(String t,String m){ if (System.getenv("V")!=null) System.out.println("  [log] "+m); return 0;} public static int w(String t,String m,Throwable e){System.out.println("W "+m+" "+e);return 0;} public static int w(String t,String m){return 0;} }

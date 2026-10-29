@@ -10,7 +10,7 @@ failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting 
 the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
 WiFi Direct group to 2.4 GHz channel 6; **mod7** (`1007`) is WiFi Direct only: the group follows the car's Wi-Fi
 channel and is recreated on every join failure, and the app starts with the car; **mod8** (`1008`) connects over
-the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. *mod9 not tested in the car yet.*
+the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. mod9 connected in the car without a hotspot (car's local network) but lagged; **mod10** (`1010`) adds the "Picture & sound" page (video settings, smooth video buffers, DiPlay-style sound adjustments). *mod10 not tested in the car yet.*
 
 ## The app
 
@@ -276,3 +276,42 @@ channel until its Bluetooth is toggled (fourth log), and `lohs_failed` may have 
 
 Checks: `tools/verify.sh` 71,510 methods, 0 findings; signature `1e08a903…5953` (installs over mod8 without
 uninstalling); `tools/lohs-sim` 18/18 and `tools/p2p-sim` 13/13.
+
+## Car report with lag (mod9, 2026-10-29 17:19) and mod10
+
+* mod9 connected over the car's local-only network (`native transport=1`, `status=0`): the start-without-a-hotspot
+  goal works. 6 sessions; the ends were the user leaving the projection, not drops.
+* The lag is the link, not the decoder: `fed` equals `rendered` in every 5 s window, `dropped=0`, decoder input wait
+  20-120 ms. Frames arrive in bursts (40-45 in one window, then 13-16 fps).
+* The first session negotiated `1280x720@30` (24-29 fps); every later one `1280x720@60` (13-22 fps): the FPS limit
+  had been set to 60 and the 2.4 GHz local network (Android 9 gives no 5 GHz) cannot carry it.
+* Start with the car still off: `Wheel key service: off`, ADB is off on this unit (port 5555 does not answer), and
+  DiAuto logged "Overlay permission not granted, disabling auto-start settings". Needs "Display over other apps" and
+  the accessibility service switched on by hand.
+* 800x480 with H.264 was a little smoother but blurry and large. DiPlay is much smoother on the same screen with
+  Smooth video, Direct video output, Low latency decoding and HEVC. Three of the four already exist in DiAuto:
+  `video-codec` "H.265" (MT6765 reports `hasHwHevc=true`), `view-mode` 0 (SurfaceView = direct output) and
+  `debug-video-low-latency` (a hidden debug toggle that sets the vendor keys, MediaTek `vdec-lowlatency`). Smooth
+  video is the mod5 buffer. 1080p is not worth it: the panel is 1280x720 and DiAuto itself warns about it.
+
+mod10:
+* `TuningActivity` "Picture & sound", reached from a row right under "Connection mode" in Settings (General).
+  `SettingsHook.addEntry` is called after that row's `List.add` in `updateSettingsList` (`v0` list, `v1` this) and
+  `pictureAndSound` joins `basicSettingIds` (array 15 → 16). Opening the page finishes `SettingsActivity`, because
+  `SettingsFragment` loads a pending copy of resolution, DPI, codec, view mode and FPS in `onViewCreated` and its
+  Save would write the old values back.
+* Video rows write DiAuto's own prefs (`settings`): `video-codec` (Auto / H.264 / H.265), `resolutionId`
+  (0 auto, 1 480p, 2 720p, 3 1080p), `fps-limit`, `view-mode` (0 Surface, 1 Texture, 2 GLES),
+  `debug-video-low-latency`, `dpi-pixel-density` (0 auto). Changing resolution or FPS clears
+  `video-profile-starvation-cap` (DiAuto's own cap after sessions that rendered nothing).
+* Smooth video: `AvBuffer` is back with its `c1.s` and `decoder.g` hunks (video 0/80/150/250/400 ms, audio
+  0/500/1000/1500/2000/3000 ms). `tools/buffer-sim` is back too (1976 → 16 ms of silence with the 2000 ms audio
+  buffer; video spacing 32±45 → 32±18 ms).
+* Sound (`AudioFx`): equalizer (the device's own bands), bass boost, virtualizer (surround) and loudness, like
+  DiPlay's `AudioEffectsEngine`, but attached to DiAuto's stereo media AudioTrack session from `AvBuffer.audioWrite`,
+  so only Android Auto's music changes. Off by default; values in the mod's prefs (`fx_*`); applied live. The
+  attach is outside the buffer's try block so a failure there never turns the buffer off (the sim caught that).
+* "Use the recommended values" and, once on the first start of mod10 (`car_defaults_v3`): H.265, 1280x720, 30 fps,
+  SurfaceView, low latency on, video 150 ms, audio 2000 ms. DPI and sound are left alone.
+* Checks: `tools/verify.sh` 71,623 methods, 0 findings; signature `1e08a903…5953`; sims 4/4 sections, 13/13, buffer
+  numbers as above.
