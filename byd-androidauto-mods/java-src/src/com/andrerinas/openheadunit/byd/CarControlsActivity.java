@@ -125,10 +125,48 @@ public final class CarControlsActivity extends Activity {
             }
         }, false);
 
+        bufferCard();
+
         LinearLayout wake = card("Start with the car");
         note(wake, "BYD units sleep instead of switching off, so DiAuto rarely gets a boot signal. "
                 + "With the wheel key service on, DiAuto runs its own Auto-start (Settings → Auto-start) "
                 + "every time the car wakes it up.");
+    }
+
+    // ---- audio / video buffer ----
+
+    private static String[] msNames(int[] values) {
+        String[] n = new String[values.length];
+        for (int i = 0; i < values.length; i++) n[i] = values[i] == 0 ? "Off" : values[i] + " ms";
+        return n;
+    }
+
+    private static int indexOf(int[] values, int v) {
+        for (int i = 0; i < values.length; i++) if (values[i] == v) return i;
+        return 0;
+    }
+
+    private void bufferCard() {
+        LinearLayout card = card("Audio & video buffer");
+        note(card, "Like DiPlay's buffer: Android Auto arrives over Wi-Fi in bursts, so DiAuto holds a little back "
+                + "and plays it smoothly. More buffer = fewer cuts, but a later start. Changes apply from the next connection.");
+        final int[] audio = AvBuffer.AUDIO_MS;
+        final int[] video = AvBuffer.VIDEO_MS;
+        choiceRow(card, "Audio buffer (music)", msNames(audio),
+                indexOf(audio, CarActions.prefs(this).getInt(AvBuffer.KEY_AUDIO, AvBuffer.DEFAULT_AUDIO_MS)),
+                new Choice() {
+                    public void chose(int which) {
+                        AvBuffer.set(CarControlsActivity.this, AvBuffer.KEY_AUDIO, audio[which]);
+                    }
+                }, true);
+        choiceRow(card, "Video buffer", msNames(video),
+                indexOf(video, CarActions.prefs(this).getInt(AvBuffer.KEY_VIDEO, AvBuffer.DEFAULT_VIDEO_MS)),
+                new Choice() {
+                    public void chose(int which) {
+                        AvBuffer.set(CarControlsActivity.this, AvBuffer.KEY_VIDEO, video[which]);
+                    }
+                }, true);
+        note(card, "Navigation voice and system sounds are never delayed. The video buffer also delays touches by the same time, so keep it small.");
     }
 
     // ---- setup ----

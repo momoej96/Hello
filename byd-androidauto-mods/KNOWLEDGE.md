@@ -6,8 +6,8 @@ sleep and wake) apply here unchanged. The engine water temperature gauge was lef
 
 Builds: **mod1** (`versionCode 1001`) car controls; **mod2** (`versionCode 1002`, `0.3.12-mod2`) adds the
 diagnostic-report fix; **mod3** (`1003`) handles "Choose save location" without a picker and shows why a save
-failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting for credentials.
-*Not tested in the car yet.*
+failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting for credentials.; **mod5** (`1005`) adds the audio/video buffer,
+the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix. *Not tested in the car yet.*
 
 ## The app
 
@@ -92,6 +92,43 @@ things:
   and the TextureView showed 23. Recommended settings: View mode SurfaceView, FPS limit 30.
 * The file that came back is a raw logcat, without DiAuto's report header or the BYD section.
 
+## Second log (mod4), 2026-10-29
+
+* **Crash:** `HomeFragment.openBluetoothSettings` fell back to `android.settings.SETTINGS`, which BYD doesn't
+  have, so the app died with `ActivityNotFoundException`. **mod5:** `AapGuard.openBluetoothFallback` tries other
+  settings screens and then shows a toast.
+* **The phone failed to join, three times:** `WifiConnectStatus status=-11` came back roughly every 40 s before the
+  fourth try worked. The STA was on 2462 MHz this time. This is the shared-radio problem again.
+* **Opening the app during a connection broke it:** the user tapped the app at 09:27:09, two seconds after the
+  phone's TCP session landed. DiAuto sent a manual poke, logged "listeners are closed - re-arming", re-initialised
+  Wi-Fi mode, released port 5288, and poked the phone. For the next 37 s the phone opened the Bluetooth AA channel
+  **114 times** (about every 0.3 s), and DiAuto aborted each one ("USB/other session already active"). On this
+  MT6765, Bluetooth shares the 2.4 GHz radio with Wi-Fi, and the video dropped to 0 to 4 fps.
+  **mod5:** `AapGuard` tracks the session (`AapService.t0` and `u1`, the WifiLock), and `ACTION_NATIVE_AA_POKE`
+  is skipped while a session is up.
+
+## Audio / video buffer (mod5)
+
+* **Audio** (`c1.s`, media stream only): the AudioTrack is sized for the buffer time plus 1.5 s. Playback pauses
+  whenever the buffer runs dry and resumes once it holds the chosen time again (default 2000 ms). After 300 ms
+  without new data, whatever is buffered plays anyway, so short clips are never held back. Mono guidance and
+  system sounds are untouched.
+* **Video** (`decoder.g.X`): each frame is released with `releaseOutputBuffer(index, time)`, at least the chosen
+  delay ahead (default 150 ms) and spaced at 85 % of the learned average frame interval, so bursts are spread out
+  and the backlog drains. Frames more than delay + 300 ms behind are skipped.
+* **Defaults applied once** (`CarDefaults`, run from `App.onCreate`): `view-mode` 0 (SurfaceView) and `fps-limit` 30.
+* `tools/buffer-sim/run.sh` replays the log's pattern on the desktop:
+
+  | Audio, 1.4 s and 2 s stalls | Silence |
+  |---|---|
+  | DiAuto before (340 ms) | 1977 ms |
+  | 1000 ms | 1017 ms |
+  | 1500 ms | 517 ms |
+  | 2000 ms (default) | 17 ms |
+
+  For video with jittery arrival, frame spacing goes from 32±43 ms to 32±18 ms, with no frames out of order.
+  A 1.4 s stall still shows as a 1.4 s freeze: the video buffer is kept small because it also delays touches.
+
 ## Smali changes (`smali-patches/diauto-0.3.12-mods.diff`)
 
 * `SettingsFragment.updateSettingsList`: one `invoke-static {v0, v1}, SettingsHook->addEntry(List, Object)` after the
@@ -102,6 +139,13 @@ things:
 * `DiagnosticsFragment$export$2`: `"Downloads/DiAuto/"` is replaced by `ReportSaver.wherePrefix()`.
 * `y0.l2.V0` (Wi-Fi Direct credential refresh): `return-void` after `p1(...)` reports the manager stopped is
   replaced by `goto :goto_0`, the existing `m1()` call.
+* `c1.s.i` (AudioTrack size): after `mul-int v9, v8, p5`, calls `AvBuffer.audioBufferSize(v9, rate, channels)`.
+* `c1.s.w`: `AudioTrack.write` is replaced by `AvBuffer.audioWrite(track, data, len)`.
+* `decoder.g.X`: starts with `AvBuffer.videoRelease(codec, index)`; `-1` falls through to DiAuto's own path.
+* `App.onCreate`: calls `CarDefaults.apply(this)` right after `super.onCreate()`.
+* `AapService.t0` / `u1`: call `AapGuard.sessionStarted()` / `sessionEnded()` first.
+* `AapService.onStartCommand`, `ACTION_NATIVE_AA_POKE`: `if AapGuard.skipPoke() goto :goto_e` (the method's return).
+* `HomeFragment.openBluetoothSettings`: the catch block calls `AapGuard.openBluetoothFallback(this)` and returns.
 * Manifest: `requestLegacyExternalStorage="true"`, `BYDAUTO_AC_COMMON/GET/SET`, the activity, and the accessibility service (`res/xml/byd_wheel_keys.xml`
   plus three strings).
 

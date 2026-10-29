@@ -51,6 +51,100 @@ diff -ruN orig/res/xml/byd_wheel_keys.xml project/res/xml/byd_wheel_keys.xml
 +    android:canRetrieveWindowContent="false"
 +    android:description="@string/byd_wheel_keys_desc"
 +    android:notificationTimeout="100" />
+diff -ruN orig/smali/c1/s.smali project/smali/c1/s.smali
+--- orig/smali/c1/s.smali	2026-10-28 11:35:33.452265671 +0000
++++ project/smali/c1/s.smali	2026-10-29 06:23:55.907093918 +0000
+@@ -1276,6 +1276,10 @@
+     .line 34
+     mul-int v9, v8, p5
+ 
++    invoke-static {v9, p2, v0}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->audioBufferSize(III)I
++
++    move-result v9
++
+     .line 35
+     .line 36
+     goto :goto_2
+@@ -2876,7 +2880,7 @@
+ 
+     .line 27
+     .line 28
+-    invoke-virtual {v0, p1, v1, p2}, Landroid/media/AudioTrack;->write([BII)I
++    invoke-static {v0, p1, p2}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->audioWrite(Landroid/media/AudioTrack;[BI)I
+ 
+     .line 29
+     .line 30
+diff -ruN orig/smali/com/andrerinas/openheadunit/App.smali project/smali/com/andrerinas/openheadunit/App.smali
+--- orig/smali/com/andrerinas/openheadunit/App.smali	2026-10-28 11:35:33.456877292 +0000
++++ project/smali/com/andrerinas/openheadunit/App.smali	2026-10-29 06:23:55.908771312 +0000
+@@ -277,6 +277,8 @@
+     .line 1
+     invoke-super {p0}, Landroid/app/Application;->onCreate()V
+ 
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/CarDefaults;->apply(Landroid/content/Context;)V
++
+     .line 2
+     .line 3
+     .line 4
+diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/smali/com/andrerinas/openheadunit/aap/AapService.smali
+--- orig/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-28 11:35:33.465943761 +0000
++++ project/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 06:33:34.717897318 +0000
+@@ -13066,6 +13066,8 @@
+ .method private final t0()V
+     .locals 3
+ 
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/AapGuard;->sessionStarted()V
++
+     .line 1
+     iget-object v0, p0, Lcom/andrerinas/openheadunit/aap/AapService;->M:Landroid/net/wifi/WifiManager$WifiLock;
+ 
+@@ -13773,6 +13775,8 @@
+ .method private final u1()V
+     .locals 2
+ 
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/AapGuard;->sessionEnded()V
++
+     .line 1
+     iget-object v0, p0, Lcom/andrerinas/openheadunit/aap/AapService;->M:Landroid/net/wifi/WifiManager$WifiLock;
+ 
+@@ -21042,6 +21046,15 @@
+ 
+     .line 609
+     :cond_1d
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/AapGuard;->skipPoke()Z
++
++    move-result p2
++
++    if-eqz p2, :byd_poke_ok
++
++    goto/16 :goto_e
++
++    :byd_poke_ok
+     if-eqz p1, :cond_1e
+ 
+     .line 610
+diff -ruN orig/smali/com/andrerinas/openheadunit/decoder/g.smali project/smali/com/andrerinas/openheadunit/decoder/g.smali
+--- orig/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-28 11:35:33.548611177 +0000
++++ project/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-29 06:23:55.908261963 +0000
+@@ -4905,6 +4905,18 @@
+ .method private static final X(Lc1/n0;Lcom/andrerinas/openheadunit/decoder/g;Landroid/media/MediaCodec;I)Z
+     .locals 3
+ 
++    invoke-static {p2, p3}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->videoRelease(Landroid/media/MediaCodec;I)I
++
++    move-result v0
++
++    if-ltz v0, :byd_off
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :byd_off
++
+     .line 1
+     const/4 v0, 0x1
+ 
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali
 --- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-28 11:35:33.557167940 +0000
 +++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 05:53:48.975854544 +0000
@@ -271,6 +365,20 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali 
      :cond_0
      return-void
  .end method
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-28 11:35:33.557085593 +0000
++++ project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-29 06:33:34.719442527 +0000
+@@ -556,6 +556,10 @@
+ 
+     .line 12
+     :catch_0
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/AapGuard;->openBluetoothFallback(Ljava/lang/Object;)V
++
++    return-void
++
+     new-instance v0, Landroid/content/Intent;
+ 
+     .line 13
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
 --- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:35:33.575391979 +0000
 +++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:36:01.371129058 +0000
