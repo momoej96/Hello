@@ -75,7 +75,7 @@ public final class AudioReset {
                 public void onClick(View v) {
                     reset(c);
                     clearAfterHeader(page);
-                    DiplayPopup.maybeAddAudioPage("audio", page, c);
+                    DiplayPopup.audioSliders("audio", page, c);
                 }
             });
             page.addView(b, lp);

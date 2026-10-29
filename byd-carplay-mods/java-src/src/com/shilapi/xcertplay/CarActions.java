@@ -49,7 +49,14 @@ public final class CarActions {
         "Airflow: feet + defrost",
         "Airflow: face + feet + defrost",
         "Airflow: face + defrost",
+        "Music: play / pause",
+        "Music: next song",
+        "Music: previous song",
     };
+
+    /** First index of the media actions and their Android media key codes (85, 87, 88). */
+    private static final int MEDIA_FIRST = 24;
+    private static final int[] MEDIA_KEYS = {85, 87, 88};
 
     /** AC command per action index (null = not an AC command). */
     private static final String[] AC_CMD = {
@@ -119,9 +126,22 @@ public final class CarActions {
             openScreen(c);
         } else if (action == CLIMATE_APP) {
             ClimateShortcut.openApp(c);
+        } else if (action >= MEDIA_FIRST && action < MEDIA_FIRST + MEDIA_KEYS.length) {
+            mediaKey(c, MEDIA_KEYS[action - MEDIA_FIRST]);
         } else if (action > 0 && action < AC_CMD.length && AC_CMD[action] != null) {
             acRun(c, AC_CMD[action]);
         }
+    }
+
+    // ---- music ----
+
+    /** Sends a media key to whatever player is active (CarPlay audio, a music app), like a headset button. */
+    private static void mediaKey(Context c, int code) throws Exception {
+        Object am = c.getSystemService(Context.AUDIO_SERVICE);
+        Method m = am.getClass().getMethod("dispatchMediaKeyEvent", android.view.KeyEvent.class);   // API 19+, hidden from the old compile jar
+        long now = android.os.SystemClock.uptimeMillis();
+        m.invoke(am, new android.view.KeyEvent(now, now, android.view.KeyEvent.ACTION_DOWN, code, 0));
+        m.invoke(am, new android.view.KeyEvent(now, now + 40, android.view.KeyEvent.ACTION_UP, code, 0));
     }
 
     // ---- BYD AC ----

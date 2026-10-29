@@ -224,3 +224,11 @@ carried our key handling and was kept "wanted" by a hook. Now `CarKeysService` (
 accessibility service with its own enable/disable (`CarGuard.setServiceEnabled`, only touches its own entry),
 watchdog and UI toggle. `WheelKeyService` and its Companion are the unmodified originals again, so the original
 wheel-key permission can stay off. The watchdog also re-enables our service when keys are configured.
+
+## v30: Audio page holds two buttons
+
+Settings → Audio → Sound adjustments, and the CarPlay side window's Audio tab, now show "Equalizer" (the
+sliders, built by `DiplayPopup.audioSliders`) and "Car wheel keys" (key actions, service buttons, climate
+capture/app, permission). Both open as full-screen dialogs from `CarPanels`. The old rows in Settings → Vehicle
+and the test toggles (restart after wake, keep-alive, refresh) are gone from the UI; their defaults stay on.
+New key actions: music play/pause, next, previous (media key dispatched through AudioManager).
