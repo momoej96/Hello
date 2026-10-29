@@ -8,7 +8,8 @@ Builds: **mod1** (`versionCode 1001`) car controls; **mod2** (`versionCode 1002`
 diagnostic-report fix; **mod3** (`1003`) handles "Choose save location" without a picker and shows why a save
 failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting for credentials.; **mod5** (`1005`) adds the audio/video buffer,
 the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
-WiFi Direct group to 2.4 GHz channel 6. *Not tested in the car yet.*
+WiFi Direct group to 2.4 GHz channel 6; **mod7** (`1007`) is WiFi Direct only: the group follows the car's Wi-Fi
+channel and is recreated on every join failure, and the app starts with the car. *Not tested in the car yet.*
 
 ## The app
 
@@ -127,6 +128,30 @@ things:
   149). DiAuto then calls `setWifiP2pChannels(0, ch)` before `createGroup`. If the unit refuses, it logs "would not
   take an operating channel" and carries on with the driver's choice.
 
+## Fourth log (mod6) and mod7, 2026-10-29
+
+* 09:46:48: the group came up while the car's Wi-Fi was still unconnected. At 09:47:00 the station joined a
+  network on 2437 MHz. Seven join failures (-11) followed over 5 minutes, because DiAuto's join watchdog kept
+  deferring while a Bluetooth handshake was in flight. At 09:51:49 the watchdog recreated the group, now on the
+  station's channel, and the phone joined in 4 s. The MT6765 radio can't host the group on a different channel
+  from the station.
+* The phone's last Bluetooth attempt was at 10:00:43. After many failures it stops trying until Bluetooth is
+  toggled, so mod6 (10:06) and the hotspot test (10:09) never actually got a phone attempt.
+* Hotspot test: `ap0` came up and was seen, but `Hotspot name saved=false` meant there were no credentials to send.
+* `native-ap-transport` defaults to **1 (head unit hotspot)**. Index 0 is WiFi Direct (`SettingsFragment` lists
+  `Q5` WiFi Direct, then `P5` Hotspot). That default caused the 08:57 stuck loop.
+* **mod7:**
+  * `CarP2p.channel(int, l2)` uses the station's channel when it is connected, otherwise 6. There are no 5 GHz
+    options.
+  * `CarP2p.handshakeFailed` is hooked after NativeAA logs "Handshake failed — ...". On "join failure" it calls
+    `l2.S0` (DiAuto's recover/recreate) right away, inside the ~2 s gap before the phone retries. It holds `G`
+    below DiAuto's give-up count of 4.
+  * When the station's channel changes, the group is recreated after 3 s. Nothing is recreated while a session is
+    up.
+  * `CarDefaults`, on every start: `native-ap-transport=0` and the `p2p-legacy-5ghz*` options off. Once:
+    `auto-start-on-boot` and `auto-start-on-screen-on` (device-protected prefs).
+  * `tools/p2p-sim/run.sh`: 13/13.
+
 ## Audio / video buffer (mod5)
 
 * **Audio** (`c1.s`, media stream only): the AudioTrack is sized for the buffer time plus 1.5 s. Playback pauses
@@ -165,7 +190,8 @@ things:
 * `App.onCreate`: calls `CarDefaults.apply(this)` right after `super.onCreate()`.
 * `AapService.t0` / `u1`: call `AapGuard.sessionStarted()` / `sessionEnded()` first.
 * `AapService.onStartCommand`, `ACTION_NATIVE_AA_POKE`: `if AapGuard.skipPoke() goto :goto_e` (the method's return).
-* `y0.l2` (group creation, API < 29): after `v0.l3.d(IZZ)I`, `CarP2p.channel(v0)` replaces the channel.
+* `y0.l2` (group creation, API < 29): after `v0.l3.d(IZZ)I`, `CarP2p.channel(v0, this)` replaces the channel.
+* `y0.i0$e`: after the "NativeAA: Handshake failed — " log line, `CarP2p.handshakeFailed(message)`.
 * `HomeFragment.openBluetoothSettings`: the catch block calls `AapGuard.openBluetoothFallback(this)` and returns.
 * Manifest: `requestLegacyExternalStorage="true"`, `BYDAUTO_AC_COMMON/GET/SET`, the activity, and the accessibility service (`res/xml/byd_wheel_keys.xml`
   plus three strings).
