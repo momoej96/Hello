@@ -6,7 +6,8 @@ sleep and wake) apply here unchanged. The engine water temperature gauge was lef
 
 Builds: **mod1** (`versionCode 1001`) car controls; **mod2** (`versionCode 1002`, `0.3.12-mod2`) adds the
 diagnostic-report fix; **mod3** (`1003`) handles "Choose save location" without a picker and shows why a save
-failed. *Not tested in the car yet.*
+failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting for credentials.
+*Not tested in the car yet.*
 
 ## The app
 
@@ -66,6 +67,26 @@ things:
   folder and shows the path in a long toast.
 * The "Could not save the report" dialog now appends what each save attempt hit (`ReportSaver.withFailure`).
 
+## Log from the car, 2026-10-29
+
+* The unit in the log is a **BYD Qin Plus DM-i** (`秦Plus DMi`), not the Qin L from the DiPlay notes. It reports
+  **Android 9 (API 28)**, a MediaTek MT6765 (`k65v1_64_bsp`) and a 1280x720 screen. The phone is a Galaxy S24.
+* **Stuck connection (09:01:41 to 09:03:20, the old process):** every 12 s the phone connected over Bluetooth,
+  waited for Wi-Fi credentials (`SSID=<null>`), and the refresh was dropped with
+  `credential refresh abandoned - the manager was stopped while it was in flight`. The phone then reconnected,
+  cancelled the previous handshake, and the cycle repeated until the app was reinstalled. `WifiDirectManager`
+  (`y0.l2`) had been stopped while the Bluetooth handshake server kept accepting connections, and the refresh path
+  (`l2.V0`) gave up instead of starting it again.
+  **mod4:** when `V0` is abandoned, it falls through to `m1()` (startNativeAaQuietHost), which re-arms the
+  manager and creates the group again.
+* **Video and audio stalls once connected:** the decoder was fine (MTK AVC decoder, first frame in about 80 ms).
+  Frames simply stopped arriving: 17 fps, then 0 to 2 fps, `inbound link quiet ... dead=4839ms`, and repeated
+  AudioTrack underruns. DiAuto logged the cause: the unit's `wlan0` is joined to another Wi-Fi network on 2412 MHz
+  (`10.207.103.248`) while it hosts the Wi-Fi Direct group, so one radio serves both. On Android 9 the group can't
+  be moved to 5 GHz. The fix is configuration: make the car forget or disconnect that Wi-Fi network, or use DiAuto's
+  hotspot mode.
+* The file that came back is a raw logcat, without DiAuto's report header or the BYD section.
+
 ## Smali changes (`smali-patches/diauto-0.3.12-mods.diff`)
 
 * `SettingsFragment.updateSettingsList`: one `invoke-static {v0, v1}, SettingsHook->addEntry(List, Object)` after the
@@ -74,6 +95,8 @@ things:
 * `DiagnosticsFragment$export$2$result$1.invokeSuspend`: the build-and-save block is replaced by one
   `ReportSaver.save(context, destination, fileName)` call inside the original try/catch.
 * `DiagnosticsFragment$export$2`: `"Downloads/DiAuto/"` is replaced by `ReportSaver.wherePrefix()`.
+* `y0.l2.V0` (Wi-Fi Direct credential refresh): `return-void` after `p1(...)` reports the manager stopped is
+  replaced by `goto :goto_0`, the existing `m1()` call.
 * Manifest: `requestLegacyExternalStorage="true"`, `BYDAUTO_AC_COMMON/GET/SET`, the activity, and the accessibility service (`res/xml/byd_wheel_keys.xml`
   plus three strings).
 
