@@ -57,42 +57,56 @@ public final class CarControlsUi {
         permissionRows(a, card);
     }
 
-    // ---- wheel-key service ----
+    // ---- car keys service (separate from DiPlay's original "DiPlay wheel keys" service) ----
+
+    private static String serviceLabel(Context c) {
+        boolean listed = CarGuard.enabledInSettings(c);
+        boolean bound = CarKeysService.connected();
+        String state = bound ? "on ✓" : (listed ? "starting… (allowed, not connected yet)" : "off");
+        return "Car keys service: " + state + "\nIt works on its own: DiPlay's original wheel key permission can stay off.";
+    }
 
     private static void serviceRows(final DiPlayActivity a, LinearLayout card) {
-        boolean running = false;
-        try {
-            running = WheelKeyService.Companion.connected();
-        } catch (Throwable ignored) {
-        }
-        if (running) return;
-        final TextView status = DiPlayActivity.diplayNote(a, card,
-                "Wheel key service: off. Turn it on so DiPlay can see the wheel keys.");
-        DiPlayActivity.diplayButton(a, card, "Turn on wheel key service", new Function0() {
+        final TextView status = DiPlayActivity.diplayNote(a, card, serviceLabel(a));
+        DiPlayActivity.toggle$default(a, card, "Car keys service",
+                "The service that sees the car keys. Separate from the \"DiPlay wheel keys\" service used for Siri and media keys.",
+                CarGuard.serviceWanted(a), false,
+                new Function1() {
+                    public Object invoke(Object p) {
+                        final boolean on = Boolean.TRUE.equals(p);
+                        CarActions.prefs(a).edit().putBoolean(CarGuard.KEY_SERVICE_ON, on).apply();
+                        final Context app = a.getApplicationContext();
+                        if (status != null) status.setText(on ? "Car keys service: turning on…" : "Car keys service: turning off…");
+                        new Thread(new Runnable() {
+                            public void run() {
+                                CarGuard.setServiceEnabled(app, on);
+                                MAIN.postDelayed(new Runnable() {
+                                    public void run() {
+                                        if (status != null) status.setText(serviceLabel(app));
+                                    }
+                                }, 1500);
+                            }
+                        }, "DiPlay-CarKeysToggle").start();
+                        return kotlin.Unit.INSTANCE;
+                    }
+                }, 0x10, null);
+        DiPlayActivity.diplayButton(a, card, "Turn on car keys service", new Function0() {
             public Object invoke() {
-                status.setText("Wheel key service: turning on…");
+                if (status != null) status.setText("Car keys service: turning on…");
+                CarActions.prefs(a).edit().putBoolean(CarGuard.KEY_SERVICE_ON, true).apply();
                 final Context app = a.getApplicationContext();
                 new Thread(new Runnable() {
                     public void run() {
-                        Object r = null;
-                        try {
-                            r = WheelKeyService.Companion.enableOverAdb(app, true);
-                        } catch (Throwable ignored) {
-                        }
-                        final String access = String.valueOf(r);
+                        final boolean done = CarGuard.setServiceEnabled(app, true);
                         MAIN.postDelayed(new Runnable() {
                             public void run() {
-                                boolean on = false;
-                                try {
-                                    on = WheelKeyService.Companion.connected();
-                                } catch (Throwable ignored) {
-                                }
-                                status.setText(on ? "Wheel key service: on ✓"
-                                        : "Wheel key service: not on yet (ADB: " + access + "). Allow the ADB prompt, then try again.");
+                                if (status == null) return;
+                                status.setText(CarKeysService.connected() || done ? serviceLabel(app)
+                                        : "Car keys service: couldn't turn on. Allow the ADB prompt, then try again.");
                             }
                         }, 1500);
                     }
-                }, "DiPlay-WheelEnable").start();
+                }, "DiPlay-CarKeysEnable").start();
                 return kotlin.Unit.INSTANCE;
             }
         });
@@ -168,13 +182,8 @@ public final class CarControlsUi {
         final Button[] keyButton = new Button[1];
         keyButton[0] = DiPlayActivity.diplayButton(a, card, keyLabel(a, slot), new Function0() {
             public Object invoke() {
-                boolean running = false;
-                try {
-                    running = WheelKeyService.Companion.connected();
-                } catch (Throwable ignored) {
-                }
-                if (!running) {
-                    CarActions.toast(a, "Turn on the wheel key service first");
+                if (!CarKeysService.connected()) {
+                    CarActions.toast(a, "Turn on the car keys service first");
                     return kotlin.Unit.INSTANCE;
                 }
                 final Button b = keyButton[0];

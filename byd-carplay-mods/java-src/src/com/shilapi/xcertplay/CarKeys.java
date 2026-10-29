@@ -10,7 +10,7 @@ import android.view.KeyEvent;
 /**
  * Car keys: BYD's known wheel/console keys (codes as Diplus lists them, with BYD's separate
  * long-press codes) plus two learnt "other key" slots; each press type maps to a car action.
- * Called first from WheelKeyService.onKeyEvent; returns true when the event is consumed.
+ * Called from CarKeysService.onKeyEvent; returns true when the event is consumed.
  */
 public final class CarKeys {
     public static final int SLOTS = 2;

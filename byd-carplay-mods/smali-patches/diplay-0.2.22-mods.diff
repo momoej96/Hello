@@ -1575,62 +1575,6 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyLog.smali project/sm
      return-object p2
  
      :catchall_0
-diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali
---- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 12:53:20.004806132 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 13:07:44.235498968 +0000
-@@ -2250,6 +2250,12 @@
- 
-     invoke-static {p1, p0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
- 
-+    invoke-static {p1}, Lcom/shilapi/xcertplay/CarKeys;->anyConfigured(Landroid/content/Context;)Z
-+
-+    move-result p0
-+
-+    if-nez p0, :cond_1
-+
-     .line 599
-     sget-object p0, Lcom/shilapi/xcertplay/WheelZoomSettings;->INSTANCE:Lcom/shilapi/xcertplay/WheelZoomSettings;
- 
-diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali
---- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-28 12:53:19.978334839 +0000
-+++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService.smali	2026-10-28 13:07:44.236286730 +0000
-@@ -4200,12 +4200,26 @@
- .end method
- 
- .method protected onKeyEvent(Landroid/view/KeyEvent;)Z
--    .locals 2
-+    .locals 4
- 
-     const-string v0, "event"
- 
-     invoke-static {p1, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
- 
-+    # === DiPlay: car-control wheel-key slots ===
-+    invoke-static {p0, p1}, Lcom/shilapi/xcertplay/CarKeys;->onKey(Landroid/content/Context;Landroid/view/KeyEvent;)Z
-+
-+    move-result v0
-+
-+    if-eqz v0, :diplay_carkeys_skip
-+
-+    const/4 v0, 0x1
-+
-+    return v0
-+
-+    :diplay_carkeys_skip
-+    # === end DiPlay climate hook ===
-+
-     const/4 v0, 0x0
- 
-     .line 155
-@@ -4238,6 +4252,8 @@
- .method protected onServiceConnected()V
-     .locals 4
- 
-+    invoke-static {p0}, Lcom/shilapi/xcertplay/CarWake;->attach(Landroid/content/Context;)V
-+
-     const/4 v0, 0x0
- 
-     .line 107
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	1970-01-01 00:00:00.000000000 +0000
 +++ project/smali_classes3/com/shilapi/xcertplay/audio/AudioEffectsEngine.smali	2026-10-28 13:07:44.236975573 +0000
@@ -2713,7 +2657,7 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
 +    return-object v0
 +.end method
 --- orig/AndroidManifest.xml	2026-10-28 12:53:19.740418082 +0000
-+++ project/AndroidManifest.xml	2026-10-29 11:53:38.337379082 +0000
++++ project/AndroidManifest.xml	2026-10-29 12:14:08.667804018 +0000
 @@ -1,4 +1,8 @@
  <?xml version="1.0" encoding="utf-8" standalone="no"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" android:compileSdkVersion="37" android:compileSdkVersionCodename="17" package="com.shihab.diplay" platformBuildVersionCode="37" platformBuildVersionName="17">
 +    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
@@ -2740,3 +2684,22 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
          <service android:exported="false" android:foregroundServiceType="connectedDevice|location|microphone" android:name="com.shilapi.xcertplay.DiPlaySessionService"/>
          <activity android:configChanges="density|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:exported="true" android:launchMode="singleTask" android:name="com.shilapi.xcertplay.CarPlayHostActivity" android:resizeableActivity="true" android:screenOrientation="fullSensor" android:taskAffinity="com.shihab.diplay.carplay" android:theme="@style/Theme.Xcertplay" android:windowSoftInputMode="adjustResize">
              <intent-filter>
+@@ -116,6 +121,12 @@
+             </intent-filter>
+             <meta-data android:name="android.accessibilityservice" android:resource="@xml/wheel_key_service"/>
+         </service>
++        <service android:exported="true" android:label="DiPlay car keys" android:name="com.shilapi.xcertplay.CarKeysService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
++            <intent-filter>
++                <action android:name="android.accessibilityservice.AccessibilityService"/>
++            </intent-filter>
++            <meta-data android:name="android.accessibilityservice" android:resource="@xml/car_keys_service"/>
++        </service>
+         <service android:exported="true" android:name="com.shilapi.xcertplay.UsbAutoConfirmService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+             <intent-filter>
+                 <action android:name="android.accessibilityservice.AccessibilityService"/>
+--- orig/res/xml/car_keys_service.xml	1970-01-01 00:00:00.000000000 +0000
++++ project/res/xml/car_keys_service.xml	2026-10-29 12:14:08.653072514 +0000
+@@ -0,0 +1,3 @@
++<?xml version="1.0" encoding="utf-8"?>
++<accessibility-service android:accessibilityFeedbackType="feedbackGeneric" android:notificationTimeout="0" android:accessibilityFlags="flagRequestFilterKeyEvents" android:canRequestFilterKeyEvents="true"
++  xmlns:android="http://schemas.android.com/apk/res/android" />

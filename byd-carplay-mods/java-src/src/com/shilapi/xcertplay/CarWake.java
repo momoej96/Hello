@@ -29,7 +29,7 @@ public final class CarWake {
                 || "com.htc.intent.action.QUICKBOOT_POWERON".equals(action);
     }
 
-    /** Called from WheelKeyService.onServiceConnected. */
+    /** Called from CarKeysService.onServiceConnected. */
     public static void attach(Context service) {
         watch(service);
         try {
@@ -149,11 +149,27 @@ public final class CarWake {
     };
 
     private static boolean evidenceLogged;
+    private static long lastEnableTry;
+
+    /** Keys are configured and the user hasn't switched the service off, but it isn't enabled in settings: enable it. */
+    private static void ensureListed(Context c) {
+        try {
+            if (!CarGuard.serviceWanted(c) || !CarKeys.anyConfigured(c)) return;
+            if (CarGuard.enabledInSettings(c)) return;
+            long now = SystemClock.elapsedRealtime();
+            if (lastEnableTry != 0 && now - lastEnableTry < 30000) return;
+            lastEnableTry = now;
+            if (CarGuard.setServiceEnabled(c, true)) note(c, "Car keys service was off: turned it on");
+        } catch (Throwable t) {
+            Log.w(TAG, "ensureListed failed", t);
+        }
+    }
 
     private static void tick(Context c) {
         CarGuard.alive(c);
+        ensureListed(c);
         if (!serviceStuck(c)) {
-            if (stuckTicks >= TOGGLE_AFTER_TICKS) note(c, "Wheel key service running again");
+            if (stuckTicks >= TOGGLE_AFTER_TICKS) note(c, "Car keys service running again");
             stuckTicks = 0;
             toggled = false;
             evidenceLogged = false;
@@ -163,15 +179,15 @@ public final class CarWake {
         if (stuckTicks < TOGGLE_AFTER_TICKS) return;
         if (!evidenceLogged) {
             evidenceLogged = true;
-            note(c, "Wheel key service is allowed in settings but not bound");
+            note(c, "Car keys service is allowed in settings but not bound");
             CarGuard.systemView(c, "before repair");
         }
         if (!toggled) {
             CarGuard.ensureSecurePermission(c);
             if (toggleService(c)) {
                 toggled = true;
-                note(c, CarGuard.canWriteSecure(c) ? "Wheel key service stuck: turned it off and on (in the app)"
-                        : "Wheel key service stuck: turned it off and on (over ADB)");
+                note(c, CarGuard.canWriteSecure(c) ? "Car keys service stuck: turned it off and on (in the app)"
+                        : "Car keys service stuck: turned it off and on (over ADB)");
             }
             return;
         }
@@ -184,33 +200,19 @@ public final class CarWake {
         String out = CarActions.adb(c, "echo READY");
         if (out == null) return;                     // ADB not ready yet: try again next tick
         CarActions.prefs(c).edit().putLong("carwake_restart_at", now).commit();
-        note(c, "Wheel key service stuck: restarting DiPlay");
+        note(c, "Car keys service stuck: restarting DiPlay");
         restartDiPlay(c);
     }
 
-    /** Removes DiPlay's service from enabled_accessibility_services and adds it back. False if ADB didn't answer. */
+    /** Turns the car keys service off and on in the system settings. False if neither the app nor ADB could. */
     private static boolean toggleService(Context c) {
-        if (CarGuard.toggleAccessibility(c)) return true;
-        String self = new android.content.ComponentName(c, WheelKeyService.class).flattenToString();
-        String current = CarActions.adb(c, "settings get secure enabled_accessibility_services");
-        if (current == null) return false;
-        StringBuilder without = new StringBuilder();
-        for (String part : current.trim().split(":")) {
-            String s = part.trim();
-            if (s.length() == 0 || "null".equals(s)) continue;
-            android.content.ComponentName cn = android.content.ComponentName.unflattenFromString(s);
-            if (cn != null && cn.flattenToString().equals(self)) continue;
-            if (without.length() > 0) without.append(':');
-            without.append(s);
-        }
-        String with = without.length() > 0 ? without + ":" + self : self;
-        CarActions.adb(c, "settings put secure enabled_accessibility_services '" + without + "'");
+        if (CarGuard.canWriteSecure(c) && CarGuard.toggleAccessibility(c)) return true;
+        if (!CarGuard.setServiceEnabled(c, false)) return false;
         try {
             Thread.sleep(800);
         } catch (InterruptedException ignored) {
         }
-        return CarActions.adb(c, "settings put secure enabled_accessibility_services '" + with
-                + "'; settings put secure accessibility_enabled 1; echo DONE") != null;
+        return CarGuard.setServiceEnabled(c, true);
     }
 
     // ---- restart after the car wakes ----
@@ -248,7 +250,7 @@ public final class CarWake {
         if (!wakeRestartEnabled(c)) return;
         if (processStart() >= sleptFrom) return;                     // started after the wake: fine
         try {
-            if (!WheelKeyService.Companion.enabledInSettings(c)) return;
+            if (!CarGuard.enabledInSettings(c)) return;
         } catch (Throwable t) {
             return;
         }
@@ -324,7 +326,7 @@ public final class CarWake {
 
     private static boolean serviceStuck(Context c) {
         try {
-            return WheelKeyService.Companion.enabledInSettings(c) && !WheelKeyService.Companion.connected();
+            return CarGuard.enabledInSettings(c) && !CarKeysService.connected();
         } catch (Throwable t) {
             return false;
         }

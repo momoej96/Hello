@@ -216,3 +216,11 @@ Windows) would add install/launch tests; the car is still needed for anything BY
   `java-src/stub` holds compile-time stubs only.
 * `tools/build.sh`: rebuilds the modded APK from the original and runs `tools/verify.sh` as a gate (`tools/fetch-tools.sh` gets the jars). Tested on 0.2.22: applies with no offset or fuzz,
   and the result has the same size as v24 (19,278,895 bytes).
+
+## v29: car keys have their own accessibility service
+
+Report dcb679bb showed the stuck "Binding services" entry was DiPlay's original `WheelKeyService`, which also
+carried our key handling and was kept "wanted" by a hook. Now `CarKeysService` ("DiPlay car keys") is a separate
+accessibility service with its own enable/disable (`CarGuard.setServiceEnabled`, only touches its own entry),
+watchdog and UI toggle. `WheelKeyService` and its Companion are the unmodified originals again, so the original
+wheel-key permission can stay off. The watchdog also re-enables our service when keys are configured.

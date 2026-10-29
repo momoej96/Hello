@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Evidence and repair helpers for the wheel-key service.
+ * Evidence and repair helpers for the car keys service.
  *
  * - A small persistent history (it survives process death) that is also appended to the diagnostic report.
  * - Writing enabled_accessibility_services in-process once WRITE_SECURE_SETTINGS is granted (Diplus does the
@@ -158,7 +158,87 @@ public final class CarGuard {
     }
 
     private static String selfComponent(Context c) {
-        return new ComponentName(c, WheelKeyService.class).flattenToString();
+        return new ComponentName(c, CarKeysService.class).flattenToString();
+    }
+
+    static final String KEY_SERVICE_ON = "carkeys_service_on";
+
+    /** The user's switch for the car keys service (on unless they turned it off). */
+    static boolean serviceWanted(Context c) {
+        return CarActions.prefs(c).getBoolean(KEY_SERVICE_ON, true);
+    }
+
+    private static List<String> enabledList(Context c, String self) {
+        List<String> out = new ArrayList<String>();
+        String cur = Settings.Secure.getString(c.getContentResolver(), ENABLED);
+        if (cur != null) {
+            for (String part : cur.split(":")) {
+                String s = part.trim();
+                if (s.length() == 0 || "null".equals(s)) continue;
+                ComponentName cn = ComponentName.unflattenFromString(s);
+                if (cn != null && cn.flattenToString().equals(self)) continue;
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    /** True when the car keys service is listed in the system's enabled accessibility services. */
+    static boolean enabledInSettings(Context c) {
+        try {
+            String self = selfComponent(c);
+            String cur = Settings.Secure.getString(c.getContentResolver(), ENABLED);
+            if (cur == null) return false;
+            for (String part : cur.split(":")) {
+                ComponentName cn = ComponentName.unflattenFromString(part.trim());
+                if (cn != null && cn.flattenToString().equals(self)) return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    private static String join(List<String> l) {
+        StringBuilder b = new StringBuilder();
+        for (String s : l) {
+            if (b.length() > 0) b.append(':');
+            b.append(s);
+        }
+        return b.toString();
+    }
+
+    /**
+     * Adds or removes only the car keys service in enabled_accessibility_services (other services,
+     * including DiPlay's original wheel-key one and Diplus, are left as they are).
+     * Uses WRITE_SECURE_SETTINGS in this process, otherwise the ADB shell. False if neither worked.
+     */
+    static boolean setServiceEnabled(Context c, boolean on) {
+        String self = selfComponent(c);
+        try {
+            ensureSecurePermission(c);
+            if (canWriteSecure(c)) {
+                List<String> l = enabledList(c, self);
+                if (on) l.add(self);
+                boolean ok = Settings.Secure.putString(c.getContentResolver(), ENABLED, join(l));
+                if (on) Settings.Secure.putString(c.getContentResolver(), "accessibility_enabled", "1");
+                return ok;
+            }
+        } catch (Throwable t) {
+            log(c, "Setting the car keys service failed in the app: " + t.getClass().getSimpleName());
+        }
+        String current = CarActions.adb(c, "settings get secure enabled_accessibility_services");
+        if (current == null) return false;
+        List<String> l = new ArrayList<String>();
+        for (String part : current.trim().split(":")) {
+            String s = part.trim();
+            if (s.length() == 0 || "null".equals(s)) continue;
+            ComponentName cn = ComponentName.unflattenFromString(s);
+            if (cn != null && cn.flattenToString().equals(self)) continue;
+            l.add(s);
+        }
+        if (on) l.add(self);
+        return CarActions.adb(c, "settings put secure enabled_accessibility_services '" + join(l) + "'"
+                + (on ? "; settings put secure accessibility_enabled 1" : "") + "; echo DONE") != null;
     }
 
     /** Turns the wheel-key service off and on in the system settings, in this process. False if not allowed to. */
