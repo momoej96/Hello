@@ -1,0 +1,1 @@
+package android.content; public class Intent { public static final int FLAG_ACTIVITY_NEW_TASK=0x10000000; public Class<?> cls; public Intent(Context c, Class<?> k){cls=k;} public Intent addFlags(int f){return this;} }

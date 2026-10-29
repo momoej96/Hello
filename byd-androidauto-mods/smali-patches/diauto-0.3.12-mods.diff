@@ -1,6 +1,6 @@
 diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
 --- orig/AndroidManifest.xml	2026-10-28 11:35:34.113160779 +0000
-+++ project/AndroidManifest.xml	2026-10-29 05:53:48.977280744 +0000
++++ project/AndroidManifest.xml	2026-10-29 08:12:06.155760050 +0000
 @@ -50,7 +50,10 @@
      <permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature"/>
      <uses-permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
@@ -13,10 +13,11 @@ diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
          <service android:exported="false" android:name="com.andrerinas.openheadunit.aap.DummyVpnService" android:permission="android.permission.BIND_VPN_SERVICE">
              <intent-filter>
                  <action android:name="android.net.VpnService"/>
-@@ -222,5 +225,12 @@
+@@ -222,5 +225,13 @@
              </intent-filter>
          </receiver>
          <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true"/>
++        <activity android:excludeFromRecents="true" android:exported="false" android:name="com.andrerinas.openheadunit.byd.HotspotActivity" android:noHistory="true" android:taskAffinity="" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
 +        <activity android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:exported="false" android:label="@string/byd_car_controls" android:name="com.andrerinas.openheadunit.byd.CarControlsActivity" android:theme="@style/AppTheme"/>
 +        <service android:exported="true" android:label="@string/byd_wheel_keys" android:name="com.andrerinas.openheadunit.byd.WheelKeyService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
 +            <intent-filter>
@@ -88,8 +89,17 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/App.smali project/smali/com/and
      .line 4
 diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/smali/com/andrerinas/openheadunit/aap/AapService.smali
 --- orig/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-28 11:35:33.465943761 +0000
-+++ project/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 06:33:34.717897318 +0000
-@@ -13066,6 +13066,8 @@
++++ project/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 08:12:06.154383738 +0000
+@@ -4127,6 +4127,8 @@
+     .line 359
+     invoke-virtual {p1, v0}, Lg1/a;->n(Ljava/lang/String;)V
+ 
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/LocalHotspot;->ensure(Landroid/content/Context;)V
++
+     .line 360
+     .line 361
+     .line 362
+@@ -13066,6 +13068,8 @@
  .method private final t0()V
      .locals 3
  
@@ -98,7 +108,7 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/sm
      .line 1
      iget-object v0, p0, Lcom/andrerinas/openheadunit/aap/AapService;->M:Landroid/net/wifi/WifiManager$WifiLock;
  
-@@ -13773,6 +13775,8 @@
+@@ -13773,6 +13777,8 @@
  .method private final u1()V
      .locals 2
  
@@ -107,7 +117,16 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/sm
      .line 1
      iget-object v0, p0, Lcom/andrerinas/openheadunit/aap/AapService;->M:Landroid/net/wifi/WifiManager$WifiLock;
  
-@@ -21042,6 +21046,15 @@
+@@ -17521,6 +17527,8 @@
+     .line 47
+     invoke-virtual {v0, v1}, Lg1/a;->n(Ljava/lang/String;)V
+ 
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/LocalHotspot;->ensure(Landroid/content/Context;)V
++
+     .line 48
+     .line 49
+     .line 50
+@@ -21042,6 +21050,15 @@
  
      .line 609
      :cond_1d

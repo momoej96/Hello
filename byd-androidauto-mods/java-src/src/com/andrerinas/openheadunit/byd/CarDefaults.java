@@ -6,11 +6,11 @@ import android.os.Build;
 import android.util.Log;
 
 /**
- * Settings for the BYD Qin Plus DM-i (MT6765, Android 9): WiFi Direct only, starting with the car.
+ * Settings for the BYD Qin Plus DM-i (MT6765, Android 9): connect over Wi-Fi by itself, starting with the car.
  *
- * Every start: the Native AA transport is WiFi Direct (DiAuto's default, 1, is the head unit
- * hotspot, which waited for a hotspot that was never on: the first stuck loop in the logs), and
- * the "5 GHz on Android 9" requests are off (the unit has no 5 GHz).
+ * Every start: the Native AA transport is the head unit hotspot, which LocalHotspot fills with the
+ * car's own local-only network (WiFi Direct only if this unit refused that network), and the
+ * "5 GHz on Android 9" requests are off (the unit has no 5 GHz).
  * Once: SurfaceView (TextureView showed 23 of 85 decoded frames), 30 fps, and auto-start on
  * boot / screen-on, so getting in the car is enough.
  */
@@ -27,7 +27,8 @@ public final class CarDefaults {
             AvBuffer.load(c);
             SharedPreferences mine = CarActions.prefs(c);
             SharedPreferences.Editor s = c.getSharedPreferences("settings", 0).edit();
-            s.putInt("native-ap-transport", 0)
+            boolean lohsFailed = mine.getBoolean(LocalHotspot.KEY_FAILED, false);
+            s.putInt("native-ap-transport", lohsFailed ? LocalHotspot.TRANSPORT_WIFI_DIRECT : LocalHotspot.TRANSPORT_HOTSPOT)
                     .putBoolean("p2p-legacy-5ghz", false)
                     .putBoolean("p2p-legacy-5ghz-upper", false);
             if (!mine.getBoolean(DONE_V1, false)) {
@@ -37,7 +38,7 @@ public final class CarDefaults {
             if (!mine.getBoolean(DONE_V2, false)) {
                 autoStart(c);
                 mine.edit().putBoolean(DONE_V1, true).putBoolean(DONE_V2, true).apply();
-                Log.i(TAG, "applied: WiFi Direct, no 5 GHz, SurfaceView, 30 fps, auto-start on boot and screen-on");
+                Log.i(TAG, "applied: car local network, no 5 GHz, SurfaceView, 30 fps, auto-start on boot and screen-on");
             }
         } catch (Throwable ignored) {
         }

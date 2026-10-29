@@ -9,7 +9,8 @@ diagnostic-report fix; **mod3** (`1003`) handles "Choose save location" without 
 failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting for credentials.; **mod5** (`1005`) adds the audio/video buffer,
 the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
 WiFi Direct group to 2.4 GHz channel 6; **mod7** (`1007`) is WiFi Direct only: the group follows the car's Wi-Fi
-channel and is recreated on every join failure, and the app starts with the car. *Not tested in the car yet.*
+channel and is recreated on every join failure, and the app starts with the car; **mod8** (`1008`) connects over
+the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback. *Not tested in the car yet.*
 
 ## The app
 
@@ -152,6 +153,28 @@ things:
     `auto-start-on-boot` and `auto-start-on-screen-on` (device-protected prefs).
   * `tools/p2p-sim/run.sh`: 13/13.
 
+## Fifth log (mod7) and mod8, 2026-10-29 10:41
+
+* mod7 behaved as written. The group followed the station to channel 11. When the station dropped (10:41:05,
+  `wlan0` down), it was recreated on channel 6. Each join failure recreated it at once. The phone still answered
+  -11 every time on channel 6. Across all five logs, the phone joined the WiFi Direct group only while the car's
+  Wi-Fi was connected to the phone's hotspot. The channel was not the deciding factor.
+* Recreate attempts 2 and 3 go through `T0(true)` ("forcing 2.4GHz"), which skips the operating-channel hook.
+* **mod8:** `LocalHotspot` runs Android's local-only hotspot (API 26+; on Android 9 it is 2.4 GHz with a random
+  SSID and passphrase, readable by the app). Android 9 only grants one to a foreground app, so the request goes
+  through the invisible `HotspotActivity`. On `onStarted`, the SSID and passphrase are written to DiAuto's
+  `hotspot-ssid` and `hotspot-password` fields, and `hotspot-interface` is left automatic. DiAuto's own Hotspot
+  transport (`y0.d1`) then resolves `ap0` and hands the network to the phone. It is hooked from
+  `AapService.K0` (Hotspot mode start) and from `N1` ("Access point refresh requested", about every 10 s while the
+  phone waits), and is idempotent. `onStopped` restarts after 3 s. Three refusals set `lohs_failed` and transport 0
+  (WiFi Direct). `CarDefaults` now sets transport 1 unless `lohs_failed` is set.
+* DiAuto's own LOCAL_HOTSPOT transport (2) exists in `connection.b`, but `j1.f1()` maps 2 to 1, and the
+  implementation rejects anything outside 5160-5895 MHz. Hence a separate implementation.
+* `tools/lohs-sim/run.sh`: 14 checks of `LocalHotspot` against a fake radio (start, duplicate requests, system stop
+  and restart, refusals and fallback, reset, manual WiFi Direct). It also runs a port of DiAuto's resolver
+  (`d1.u/v`, `t3`, `s3`, `g3`) against the car's reported interfaces: `ap0` is picked and credentials go out, and
+  the 10:15 failure (no name saved) reproduces.
+
 ## Audio / video buffer (mod5)
 
 * **Audio** (`c1.s`, media stream only): the AudioTrack is sized for the buffer time plus 1.5 s. Playback pauses
@@ -188,6 +211,8 @@ things:
 * `c1.s.w`: `AudioTrack.write` is replaced by `AvBuffer.audioWrite(track, data, len)`.
 * `decoder.g.X`: starts with `AvBuffer.videoRelease(codec, index)`; `-1` falls through to DiAuto's own path.
 * `App.onCreate`: calls `CarDefaults.apply(this)` right after `super.onCreate()`.
+* `AapService.K0` (Hotspot mode start) and `N1` (access point refresh): `LocalHotspot.ensure(this)` after their log line.
+* Manifest: `HotspotActivity` (translucent, no history, not in recents, `taskAffinity=""`).
 * `AapService.t0` / `u1`: call `AapGuard.sessionStarted()` / `sessionEnded()` first.
 * `AapService.onStartCommand`, `ACTION_NATIVE_AA_POKE`: `if AapGuard.skipPoke() goto :goto_e` (the method's return).
 * `y0.l2` (group creation, API < 29): after `v0.l3.d(IZZ)I`, `CarP2p.channel(v0, this)` replaces the channel.

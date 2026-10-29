@@ -125,12 +125,34 @@ public final class CarControlsActivity extends Activity {
             }
         }, false);
 
+        LinearLayout net = card("Wi-Fi connection");
+        note(net, "Android Auto connects over the car's own local Wi-Fi network, started by DiAuto by itself: "
+                + "no internet sharing from the phone or the car, nothing to type. If this car refuses that network, "
+                + "DiAuto goes back to WiFi Direct by itself.");
+        final TextView netStatus = status(net);
+        netStatus.setText(netLabel());
+        button(net, "Use the car's local network again", new View.OnClickListener() {
+            public void onClick(View v) {
+                LocalHotspot.reset(CarControlsActivity.this);
+                LocalHotspot.ensure(CarControlsActivity.this);
+                netStatus.setText(netLabel());
+            }
+        });
+
         bufferCard();
 
         LinearLayout wake = card("Start with the car");
         note(wake, "BYD units sleep instead of switching off, so DiAuto rarely gets a boot signal. "
                 + "With the wheel key service on, DiAuto runs its own Auto-start (Settings → Auto-start) "
                 + "every time the car wakes it up.");
+    }
+
+    private String netLabel() {
+        if (CarActions.prefs(this).getBoolean(LocalHotspot.KEY_FAILED, false)) {
+            return "Using WiFi Direct (this car refused the local network)";
+        }
+        String n = LocalHotspot.ssid();
+        return n != null ? "Local network on: " + n : "Local network: starts when Android Auto connects";
     }
 
     // ---- audio / video buffer ----
