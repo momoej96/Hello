@@ -1563,6 +1563,18 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/PhoneBluetoothReceiver.smali
      .line 16
      invoke-virtual {p2}, Landroid/content/Intent;->getAction()Ljava/lang/String;
  
+diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyLog.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyLog.smali
+--- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyLog.smali	2026-10-28 12:53:19.889943435 +0000
++++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyLog.smali	2026-10-29 11:53:38.338780387 +0000
+@@ -955,6 +955,8 @@
+     :cond_7
+     check-cast p2, Ljava/util/List;
+ 
++    invoke-static {p2}, Lcom/shilapi/xcertplay/CarGuard;->extraReport(Ljava/util/List;)V
++
+     return-object p2
+ 
+     :catchall_0
 diff -ruN orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali
 --- orig/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 12:53:20.004806132 +0000
 +++ project/smali_classes3/com/shilapi/xcertplay/WheelKeyService$Companion.smali	2026-10-28 13:07:44.235498968 +0000
@@ -2701,16 +2713,17 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
 +    return-object v0
 +.end method
 --- orig/AndroidManifest.xml	2026-10-28 12:53:19.740418082 +0000
-+++ project/AndroidManifest.xml	2026-10-28 13:08:59.773313317 +0000
-@@ -1,4 +1,7 @@
++++ project/AndroidManifest.xml	2026-10-29 11:53:38.337379082 +0000
+@@ -1,4 +1,8 @@
  <?xml version="1.0" encoding="utf-8" standalone="no"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" android:compileSdkVersion="37" android:compileSdkVersionCodename="17" package="com.shihab.diplay" platformBuildVersionCode="37" platformBuildVersionName="17">
++    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
 +    <uses-permission android:name="android.permission.BYDAUTO_AC_COMMON"/>
 +    <uses-permission android:name="android.permission.BYDAUTO_AC_GET"/>
 +    <uses-permission android:name="android.permission.BYDAUTO_AC_SET"/>
      <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
      <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
      <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-@@ -66,7 +69,7 @@
+@@ -66,7 +70,7 @@
          <meta-data android:name="BYD_SUPPORT_SPLIT_ACTIVITY" android:value="1"/>
          <receiver android:enabled="true" android:exported="true" android:name="com.shilapi.xcertplay.BootReceiver">
              <intent-filter>
@@ -2719,3 +2732,11 @@ diff -ruN orig/smali_classes3/com/shilapi/xcertplay/climate/WheelKeyExtras.smali
              </intent-filter>
          </receiver>
          <receiver android:enabled="true" android:exported="true" android:name="com.shilapi.xcertplay.PhoneBluetoothReceiver">
+@@ -87,6 +91,7 @@
+                 <category android:name="android.intent.category.LAUNCHER"/>
+             </intent-filter>
+         </activity>
++        <service android:exported="false" android:name="com.shilapi.xcertplay.CarKeepAliveService"/>
+         <service android:exported="false" android:foregroundServiceType="connectedDevice|location|microphone" android:name="com.shilapi.xcertplay.DiPlaySessionService"/>
+         <activity android:configChanges="density|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:exported="true" android:launchMode="singleTask" android:name="com.shilapi.xcertplay.CarPlayHostActivity" android:resizeableActivity="true" android:screenOrientation="fullSensor" android:taskAffinity="com.shihab.diplay.carplay" android:theme="@style/Theme.Xcertplay" android:windowSoftInputMode="adjustResize">
+             <intent-filter>

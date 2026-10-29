@@ -91,11 +91,23 @@ public final class CarWake {
         try {
             if (watchHandler != null) return;
             watchContext = context.getApplicationContext();
+            CarGuard.appContext = watchContext;
             android.os.HandlerThread thread = new android.os.HandlerThread("DiPlay-WheelWatch");
             thread.start();
             watchHandler = new android.os.Handler(thread.getLooper());
             lastTickAt = SystemClock.elapsedRealtime();
             watchHandler.postDelayed(TICK, TICK_MS);
+            CarKeepAliveService.start(watchContext);
+            watchHandler.post(new Runnable() {
+                public void run() {
+                    try {
+                        long started = System.currentTimeMillis() - (SystemClock.elapsedRealtime() - processStart());
+                        CarGuard.processStartEvidence(watchContext, started);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "evidence failed", t);
+                    }
+                }
+            });
             IntentFilter f = new IntentFilter();
             f.addAction(Intent.ACTION_SCREEN_ON);
             f.addAction(Intent.ACTION_SCREEN_OFF);
@@ -136,22 +148,34 @@ public final class CarWake {
         }
     };
 
+    private static boolean evidenceLogged;
+
     private static void tick(Context c) {
+        CarGuard.alive(c);
         if (!serviceStuck(c)) {
             if (stuckTicks >= TOGGLE_AFTER_TICKS) note(c, "Wheel key service running again");
             stuckTicks = 0;
             toggled = false;
+            evidenceLogged = false;
             return;
         }
         stuckTicks++;
         if (stuckTicks < TOGGLE_AFTER_TICKS) return;
+        if (!evidenceLogged) {
+            evidenceLogged = true;
+            note(c, "Wheel key service is allowed in settings but not bound");
+            CarGuard.systemView(c, "before repair");
+        }
         if (!toggled) {
+            CarGuard.ensureSecurePermission(c);
             if (toggleService(c)) {
                 toggled = true;
-                note(c, "Wheel key service stuck: turned it off and on");
+                note(c, CarGuard.canWriteSecure(c) ? "Wheel key service stuck: turned it off and on (in the app)"
+                        : "Wheel key service stuck: turned it off and on (over ADB)");
             }
             return;
         }
+        if (stuckTicks == TOGGLE_AFTER_TICKS + 2) CarGuard.systemView(c, "after repair");
         if (stuckTicks < RESTART_AFTER_TICKS) return;
         long now = System.currentTimeMillis();
         long last = CarActions.prefs(c).getLong("carwake_restart_at", 0);
@@ -166,6 +190,7 @@ public final class CarWake {
 
     /** Removes DiPlay's service from enabled_accessibility_services and adds it back. False if ADB didn't answer. */
     private static boolean toggleService(Context c) {
+        if (CarGuard.toggleAccessibility(c)) return true;
         String self = new android.content.ComponentName(c, WheelKeyService.class).flattenToString();
         String current = CarActions.adb(c, "settings get secure enabled_accessibility_services");
         if (current == null) return false;
@@ -315,6 +340,7 @@ public final class CarWake {
 
     private static void note(Context c, String text) {
         Log.i(TAG, text);
+        CarGuard.log(c, text);
         try {
             CarActions.prefs(c).edit().putString("carwake_last", text + " · "
                     + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(new java.util.Date()))

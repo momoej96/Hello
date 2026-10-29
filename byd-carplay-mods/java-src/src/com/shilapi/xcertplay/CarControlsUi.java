@@ -35,6 +35,12 @@ public final class CarControlsUi {
 
         String wake = CarWake.lastNote(a);
         if (wake != null) DiPlayActivity.diplayNote(a, card, "Last car start: " + wake);
+        java.util.List<String> hist = CarGuard.history(a);
+        if (!hist.isEmpty()) {
+            StringBuilder h = new StringBuilder("Recent events:");
+            for (int i = Math.max(0, hist.size() - 6); i < hist.size(); i++) h.append('\n').append(hist.get(i));
+            DiPlayActivity.diplayNote(a, card, h.toString());
+        }
 
         serviceRows(a, card);
         wakeRows(a, card);
@@ -125,6 +131,18 @@ public final class CarControlsUi {
                 new Function1() {
                     public Object invoke(Object p) {
                         CarActions.prefs(a).edit().putBoolean(CarWake.KEY_WAKE_RESTART, Boolean.TRUE.equals(p)).apply();
+                        return kotlin.Unit.INSTANCE;
+                    }
+                }, 0x10, null);
+        DiPlayActivity.toggle$default(a, card, "Keep DiPlay running in the background",
+                "Runs a small foreground service (with a notification) so the car doesn't stop DiPlay while it "
+                        + "sleeps, the way Diplus stays alive. Recommended.",
+                CarKeepAliveService.enabled(a), false,
+                new Function1() {
+                    public Object invoke(Object p) {
+                        boolean on = Boolean.TRUE.equals(p);
+                        CarActions.prefs(a).edit().putBoolean(CarKeepAliveService.KEY_ENABLED, on).apply();
+                        if (on) CarKeepAliveService.start(a); else CarKeepAliveService.stop(a);
                         return kotlin.Unit.INSTANCE;
                     }
                 }, 0x10, null);

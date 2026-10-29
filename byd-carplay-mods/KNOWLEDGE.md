@@ -115,46 +115,39 @@ Key codes (taken from Diplus `res/xml/keydown_preferences.xml`):
   with the engine running. How Diplus gets past this is unknown.
 * Using `BOOT_COMPLETED` alone to auto-start.
 
-## Wheel keys after the car wakes
+## Wheel keys after the car wakes (root-cause work, 29 Oct)
 
-After switching the car off and on, DiPlay could show "Wheel key service: allowed, starting…" (report:
-`allowedInSettings=true bound=false lastRestore=attempt=2`): enabled in settings, but the system doesn't bind it
-again until DiPlay is force-stopped and reopened. Auto-start (`CarWake`) runs from that service, so it stopped too.
+Symptom: after the car has been off for a while the wheel keys are dead in DiPlay until it is force-stopped, while
+Diplus's keys keep working.
 
-Diplus solves the same problem with a **watchdog every 5 s** in its always-running `MainService`
-(`com.van.diplus.service.w.d()`): if its service isn't bound, it first adds itself to
-`enabled_accessibility_services`, and if it's still not bound 5 s later it runs
-`am force-stop com.van.diplus; am start -n com.van.diplus/.activity.StartMainServiceActivity` over ADB.
+Evidence from the report taken in the dead state (v26):
+* `Wheel key service: wanted=true allowedInSettings=true bound=false lastRestore=attempt=6 adb=READY`.
+* DiPlay's own restore loop logged "wheel key service allowed over adb" every ~11 s and `bound` never changed: it
+  writes the value that is already in `enabled_accessibility_services`, and an unchanged write is a no-op, so the
+  system never re-binds. (Only turning the service off and on again changes the setting.)
+* The previous process (12:02) ended with "Activity destroyed" and the next process only started at 14:45; DiPlay has
+  no service of its own keeping the process alive when CarPlay isn't connected, so it is a cached process that the
+  car can kill during sleep. Process exit info needs API 30; the car is API 29.
+* The BYD "App start management" (`com.byd.appstartmanagement/.frame.AppStartManagement`) and "Rapid mode" whitelist
+  (`com.byd.rapidmode/.RapidModeActivity`) lists were already correct on the car, so they are not the (only) cause.
+  Diplus tells its users to set both and to redo them after every update.
 
-v26 copies that (`CarWake.watch`), started from every entry point (both activities' `onCreate`, `BootReceiver`,
-`PhoneBluetoothReceiver`, `WheelKeyService.onServiceConnected`): stuck ~10 s → re-toggle the service in settings
-over ADB; still stuck ~10 s later → `setsid sh -c 'am force-stop …; am start …'` over ADB, at most once per 10 min.
-An ADB call with no answer (ADB not ready right after a wake) is retried on the next tick. On car Bluetooth it also
-opens DiPlay when CarPlay isn't running. The outcome shows as "Last car start: …" in Car controls.
-*(Built, not yet confirmed.)*
+How Diplus differs: its accessibility service (`KDService`) and its foreground `MainService` are declared with
+`android:process=":remote"`, i.e. the same, protected process; it pre-grants itself `WRITE_SECURE_SETTINGS` and writes
+`enabled_accessibility_services` directly; it re-checks every 5 s (`com.van.diplus.service.w.d()`) and falls back to
+`am force-stop` + `am start` over ADB.
 
-**User finding (28 Oct):** switching the car off and on again within ~1 minute leaves the wheel keys dead —
-in DiPlay *and* in Diplus — until the car is off long enough for Bluetooth to disconnect; after that everything
-works. So it's the head unit coming back from a half-sleep, not the app. In that state the service may look bound
-while key events don't arrive, which the v26 watchdog can't see (confirmed 29 Oct: keys still sometimes dead with
-v26, force stop fixes them).
-
-v27 therefore restarts DiPlay once after every car wake when its process lived through the sleep (setting
-"Restart DiPlay after the car wakes", on by default). Wake = screen on after ≥10 s off, or the watchdog's real clock
-jumping >20 s between 5 s ticks (the handler clock stops in sleep). A process that started after the wake is left
-alone; ADB not answering is retried for 90 s; at most one wake restart per 2 min. Car controls also has a manual
-"Refresh wheel keys" button. *(Built, not yet confirmed.)*
-Also reported: DiPlay's start-at-boot permission seemed lost after several updates (where exactly: not yet known);
-idea: re-apply the boot exemptions (`cmd deviceidle whitelist +pkg`, appops `RUN_IN_BACKGROUND`) over ADB after
-each update.
-
-## Diplus key commands (for reference)
-
-The command box takes Chinese command names only (`空调自动`, `关空调`, `内循环`, …), `,` runs commands in sequence
-and `/` separates successive presses. `打开应用<label or package>` opens only apps with a launcher entry;
-`打开应用pkg/activity` would run `am start -n` but can't be used from a key because of the `/` rule, so BYD's
-climate screen (no launcher entry) can't be opened from a Diplus key. Other types: `延迟`, `播报`, `TOAST:`,
-`HTTPGET:`, `HTTPPOST:`.
+v28 follows that design (`CarWake`, `CarGuard`, `CarKeepAliveService`):
+* `CarKeepAliveService`: foreground service (notification) in the main process, started from `CarWake.watch()`;
+  setting "Keep DiPlay running in the background", on by default.
+* `WRITE_SECURE_SETTINGS` declared in the manifest and self-granted over ADB; the 5 s watchdog then toggles the
+  service off and on in-process (`CarGuard.toggleAccessibility`), ADB as the fallback; v27's restart-after-wake and
+  the manual "Refresh wheel keys" button remain.
+* Evidence, kept across process deaths and appended to the report by a hook in `WheelKeyLog.report` ("Wheel keys:
+  guard …" lines, also shown as "Recent events" in Car controls): when the previous process was last alive vs when
+  this one started; the matching `am_kill`/`am_proc_died` lines from `logcat -b events` (who killed it and why);
+  `dumpsys accessibility` lines about DiPlay before and after a repair (is it bound, enabled, binding, crashed).
+*(Built, not yet confirmed in the car.)*
 
 ## CarPlay keeps disconnecting: causes found in reports
 
