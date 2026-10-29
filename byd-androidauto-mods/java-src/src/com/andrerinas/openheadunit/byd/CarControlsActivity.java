@@ -166,6 +166,18 @@ public final class CarControlsActivity extends Activity {
                         AvBuffer.set(CarControlsActivity.this, AvBuffer.KEY_VIDEO, video[which]);
                     }
                 }, true);
+        final int[] chans = CarP2p.CHANNELS;
+        String[] chanNames = new String[chans.length];
+        for (int i = 0; i < chans.length; i++) chanNames[i] = CarP2p.name(chans[i]);
+        choiceRow(card, "WiFi Direct channel", chanNames,
+                indexOf(chans, CarActions.prefs(this).getInt(CarP2p.KEY, CarP2p.DEFAULT)),
+                new Choice() {
+                    public void chose(int which) {
+                        CarActions.prefs(CarControlsActivity.this).edit().putInt(CarP2p.KEY, chans[which]).apply();
+                    }
+                }, true);
+        note(card, "The channel Android Auto's WiFi Direct network uses. Channel 6 (2.4 GHz) lets the phone join even "
+                + "when the car isn't on any Wi-Fi network. Try 36-48 for smoother video if your phone joins them. Applies from the next connection.");
         note(card, "Navigation voice and system sounds are never delayed. The video buffer also delays touches by the same time, so keep it small.");
     }
 

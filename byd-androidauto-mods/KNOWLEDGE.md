@@ -7,7 +7,8 @@ sleep and wake) apply here unchanged. The engine water temperature gauge was lef
 Builds: **mod1** (`versionCode 1001`) car controls; **mod2** (`versionCode 1002`, `0.3.12-mod2`) adds the
 diagnostic-report fix; **mod3** (`1003`) handles "Choose save location" without a picker and shows why a save
 failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting for credentials.; **mod5** (`1005`) adds the audio/video buffer,
-the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix. *Not tested in the car yet.*
+the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
+WiFi Direct group to 2.4 GHz channel 6. *Not tested in the car yet.*
 
 ## The app
 
@@ -107,6 +108,25 @@ things:
   **mod5:** `AapGuard` tracks the session (`AapService.t0` and `u1`, the WifiLock), and `ACTION_NATIVE_AA_POKE`
   is skipped while a session is up.
 
+## Third log: no phone hotspot (mod5), 2026-10-29 09:39-09:45
+
+* The car's Wi-Fi switch was off ("WiFi is disabled but needed for Native AA. Attempting to enable..."), and at
+  report time `wlan0` was down while `p2p0` was up. The group formed and the credentials went over Bluetooth, but
+  the S24 answered `WifiConnectStatus -11` about 35 s later on every one of 5 tries in 4 minutes. It never joined.
+* With the phone's hotspot on, the car's station joined it on 2.4 GHz (2412 and 2462 MHz in the earlier logs), the
+  group followed onto the same channel, and the phone joined at once.
+* At 08:57 the transport had been set to **Hotspot** while the car's hotspot was off
+  ("SoftApCredentials: No usable access point after 30s"). That caused the first stuck loop. It was later set back
+  to WiFi Direct (`native transport=0`).
+* Android 9 doesn't report the group's frequency. DiAuto's own API 29+ code warns that groups on channel 12/13 are
+  invisible to phones limited to channels 1-11. This test-keys unit may well be using a region code that allows them.
+* "Force WiFi Direct onto 2.4 GHz" (`debug-force-p2p-band-24`) does nothing below API 29. Only
+  `AapProjectionActivity` reads it.
+* **mod6:** `CarP2p.channel` replaces the result of `v0.l3.d(...)` (DiAuto's operating-channel pick for API < 29).
+  It defaults to channel 6 and can be changed under BYD car controls → WiFi Direct channel (Auto, 1, 6, 11, 36-48,
+  149). DiAuto then calls `setWifiP2pChannels(0, ch)` before `createGroup`. If the unit refuses, it logs "would not
+  take an operating channel" and carries on with the driver's choice.
+
 ## Audio / video buffer (mod5)
 
 * **Audio** (`c1.s`, media stream only): the AudioTrack is sized for the buffer time plus 1.5 s. Playback pauses
@@ -145,6 +165,7 @@ things:
 * `App.onCreate`: calls `CarDefaults.apply(this)` right after `super.onCreate()`.
 * `AapService.t0` / `u1`: call `AapGuard.sessionStarted()` / `sessionEnded()` first.
 * `AapService.onStartCommand`, `ACTION_NATIVE_AA_POKE`: `if AapGuard.skipPoke() goto :goto_e` (the method's return).
+* `y0.l2` (group creation, API < 29): after `v0.l3.d(IZZ)I`, `CarP2p.channel(v0)` replaces the channel.
 * `HomeFragment.openBluetoothSettings`: the catch block calls `AapGuard.openBluetoothFallback(this)` and returns.
 * Manifest: `requestLegacyExternalStorage="true"`, `BYDAUTO_AC_COMMON/GET/SET`, the activity, and the accessibility service (`res/xml/byd_wheel_keys.xml`
   plus three strings).
