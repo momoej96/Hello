@@ -4,7 +4,8 @@ These are the DiPlay (CarPlay) car controls from `byd-carplay-mods/` ported to *
 head-unit app). Read `byd-carplay-mods/KNOWLEDGE.md` first: the car facts (keys, AC calls, permissions,
 sleep and wake) apply here unchanged. The engine water temperature gauge was left out on purpose.
 
-First modded build: **mod1** (`versionCode 1001`, `versionName 0.3.12-mod1`). *Not yet tested in the car.*
+Builds: **mod1** (`versionCode 1001`) car controls; **mod2** (`versionCode 1002`, `0.3.12-mod2`) adds the
+diagnostic-report fix. *Neither tested in the car yet.*
 
 ## The app
 
@@ -39,12 +40,33 @@ First modded build: **mod1** (`versionCode 1001`, `versionName 0.3.12-mod1`). *N
 * **`SettingsHook`**: adds the "BYD car controls" row straight after "Key mapping" in Settings, on both the Basic
   and Advanced tabs.
 
+## Diagnostic report (mod2)
+
+DiAuto's "Save diagnostic report" on Android 10+ only writes through MediaStore Downloads (`g1.w.a`), and its
+fallback is the system file picker (`CreateDocument`). The user reported that the report doesn't save on the car.
+`ReportSaver.save` replaces the save step in `DiagnosticsFragment$export$2$result$1` and tries these in order:
+
+1. A picked Uri, if a picker was used.
+2. MediaStore `Downloads/DiAuto`.
+3. `/sdcard/Download/DiAuto` written directly. This needs `WRITE_EXTERNAL_STORAGE`; the manifest now sets
+   `requestLegacyExternalStorage`.
+4. `Android/data/com.andrerinas.headunitrevived/files/reports/`, which always works. If ADB was allowed before,
+   the shell also copies the file to `/sdcard/Download/DiAuto`.
+
+The report gains a "BYD car controls" section (firmware, service state, ADB, permissions, car-control prefs) and
+the app's own logcat. When the report has to fall back to steps 3 or 4, the failures from the earlier steps are
+appended to it. The "Report saved" dialog shows the real folder (`ReportSaver.wherePrefix`). If DiAuto's own
+report builder (`g1.z.a`) throws, the error text is saved in its place.
+
 ## Smali changes (`smali-patches/diauto-0.3.12-mods.diff`)
 
 * `SettingsFragment.updateSettingsList`: one `invoke-static {v0, v1}, SettingsHook->addEntry(List, Object)` after the
   keymap row's `List.add`. At that point `v0` is the list and `v1` is `this`.
 * `SettingsFragment.<init>`: `basicSettingIds` grows from 15 to 16 entries with `"bydCarControls"`.
-* Manifest: `BYDAUTO_AC_COMMON/GET/SET`, the activity, and the accessibility service (`res/xml/byd_wheel_keys.xml`
+* `DiagnosticsFragment$export$2$result$1.invokeSuspend`: the build-and-save block is replaced by one
+  `ReportSaver.save(context, destination, fileName)` call inside the original try/catch.
+* `DiagnosticsFragment$export$2`: `"Downloads/DiAuto/"` is replaced by `ReportSaver.wherePrefix()`.
+* Manifest: `requestLegacyExternalStorage="true"`, `BYDAUTO_AC_COMMON/GET/SET`, the activity, and the accessibility service (`res/xml/byd_wheel_keys.xml`
   plus three strings).
 
 jadx can't decompile `updateSettingsList` because the method is too big, so check changes there in smali.

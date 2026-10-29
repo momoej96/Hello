@@ -64,6 +64,11 @@ public final class LocalAdb {
         return lastError;
     }
 
+    /** True once a command went through, i.e. the key was allowed and no prompt will appear. */
+    public static boolean wasAllowed(Context c) {
+        return CarActions.prefs(c).getBoolean("adb_allowed", false);
+    }
+
     /** Runs a shell command and returns its output, or null when ADB can't be reached. */
     public static synchronized String shell(Context c, String command) {
         Context app = c.getApplicationContext() != null ? c.getApplicationContext() : c;
@@ -76,7 +81,9 @@ public final class LocalAdb {
             if (i > 0 && order[i] == saved) continue;
             try {
                 String out = run(app, order[i], command);
-                if (order[i] != saved) CarActions.prefs(app).edit().putInt("adb_port", order[i]).apply();
+                if (order[i] != saved || !wasAllowed(app)) {
+                    CarActions.prefs(app).edit().putInt("adb_port", order[i]).putBoolean("adb_allowed", true).apply();
+                }
                 lastError = "";
                 return out;
             } catch (java.net.ConnectException e) {

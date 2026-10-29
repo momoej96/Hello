@@ -1,16 +1,18 @@
 diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
 --- orig/AndroidManifest.xml	2026-10-28 11:35:34.113160779 +0000
-+++ project/AndroidManifest.xml	2026-10-28 11:35:48.967013911 +0000
-@@ -50,6 +50,9 @@
++++ project/AndroidManifest.xml	2026-10-29 05:53:48.977280744 +0000
+@@ -50,7 +50,10 @@
      <permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature"/>
      <uses-permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
      <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
+-    <application android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
 +    <uses-permission android:name="android.permission.BYDAUTO_AC_COMMON"/>
 +    <uses-permission android:name="android.permission.BYDAUTO_AC_GET"/>
 +    <uses-permission android:name="android.permission.BYDAUTO_AC_SET"/>
-     <application android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
++    <application android:requestLegacyExternalStorage="true" android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
          <service android:exported="false" android:name="com.andrerinas.openheadunit.aap.DummyVpnService" android:permission="android.permission.BIND_VPN_SERVICE">
              <intent-filter>
+                 <action android:name="android.net.VpnService"/>
 @@ -222,5 +225,12 @@
              </intent-filter>
          </receiver>
@@ -49,6 +51,166 @@ diff -ruN orig/res/xml/byd_wheel_keys.xml project/res/xml/byd_wheel_keys.xml
 +    android:canRetrieveWindowContent="false"
 +    android:description="@string/byd_wheel_keys_desc"
 +    android:notificationTimeout="100" />
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-28 11:35:33.557167940 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 05:53:48.975854544 +0000
+@@ -210,137 +210,20 @@
+     .line 20
+     .line 21
+     :try_start_0
+-    sget-object v2, La5/k;->f:La5/k$a;
++    invoke-static {p1, v0, v1}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->save(Landroid/content/Context;Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;
+ 
+-    .line 22
+-    .line 23
+-    sget-object v2, Lg1/z;->a:Lg1/z;
+-
+-    .line 24
+-    .line 25
+-    invoke-static {p1}, Ln5/l;->c(Ljava/lang/Object;)V
+-
+-    .line 26
+-    .line 27
+-    .line 28
+-    invoke-virtual {v2, p1}, Lg1/z;->a(Landroid/content/Context;)Ljava/lang/String;
+-
+-    .line 29
+-    .line 30
+-    .line 31
+-    move-result-object v2
+-    :try_end_0
+-    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+-
+-    .line 32
+-    const-string v3, "getContentResolver(...)"
+-
+-    .line 33
+-    .line 34
+-    if-eqz v0, :cond_0
+-
+-    .line 35
+-    .line 36
+-    :try_start_1
+-    sget-object v1, Lg1/w;->a:Lg1/w;
+-
+-    .line 37
+-    .line 38
+-    invoke-virtual {p1}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
+-
+-    .line 39
+-    .line 40
+-    .line 41
+-    move-result-object p1
+-
+-    .line 42
+-    invoke-static {p1, v3}, Ln5/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+-
+-    .line 43
+-    .line 44
+-    .line 45
+-    invoke-virtual {v1, p1, v0, v2}, Lg1/w;->b(Landroid/content/ContentResolver;Landroid/net/Uri;Ljava/lang/String;)V
+-
+-    .line 46
+-    .line 47
+-    .line 48
+-    goto :goto_0
+-
+-    .line 49
+-    :catchall_0
+-    move-exception p1
+-
+-    .line 50
+-    goto :goto_1
+-
+-    .line 51
+-    :cond_0
+-    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+-
+-    .line 52
+-    .line 53
+-    const/16 v4, 0x1d
+-
+-    .line 54
+-    .line 55
+-    if-lt v0, v4, :cond_1
+-
+-    .line 56
+-    .line 57
+-    sget-object v0, Lg1/w;->a:Lg1/w;
+-
+-    .line 58
+-    .line 59
+-    invoke-virtual {p1}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
+-
+-    .line 60
+-    .line 61
+-    .line 62
+-    move-result-object p1
+-
+-    .line 63
+-    invoke-static {p1, v3}, Ln5/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+-
+-    .line 64
+-    .line 65
+-    .line 66
+-    invoke-virtual {v0, p1, v1, v2}, Lg1/w;->a(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri;
+-
+-    .line 67
+-    .line 68
+-    .line 69
+     move-result-object v0
+ 
+-    .line 70
+-    :goto_0
+     invoke-static {v0}, La5/k;->b(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+-    .line 71
+-    .line 72
+-    .line 73
+     move-result-object p1
++    :try_end_0
++    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+ 
+-    .line 74
+     goto :goto_2
+ 
+-    .line 75
+-    :cond_1
+-    const-string p1, "Check failed."
+-
+-    .line 76
+-    .line 77
+-    new-instance v0, Ljava/lang/IllegalStateException;
+-
+-    .line 78
+-    .line 79
+-    invoke-direct {v0, p1}, Ljava/lang/IllegalStateException;-><init>(Ljava/lang/String;)V
+-
+-    .line 80
+-    .line 81
+-    .line 82
+-    throw v0
+-    :try_end_1
+-    .catchall {:try_start_1 .. :try_end_1} :catchall_0
++    :catchall_0
++    move-exception p1
+ 
+     .line 83
+     :goto_1
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-28 11:35:33.556062361 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 05:53:48.976659369 +0000
+@@ -779,7 +779,9 @@
+     .line 175
+     .line 176
+     .line 177
+-    const-string v7, "Downloads/DiAuto/"
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->wherePrefix()Ljava/lang/String;
++
++    move-result-object v7
+ 
+     .line 178
+     .line 179
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
 --- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:35:33.575391979 +0000
 +++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:36:01.371129058 +0000
