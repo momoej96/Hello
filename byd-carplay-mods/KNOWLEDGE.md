@@ -136,8 +136,14 @@ opens DiPlay when CarPlay isn't running. The outcome shows as "Last car start: �
 **User finding (28 Oct):** switching the car off and on again within ~1 minute leaves the wheel keys dead —
 in DiPlay *and* in Diplus — until the car is off long enough for Bluetooth to disconnect; after that everything
 works. So it's the head unit coming back from a half-sleep, not the app. In that state the service may look bound
-while key events don't arrive, which the v26 watchdog can't see. Ideas not built yet: a forced re-toggle when the
-screen comes back after <1 min off, and a manual "Refresh wheel keys" button.
+while key events don't arrive, which the v26 watchdog can't see (confirmed 29 Oct: keys still sometimes dead with
+v26, force stop fixes them).
+
+v27 therefore restarts DiPlay once after every car wake when its process lived through the sleep (setting
+"Restart DiPlay after the car wakes", on by default). Wake = screen on after ≥10 s off, or the watchdog's real clock
+jumping >20 s between 5 s ticks (the handler clock stops in sleep). A process that started after the wake is left
+alone; ADB not answering is retried for 90 s; at most one wake restart per 2 min. Car controls also has a manual
+"Refresh wheel keys" button. *(Built, not yet confirmed.)*
 Also reported: DiPlay's start-at-boot permission seemed lost after several updates (where exactly: not yet known);
 idea: re-apply the boot exemptions (`cmd deviceidle whitelist +pkg`, appops `RUN_IN_BACKGROUND`) over ADB after
 each update.

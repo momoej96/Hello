@@ -37,6 +37,7 @@ public final class CarControlsUi {
         if (wake != null) DiPlayActivity.diplayNote(a, card, "Last car start: " + wake);
 
         serviceRows(a, card);
+        wakeRows(a, card);
 
         for (int b = 0; b < CarKeys.BTN_CODE.length; b++) buttonRows(a, card, b);
 
@@ -111,6 +112,29 @@ public final class CarControlsUi {
                         }
                     }, 0x60, null);
         }
+    }
+
+    // ---- after the car wakes ----
+
+    private static void wakeRows(final DiPlayActivity a, LinearLayout card) {
+        DiPlayActivity.toggle$default(a, card, "Restart DiPlay after the car wakes",
+                "After switching the car off and on, the wheel keys can stop working until DiPlay is force-stopped. "
+                        + "With this on, DiPlay does that once by itself when the car wakes (a few seconds; CarPlay "
+                        + "connects right after).",
+                CarWake.wakeRestartEnabled(a), false,
+                new Function1() {
+                    public Object invoke(Object p) {
+                        CarActions.prefs(a).edit().putBoolean(CarWake.KEY_WAKE_RESTART, Boolean.TRUE.equals(p)).apply();
+                        return kotlin.Unit.INSTANCE;
+                    }
+                }, 0x10, null);
+        DiPlayActivity.diplayButton(a, card, "Refresh wheel keys", new Function0() {
+            public Object invoke() {
+                CarWake.refreshNow(a);
+                return kotlin.Unit.INSTANCE;
+            }
+        });
+        DiPlayActivity.diplayNote(a, card, "If the keys stop working: DiPlay closes and opens again by itself.");
     }
 
     // ---- slots ----
