@@ -39,7 +39,7 @@ public final class CarPanels {
 
     // ---- entry points ----
 
-    /** Settings → Audio → Sound adjustments: two buttons in DiPlay's own style. */
+    /** Settings → Audio → Sound adjustments: one Equalizer button in DiPlay's own style. */
     public static void settingsButtons(final DiPlayActivity a, LinearLayout card) {
         try {
             DiPlayActivity.diplayButton(a, card, "Equalizer", new Function0() {
@@ -48,6 +48,13 @@ public final class CarPanels {
                     return kotlin.Unit.INSTANCE;
                 }
             });
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Settings → Vehicle: the Car wheel keys button. */
+    public static void vehicleButton(final DiPlayActivity a, LinearLayout card) {
+        try {
             DiPlayActivity.diplayButton(a, card, "Car wheel keys", new Function0() {
                 public Object invoke() {
                     openWheelKeys(a);
@@ -58,20 +65,22 @@ public final class CarPanels {
         }
     }
 
-    /** CarPlay side window, Audio tab. */
+    /** CarPlay side window: Equalizer on the Audio tab, Car wheel keys on the Vehicle tab. */
     public static void popupAudio(String key, LinearLayout page, final Context c) {
         try {
-            if (!"audio".equals(key)) return;
-            page.addView(bigButton(c, "Equalizer", new Runnable() {
-                public void run() {
-                    openEqualizer(c);
-                }
-            }), rowParams(c));
-            page.addView(bigButton(c, "Car wheel keys", new Runnable() {
-                public void run() {
-                    openWheelKeys(c);
-                }
-            }), rowParams(c));
+            if ("audio".equals(key)) {
+                page.addView(bigButton(c, "Equalizer", new Runnable() {
+                    public void run() {
+                        openEqualizer(c);
+                    }
+                }), rowParams(c));
+            } else if ("vehicle".equals(key)) {
+                page.addView(bigButton(c, "Car wheel keys", new Runnable() {
+                    public void run() {
+                        openWheelKeys(c);
+                    }
+                }), rowParams(c));
+            }
         } catch (Throwable ignored) {
         }
     }
