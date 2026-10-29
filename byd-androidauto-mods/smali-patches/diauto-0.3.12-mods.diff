@@ -139,7 +139,7 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/sm
      .line 610
 diff -ruN orig/smali/com/andrerinas/openheadunit/decoder/g.smali project/smali/com/andrerinas/openheadunit/decoder/g.smali
 --- orig/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-29 14:53:48.886953783 +0000
-+++ project/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-29 14:53:53.145486584 +0000
++++ project/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-29 16:42:05.413733708 +0000
 @@ -4905,6 +4905,18 @@
  .method private static final X(Lc1/n0;Lcom/andrerinas/openheadunit/decoder/g;Landroid/media/MediaCodec;I)Z
      .locals 3
@@ -158,6 +158,15 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/decoder/g.smali project/smali/c
 +
      .line 1
      const/4 v0, 0x1
+ 
+@@ -7126,7 +7138,7 @@
+     const/4 v15, 0x0
+ 
+     .line 298
+-    invoke-virtual {v5, v14, v6, v7, v15}, Landroid/media/MediaCodec;->configure(Landroid/media/MediaFormat;Landroid/view/Surface;Landroid/media/MediaCrypto;I)V
++    invoke-static {v5, v14, v6, v7, v15}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->configureVideo(Landroid/media/MediaCodec;Landroid/media/MediaFormat;Landroid/view/Surface;Landroid/media/MediaCrypto;I)V
+     :try_end_3
+     .catch Ljava/lang/Exception; {:try_start_3 .. :try_end_3} :catch_2
  
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali
 --- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 14:53:48.907549570 +0000

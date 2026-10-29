@@ -114,7 +114,10 @@ public final class StatusLine {
         ((Application) c.getApplicationContext()).registerActivityLifecycleCallbacks(
                 new Application.ActivityLifecycleCallbacks() {
                     public void onActivityResumed(Activity a) {
-                        if (HOME.equals(a.getClass().getName())) show(a);
+                        if (HOME.equals(a.getClass().getName())) {
+                            TuningActivity.enforce(a);
+                            show(a);
+                        }
                     }
 
                     public void onActivityPaused(Activity a) {

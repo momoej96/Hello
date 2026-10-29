@@ -5,6 +5,9 @@ import android.content.SharedPreferences;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
 import android.media.MediaCodec;
+import android.media.MediaCrypto;
+import android.media.MediaFormat;
+import android.view.Surface;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
@@ -34,7 +37,7 @@ public final class AvBuffer {
     public static final int[] VIDEO_MS = {0, 80, 150, 250, 400};
     /** Defaults chosen for the Qin Plus DM-i log: audio gaps up to ~2 s, bursty video. */
     static final int DEFAULT_AUDIO_MS = 2000;
-    static final int DEFAULT_VIDEO_MS = 150;
+    static final int DEFAULT_VIDEO_MS = 250;
 
     private static volatile int audioMs = -1;
     private static volatile int videoMs = -1;
@@ -238,6 +241,43 @@ public final class AvBuffer {
     }
 
     // ---- video ----
+
+    /** Decoder runs as a real-time stream at full clock (MediaFormat.KEY_PRIORITY / KEY_OPERATING_RATE, API 23). */
+    private static final String KEY_PRIORITY = "priority";
+    private static final String KEY_OPERATING_RATE = "operating-rate";
+    private static final int FAST_OPERATING_RATE = 120;
+
+    /**
+     * Replaces MediaCodec.configure in DiAuto's video decoder (decoder.g.o0). Asks for a real-time
+     * decoder at twice 60 fps so MediaTek's video engine does not clock down between frames. If the
+     * decoder refuses the request, it is reset and configured with neutral values (priority 1,
+     * 30 fps), which is what it would have used anyway; a second failure goes to DiAuto as before.
+     */
+    public static void configureVideo(MediaCodec codec, MediaFormat format, Surface surface,
+            MediaCrypto crypto, int flags) {
+        boolean asked = false;
+        try {
+            format.setInteger(KEY_PRIORITY, 0);
+            format.setInteger(KEY_OPERATING_RATE, FAST_OPERATING_RATE);
+            asked = true;
+        } catch (Throwable ignored) {
+        }
+        try {
+            codec.configure(format, surface, crypto, flags);
+            if (asked) Log.i(TAG, "video decoder: real-time priority, operating rate " + FAST_OPERATING_RATE);
+            return;
+        } catch (RuntimeException e) {
+            if (!asked) throw e;
+            Log.w(TAG, "video decoder refused real-time priority, configuring without it", e);
+        }
+        try {
+            MediaCodec.class.getMethod("reset").invoke(codec);
+        } catch (Throwable ignored) {
+        }
+        format.setInteger(KEY_PRIORITY, 1);
+        format.setInteger(KEY_OPERATING_RATE, 30);
+        codec.configure(format, surface, crypto, flags);
+    }
 
     private static java.lang.reflect.Method releaseAt;
 

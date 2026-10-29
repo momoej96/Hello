@@ -41,5 +41,26 @@ public class Sim {
     video("Video 150 ms, 1.4 s stall", 150, true, false);
     video("No video buffer, jittery Wi-Fi", 0, false, true);
     video("Video 150 ms, jittery Wi-Fi", 150, false, true);
+    video("Video 250 ms, jittery Wi-Fi", 250, false, true);
+    configure("Decoder accepts real-time", false);
+    configure("Decoder refuses real-time", true);
+  }
+
+  /** AvBuffer.configureVideo: asks for real-time once; a refusal resets and configures neutrally. */
+  static void configure(String name, boolean refuse) {
+    android.media.MediaCodec c = new android.media.MediaCodec();
+    c.rejectRealtime = refuse;
+    android.media.MediaFormat f = new android.media.MediaFormat();
+    String result;
+    try {
+      com.andrerinas.openheadunit.byd.AvBuffer.configureVideo(c, f, null, null, 0);
+      result = "configured";
+    } catch (RuntimeException e) {
+      result = "threw " + e.getMessage();
+    }
+    boolean ok = refuse ? c.configures == 2 && c.resets == 1 && f.ints.get("priority") == 1
+                        : c.configures == 1 && c.resets == 0 && f.ints.get("priority") == 0 && f.ints.get("operating-rate") == 120;
+    System.out.printf("%-32s %s configures=%d resets=%d priority=%s rate=%s  %s%n", name, result, c.configures, c.resets,
+        f.ints.get("priority"), f.ints.get("operating-rate"), ok ? "PASS" : "FAIL");
   }
 }

@@ -10,7 +10,7 @@ failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting 
 the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
 WiFi Direct group to 2.4 GHz channel 6; **mod7** (`1007`) is WiFi Direct only: the group follows the car's Wi-Fi
 channel and is recreated on every join failure, and the app starts with the car; **mod8** (`1008`) connects over
-the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. mod9 connected in the car without a hotspot (car's local network) but lagged; **mod10** (`1010`) adds the "Picture & sound" page (video settings, smooth video buffers, DiPlay-style sound adjustments). mod10 worked in the car ("good, not perfectly smooth"); **mod11** (`1011`) adds an Equalizer row to Quick Settings and keeps the car's bottom bar over Android Auto. *mod11 not tested in the car yet.*
+the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. mod9 connected in the car without a hotspot (car's local network) but lagged; **mod10** (`1010`) adds the "Picture & sound" page (video settings, smooth video buffers, DiPlay-style sound adjustments). mod10 worked in the car ("good, not perfectly smooth"); **mod11** (`1011`) adds an Equalizer row to Quick Settings and keeps the car's bottom bar over Android Auto. mod11 worked, but the bar still hid (the log showed `fullscreen-mode` back at immersive) and the picture was slow; **mod12** (`1012`) is for smoothness at 60 fps / 1280x720. *mod12 not tested in the car yet.*
 
 ## The app
 
@@ -327,3 +327,31 @@ mod10:
   navigation bar). Its default is 1 (immersive, both hidden). mod11 sets 2 once (`car_defaults_v4`) and Picture &
   sound has a "Car bars over Android Auto" row (bottom bar only / no bars / both bars).
 * Checks: `tools/verify.sh` 71,641 methods, 0 findings; signature `1e08a903…5953`; sims unchanged.
+
+## Car log 19:02 (mod11) and mod12: smooth at 60 fps, 1280x720
+
+* HUR log 18:58-19:02: the phone sent H.265 (`OMX.MTK.VIDEO.DECODER.HEVC`, SPS 1280x720) and the decoder took the
+  low-latency key (`optionalKeys=vendor [vdec-lowlatency]`). `dropped=0`, small input wait: the head unit keeps up.
+  Frames per 5 s window went 27, 23, 26, 16, then about 10 for a minute, back to 21-27. AA only sends a frame when
+  the picture changes, so a still screen also reads low. `isAac=false` (raw PCM 48 kHz stereo, about 1.5 Mbit/s) and
+  `Mode: IMMERSIVE`: DiAuto's Settings Save had written back older copies of both.
+* The user wants 60 fps at 1280x720 kept, and smoothness first (a little delay is fine). The 17:19 report already
+  showed `@30` delivering 24-29 fps and `@60` 13-22 fps on this 2.4 GHz link, so mod12 frees the link and evens out
+  what arrives instead of asking for less.
+* Rejected: a bigger `max_unacked` window (v0.m.b). DiAuto acks a video message as soon as v0.j2.g hands it to the
+  decoder queue (v0.u -> v0.i2.Z), so 12 frames (about 200-400 ms) never fills; and the decoder's feed queue
+  (decoder.g.S, ArrayBlockingQueue of 15) drops on overflow (`Y` + `U`), which a 50-frame window would trigger and
+  turn into smearing until the next keyframe.
+
+mod12:
+* AAC audio: Picture & sound row "AAC audio" (the mod's `aac_audio`, default on) is written into DiAuto's
+  `use-aac-audio` at app start and every time DiAuto's home screen resumes (`TuningActivity.enforce`, from the
+  StatusLine lifecycle callback), so a Settings Save with an old copy cannot turn it off for long.
+* Decoder at full speed: `decoder.g.o0`'s `MediaCodec.configure` is replaced by `AvBuffer.configureVideo`, which sets
+  `priority` 0 (real time) and `operating-rate` 120. If the codec throws, it is reset (reflection, API 21) and
+  configured again with priority 1 / rate 30 (MediaFormat.removeKey is API 29); a second failure goes to DiAuto's
+  catch as before. `tools/buffer-sim` checks both paths.
+* Video buffer default 250 ms (15 frames at 60 fps), set once (`car_defaults_v5`) with AAC on. "Use the recommended
+  values" now means H.265, 1280x720, 60 fps, AAC, SurfaceView, low latency, video 250 ms, audio 2000 ms.
+* Checks: `tools/verify.sh` 71,645 methods, 0 findings; signature `1e08a903…5953`; sims pass (buffer sim models
+  30 fps arrival only).

@@ -44,6 +44,10 @@ public final class TuningActivity extends Activity {
     static final int BOTTOM_BAR_ONLY = 2;
     /** Set by DiAuto after sessions that rendered nothing; it caps the profile until cleared. */
     static final String STARVATION_CAP = "video-profile-starvation-cap";
+    /** DiAuto's "Use AAC Audio": music arrives compressed instead of as 1.5 Mbit/s raw PCM. */
+    static final String AAC = "use-aac-audio";
+    /** The mod's own choice for AAC; DiAuto's Settings Save can write back an old copy, so this wins. */
+    static final String KEY_AAC = "aac_audio";
 
     private static final String[] CODEC_VALUES = {"Auto", "H.264", "H.265"};
     private static final String[] CODEC_NAMES = {"Auto", "H.264", "H.265 (HEVC)"};
@@ -68,16 +72,31 @@ public final class TuningActivity extends Activity {
         settings(c).edit()
                 .putString(CODEC, "H.265")
                 .putInt(RESOLUTION, 2)
-                .putInt(FPS, 30)
+                .putInt(FPS, 60)
+                .putBoolean(AAC, true)
                 .putInt(VIEW_MODE, 0)
                 .putBoolean(LOW_LATENCY, true)
                 .putBoolean(STARVATION_CAP, false)
                 .apply();
         CarActions.prefs(c).edit()
+                .putBoolean(KEY_AAC, true)
                 .putInt(AvBuffer.KEY_AUDIO, AvBuffer.DEFAULT_AUDIO_MS)
                 .putInt(AvBuffer.KEY_VIDEO, AvBuffer.DEFAULT_VIDEO_MS)
                 .apply();
         AvBuffer.load(c);
+    }
+
+    /**
+     * Puts the mod's AAC choice back into DiAuto's settings. Runs at app start and whenever DiAuto's
+     * home screen comes back (after its Settings screen may have saved an older copy).
+     */
+    static void enforce(Context c) {
+        try {
+            boolean aac = CarActions.prefs(c).getBoolean(KEY_AAC, true);
+            SharedPreferences s = settings(c);
+            if (s.getBoolean(AAC, false) != aac) s.edit().putBoolean(AAC, aac).apply();
+        } catch (Throwable ignored) {
+        }
     }
 
     @Override
@@ -131,6 +150,12 @@ public final class TuningActivity extends Activity {
                 s.edit().putInt(VIEW_MODE, VIEW_VALUES[w]).apply();
             }
         });
+        toggle(video, "AAC audio (more Wi-Fi for the picture)", mine.getBoolean(KEY_AAC, true), new Toggle() {
+            public void set(boolean on) {
+                mine.edit().putBoolean(KEY_AAC, on).apply();
+                enforce(TuningActivity.this);
+            }
+        });
         toggle(video, "Low latency decoding", s.getBoolean(LOW_LATENCY, false), new Toggle() {
             public void set(boolean on) {
                 s.edit().putBoolean(LOW_LATENCY, on).apply();
@@ -168,7 +193,7 @@ public final class TuningActivity extends Activity {
         soundCard();
 
         LinearLayout reset = card("Recommended for this car");
-        note(reset, "H.265, 1280x720, 30 fps, SurfaceView, low latency decoding on, video buffer "
+        note(reset, "H.265, 1280x720, 60 fps, AAC audio, SurfaceView, low latency decoding on, video buffer "
                 + AvBuffer.DEFAULT_VIDEO_MS + " ms, audio buffer " + AvBuffer.DEFAULT_AUDIO_MS
                 + " ms. Sound adjustments and DPI are left as they are.");
         button(reset, "Use the recommended values", new View.OnClickListener() {

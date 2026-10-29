@@ -21,6 +21,7 @@ public final class CarDefaults {
     private static final String DONE_V2 = "car_defaults_v2";
     private static final String DONE_V3 = "car_defaults_v3";
     private static final String DONE_V4 = "car_defaults_v4";
+    private static final String DONE_V5 = "car_defaults_v5";
 
     private CarDefaults() {}
 
@@ -50,6 +51,13 @@ public final class CarDefaults {
                 mine.edit().putBoolean(DONE_V4, true).apply();
                 Log.i(TAG, "applied: fullscreen mode = hide status bar only (car's bottom bar stays)");
             }
+            if (!mine.getBoolean(DONE_V5, false)) {
+                // mod12, once: a 250 ms video buffer (15 frames at 60 fps) and AAC audio.
+                mine.edit().putInt(AvBuffer.KEY_VIDEO, AvBuffer.DEFAULT_VIDEO_MS)
+                        .putBoolean(TuningActivity.KEY_AAC, true).putBoolean(DONE_V5, true).apply();
+                Log.i(TAG, "applied: video buffer " + AvBuffer.DEFAULT_VIDEO_MS + " ms, AAC audio");
+            }
+            TuningActivity.enforce(c);
             AvBuffer.load(c);
             if (!mine.getBoolean(DONE_V2, false)) {
                 autoStart(c);
