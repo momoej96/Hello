@@ -26,4 +26,11 @@ java -jar "$TOOLS/apktool.jar" b "$WORK/project" -o "$WORK/unsigned.apk"
 (cd "$WORK" && zip -q unsigned.apk classes5.dex)
 java -jar "$TOOLS/uber-apk-signer.jar" -a "$WORK/unsigned.apk" -o "$WORK/signed"
 cp "$WORK"/signed/*.apk "$OUT"
+
+# 4) Gate: refuse to hand out an APK whose smali fails the register-type check.
+if [ -f "$TOOLS/smali/dexlib2-2.5.2.jar" ]; then
+  "$HERE/tools/verify.sh" "$OUT" "$TOOLS" || { echo "Build rejected by verify.sh"; rm -f "$OUT"; exit 1; }
+else
+  echo "WARNING: verifier jars not found in $TOOLS/smali; run tools/fetch-tools.sh first" >&2
+fi
 echo "Built $OUT"

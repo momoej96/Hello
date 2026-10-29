@@ -170,9 +170,30 @@ cluster projection, likely the fix for the map shrinking after reverse), lane gu
 taking audio focus, calls at their own audio rate, connection-failure causes with fixes, album-colour
 speedometer background, auto-activated cluster music card, HEVC video, custom size, Geely support.
 
+## Verifying a build without a car or emulator
+
+Windows 10 can't run the Android emulator under WSL2 (nested virtualization is Windows 11 only), so builds are
+checked statically instead: `tools/verify.sh <apk> <tools-dir>` (run automatically at the end of `tools/build.sh`;
+`tools/fetch-tools.sh <tools-dir>` downloads its jars, retrying on Maven's HTTP 429).
+
+`tools/verifier/Verify.java` uses dexlib2 (`org.smali:dexlib2:2.5.2`) to infer the type of every register at every
+instruction, then applies the rules ART's verifier enforces: no reading a register that is unset or conflicted;
+object vs number in invoke arguments, receivers, field get/put, returns, array ops and arithmetic. dexlib2 on its own
+never rejects anything: a first version that only asked it for analysis errors reported "0 findings" on APKs with
+planted faults, which is why the strict rules were added.
+
+Validation that it works: the original 0.2.22 (185,865 methods) gives 0 findings; two planted faults (an int used as a
+Context, and an int/object merge conflict) are caught; and the old crashing builds v7/v8/v9 give 10 findings in
+`CarPlayHostActivity.buildSettingsMenu` ("v5 is PosByte, argument String … wrong kind", the exact cause of the
+first crash) while v10 and later give 0.
+
+It does **not** check behaviour (logic, permissions, the car's responses), only register/type safety of the dex.
+Java helpers are already type-checked by javac. An emulator (Windows 11 + WSL2, or the Android Studio emulator on
+Windows) would add install/launch tests; the car is still needed for anything BYD-specific.
+
 ## Modding lessons
 
-* **apktool does not verify smali.** Reusing a register as int and object across a branch merge, or overwriting a
+* **apktool does not verify smali.** (`tools/verify.sh` now does, see above.) Reusing a register as int and object across a branch merge, or overwriting a
   register the original code reads later, assembles fine and then crashes at runtime with
   `VerifyError: Verifier rejected class …`. The first crash-on-connect was exactly this in
   `CarPlayHostActivity.buildSettingsMenu`. Keep patches to single `invoke-static` calls into helper classes and diff
@@ -200,5 +221,5 @@ speedometer background, auto-activated cluster music card, HEVC video, custom si
 * `smali-patches/diplay-0.2.22-mods.diff`: every smali/manifest change against the original DiPlay 0.2.22 APK.
 * `java-src/src`: the helper classes (car keys, AC, gauge, wake, audio reset, tab order).
   `java-src/stub` holds compile-time stubs only.
-* `tools/build.sh`: rebuilds the modded APK from the original. Tested on 0.2.22: applies with no offset or fuzz,
+* `tools/build.sh`: rebuilds the modded APK from the original and runs `tools/verify.sh` as a gate (`tools/fetch-tools.sh` gets the jars). Tested on 0.2.22: applies with no offset or fuzz,
   and the result has the same size as v24 (19,278,895 bytes).
