@@ -413,9 +413,21 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali pro
      .line 362
      new-instance v29, Lcom/andrerinas/openheadunit/main/settings/SettingItem$ToggleSettingEntry;
  
+diff -ruN orig/smali/y0/i0$e.smali project/smali/y0/i0$e.smali
+--- orig/smali/y0/i0$e.smali	2026-10-28 11:35:33.823427813 +0000
++++ project/smali/y0/i0$e.smali	2026-10-29 07:27:59.089790671 +0000
+@@ -1096,6 +1096,8 @@
+ 
+     invoke-virtual {v0, v1}, Lg1/a;->w(Ljava/lang/String;)V
+ 
++    invoke-static {v1}, Lcom/andrerinas/openheadunit/byd/CarP2p;->handshakeFailed(Ljava/lang/String;)V
++
+     .line 37
+     invoke-virtual {v4}, Lv0/j4$c;->b()Z
+ 
 diff -ruN orig/smali/y0/l2.smali project/smali/y0/l2.smali
 --- orig/smali/y0/l2.smali	2026-10-28 11:35:33.827077605 +0000
-+++ project/smali/y0/l2.smali	2026-10-29 07:01:22.365725010 +0000
++++ project/smali/y0/l2.smali	2026-10-29 07:27:59.085707246 +0000
 @@ -5372,7 +5372,7 @@
  
      .line 13
@@ -429,7 +441,7 @@ diff -ruN orig/smali/y0/l2.smali project/smali/y0/l2.smali
      .line 561
      move-result v0
  
-+    invoke-static {v0}, Lcom/andrerinas/openheadunit/byd/CarP2p;->channel(I)I
++    invoke-static {v0, v1}, Lcom/andrerinas/openheadunit/byd/CarP2p;->channel(ILjava/lang/Object;)I
 +
 +    move-result v0
 +

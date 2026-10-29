@@ -28,6 +28,10 @@ public final class AapGuard {
         session = false;
     }
 
+    public static boolean sessionActive() {
+        return session;
+    }
+
     /** True when a manual Native AA poke must be skipped because a session is running. */
     public static boolean skipPoke() {
         if (session) Log.i(TAG, "Android Auto is already connected: ignoring the poke so the session stays up");
