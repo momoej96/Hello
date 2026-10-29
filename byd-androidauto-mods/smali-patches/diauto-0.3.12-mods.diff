@@ -393,6 +393,18 @@ diff -ruN orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali project
      new-instance v0, Landroid/content/Intent;
  
      .line 13
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/QuickSettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/QuickSettingsFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/QuickSettingsFragment.smali	2026-10-29 14:53:48.932609495 +0000
++++ project/smali/com/andrerinas/openheadunit/main/QuickSettingsFragment.smali	2026-10-29 15:24:06.828749535 +0000
+@@ -3898,6 +3898,8 @@
+     .line 240
+     invoke-interface {v1, v5}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+ 
++    invoke-static {v1, v0}, Lcom/andrerinas/openheadunit/byd/SettingsHook;->addEqualizer(Ljava/util/List;Ljava/lang/Object;)V
++
+     .line 241
+     .line 242
+     .line 243
 diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
 --- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-29 14:53:48.965126560 +0000
 +++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-29 14:54:09.164600939 +0000

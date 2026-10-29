@@ -20,6 +20,7 @@ public final class CarDefaults {
     private static final String DONE_V1 = "car_defaults_v1";
     private static final String DONE_V2 = "car_defaults_v2";
     private static final String DONE_V3 = "car_defaults_v3";
+    private static final String DONE_V4 = "car_defaults_v4";
 
     private CarDefaults() {}
 
@@ -42,6 +43,12 @@ public final class CarDefaults {
                 TuningActivity.applyRecommended(c);
                 mine.edit().putBoolean(DONE_V3, true).apply();
                 Log.i(TAG, "applied: H.265, 1280x720, 30 fps, SurfaceView, low latency, buffers");
+            }
+            if (!mine.getBoolean(DONE_V4, false)) {
+                // mod11, once: keep the car's bottom bar (back, home) visible over Android Auto.
+                TuningActivity.settings(c).edit().putInt(TuningActivity.FULLSCREEN, TuningActivity.BOTTOM_BAR_ONLY).apply();
+                mine.edit().putBoolean(DONE_V4, true).apply();
+                Log.i(TAG, "applied: fullscreen mode = hide status bar only (car's bottom bar stays)");
             }
             AvBuffer.load(c);
             if (!mine.getBoolean(DONE_V2, false)) {

@@ -8,7 +8,10 @@ import com.andrerinas.openheadunit.main.settings.SettingItem;
 
 import java.util.List;
 
-/** Adds the "Picture & sound" row right under "Connection mode" in DiAuto's general settings. */
+/**
+ * Adds the "Picture & sound" row right under "Connection mode" in DiAuto's general settings, and an
+ * "Equalizer" row to the Audio section of Quick Settings (the menu over Android Auto).
+ */
 public final class SettingsHook {
     static final String ID = "pictureAndSound";
 
@@ -27,6 +30,24 @@ public final class SettingsHook {
                     new m5.l() {
                         public Object invoke(Object stableId) {
                             open(c, fragment);
+                            return null;
+                        }
+                    }));
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Called from QuickSettingsFragment.updateSettingsList after the Audio section's last row. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void addEqualizer(List list, Object fragment) {
+        try {
+            final Context c = (Context) fragment.getClass().getMethod("getContext").invoke(fragment);
+            if (c == null) return;
+            list.add(new SettingItem.SettingEntry("equalizer", android.R.string.untitled,
+                    "Equalizer, bass, surround, loudness", "Equalizer", "equalizer bass sound",
+                    new m5.l() {
+                        public Object invoke(Object stableId) {
+                            SoundPanel.showDialog(c);
                             return null;
                         }
                     }));

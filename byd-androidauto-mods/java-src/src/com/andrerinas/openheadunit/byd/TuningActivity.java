@@ -16,7 +16,6 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.SeekBar;
 import android.widget.TextView;
 
 /**
@@ -40,6 +39,9 @@ public final class TuningActivity extends Activity {
     static final String VIEW_MODE = "view-mode";
     static final String LOW_LATENCY = "debug-video-low-latency";
     static final String DPI = "dpi-pixel-density";
+    /** DiAuto's Fullscreen mode: 0 normal, 1 immersive, 2 hide status bar only, 3 immersive avoiding the notch. */
+    static final String FULLSCREEN = "fullscreen-mode";
+    static final int BOTTOM_BAR_ONLY = 2;
     /** Set by DiAuto after sessions that rendered nothing; it caps the profile until cleared. */
     static final String STARVATION_CAP = "video-profile-starvation-cap";
 
@@ -51,6 +53,8 @@ public final class TuningActivity extends Activity {
     private static final int[] VIEW_VALUES = {0, 1, 2};
     private static final String[] VIEW_NAMES = {"SurfaceView (direct output)", "TextureView", "OpenGL"};
     private static final int[] DPI_VALUES = {0, 120, 140, 160, 180, 200, 240};
+    private static final int[] BAR_VALUES = {BOTTOM_BAR_ONLY, 1, 0};
+    private static final String[] BAR_NAMES = {"Bottom bar only (back, home)", "No bars (full screen)", "Both bars"};
 
     private float dp;
     private LinearLayout content;
@@ -138,6 +142,12 @@ public final class TuningActivity extends Activity {
             }
         });
         note(video, "Higher DPI makes Android Auto's buttons and text bigger, lower makes them smaller.");
+        choice(video, "Car bars over Android Auto", BAR_NAMES, indexOf(BAR_VALUES, s.getInt(FULLSCREEN, 1)), new Choice() {
+            public void chose(int w) {
+                s.edit().putInt(FULLSCREEN, BAR_VALUES[w]).apply();
+            }
+        });
+        note(video, "Applies the next time Android Auto opens. This is DiAuto's own Fullscreen mode setting.");
 
         LinearLayout smooth = card("Smooth video");
         note(smooth, "Wi-Fi delivers Android Auto in bursts. A buffer holds a little back and plays it evenly. "
@@ -155,7 +165,7 @@ public final class TuningActivity extends Activity {
                     }
                 });
 
-        soundCard(mine);
+        soundCard();
 
         LinearLayout reset = card("Recommended for this car");
         note(reset, "H.265, 1280x720, 30 fps, SurfaceView, low latency decoding on, video buffer "
@@ -170,65 +180,11 @@ public final class TuningActivity extends Activity {
         });
     }
 
-    private void soundCard(final SharedPreferences mine) {
-        LinearLayout sound = card("Sound");
-        note(sound, "Only Android Auto's music is changed; the radio and the car's own sounds are not.");
-        final TextView state = note(sound, AudioFx.state());
-        toggle(sound, "Sound adjustments", mine.getBoolean(AudioFx.KEY_ON, false), new Toggle() {
-            public void set(boolean on) {
-                mine.edit().putBoolean(AudioFx.KEY_ON, on).apply();
-                AudioFx.update(TuningActivity.this);
-                state.setText(AudioFx.state());
-            }
-        });
-        subtitle(sound, "Equalizer");
-        int[] centers = AudioFx.centersHz();
-        final int min = AudioFx.minMb();
-        final int max = AudioFx.maxMb();
-        for (int b = 0; b < centers.length; b++) {
-            final String key = AudioFx.KEY_BAND + b;
-            slider(sound, hz(centers[b]), min, max, mine.getInt(key, 0), " dB", 100, new Slide() {
-                public void moved(int v) {
-                    mine.edit().putInt(key, v).apply();
-                    AudioFx.update(TuningActivity.this);
-                }
-            });
-        }
-        subtitle(sound, "Effects");
-        slider(sound, "Bass", 0, AudioFx.MAX_STRENGTH, mine.getInt(AudioFx.KEY_BASS, 0), "%", 10, new Slide() {
-            public void moved(int v) {
-                mine.edit().putInt(AudioFx.KEY_BASS, v).apply();
-                AudioFx.update(TuningActivity.this);
-            }
-        });
-        slider(sound, "Surround", 0, AudioFx.MAX_STRENGTH, mine.getInt(AudioFx.KEY_VIRT, 0), "%", 10, new Slide() {
-            public void moved(int v) {
-                mine.edit().putInt(AudioFx.KEY_VIRT, v).apply();
-                AudioFx.update(TuningActivity.this);
-            }
-        });
-        slider(sound, "Loudness", 0, AudioFx.MAX_LOUD_MB, mine.getInt(AudioFx.KEY_LOUD, 0), " dB", 100, new Slide() {
-            public void moved(int v) {
-                mine.edit().putInt(AudioFx.KEY_LOUD, v).apply();
-                AudioFx.update(TuningActivity.this);
-            }
-        });
-        button(sound, "Reset sound to flat", new View.OnClickListener() {
-            public void onClick(View v) {
-                SharedPreferences.Editor e = mine.edit();
-                for (int b = 0; b < 16; b++) e.remove(AudioFx.KEY_BAND + b);
-                e.remove(AudioFx.KEY_BASS).remove(AudioFx.KEY_VIRT).remove(AudioFx.KEY_LOUD).apply();
-                AudioFx.update(TuningActivity.this);
-                rebuild();
-            }
-        });
+    private void soundCard() {
+        SoundPanel.fill(this, card("Sound"));
     }
 
     // ---- values ----
-
-    private static String hz(int f) {
-        return f >= 1000 ? (f % 1000 == 0 ? f / 1000 + " kHz" : String.format(java.util.Locale.US, "%.1f kHz", f / 1000f)) : f + " Hz";
-    }
 
     private static String[] names(int[] values, String unit, String zero) {
         String[] n = new String[values.length];
@@ -254,10 +210,6 @@ public final class TuningActivity extends Activity {
 
     private interface Toggle {
         void set(boolean on);
-    }
-
-    private interface Slide {
-        void moved(int value);
     }
 
     private void header() {
@@ -402,53 +354,6 @@ public final class TuningActivity extends Activity {
     private static void showToggle(TextView v, boolean on) {
         v.setText(on ? "On" : "Off");
         v.setTextColor(on ? ACCENT : MUTED);
-    }
-
-    /** A labelled slider; the value is shown divided by {@code div} with the unit. */
-    private void slider(LinearLayout card, String label, final int min, int max, int value, final String unit,
-            final int div, final Slide slide) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(px(16), px(8), px(16), px(8));
-        box.setBackground(rounded(ROW, 0, 0));
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        TextView l = new TextView(this);
-        l.setText(label);
-        l.setTextColor(TEXT);
-        l.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        top.addView(l, new LinearLayout.LayoutParams(0, -2, 1));
-        final TextView v = new TextView(this);
-        v.setTextColor(ACCENT);
-        v.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        top.addView(v, new LinearLayout.LayoutParams(-2, -2));
-        box.addView(top);
-        SeekBar bar = new SeekBar(this);
-        bar.setMax(max - min);
-        int start = value < min ? min : value > max ? max : value;
-        bar.setProgress(start - min);
-        v.setText(format(start, unit, div));
-        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar s, int p, boolean user) {
-                v.setText(format(p + min, unit, div));
-                if (user) slide.moved(p + min);
-            }
-
-            public void onStartTrackingTouch(SeekBar s) {
-            }
-
-            public void onStopTrackingTouch(SeekBar s) {
-            }
-        });
-        box.addView(bar, new LinearLayout.LayoutParams(-1, px(40)));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = px(8);
-        card.addView(box, lp);
-    }
-
-    private static String format(int v, String unit, int div) {
-        if (" dB".equals(unit)) return String.format(java.util.Locale.US, "%+.1f dB", v / (float) div);
-        return (v / div) + unit;
     }
 
     private GradientDrawable rounded(int fill, int stroke, float strokeDp) {

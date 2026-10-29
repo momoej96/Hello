@@ -10,7 +10,7 @@ failed; **mod4** (`1004`) restarts Wi-Fi Direct when the phone is stuck waiting 
 the Qin Plus DM-i defaults, the poke guard and the Bluetooth-settings crash fix; **mod6** (`1006`) pins the
 WiFi Direct group to 2.4 GHz channel 6; **mod7** (`1007`) is WiFi Direct only: the group follows the car's Wi-Fi
 channel and is recreated on every join failure, and the app starts with the car; **mod8** (`1008`) connects over
-the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. mod9 connected in the car without a hotspot (car's local network) but lagged; **mod10** (`1010`) adds the "Picture & sound" page (video settings, smooth video buffers, DiPlay-style sound adjustments). *mod10 not tested in the car yet.*
+the car's own local-only Wi-Fi network, started and filled in by the app, with WiFi Direct as the automatic fallback (tested: the phone did not connect, no report); **mod9** (`1009`) removes the car controls and keeps only starting with the car and connecting by itself, plus a status line on the home screen. mod9 connected in the car without a hotspot (car's local network) but lagged; **mod10** (`1010`) adds the "Picture & sound" page (video settings, smooth video buffers, DiPlay-style sound adjustments). mod10 worked in the car ("good, not perfectly smooth"); **mod11** (`1011`) adds an Equalizer row to Quick Settings and keeps the car's bottom bar over Android Auto. *mod11 not tested in the car yet.*
 
 ## The app
 
@@ -315,3 +315,15 @@ mod10:
   SurfaceView, low latency on, video 150 ms, audio 2000 ms. DPI and sound are left alone.
 * Checks: `tools/verify.sh` 71,623 methods, 0 findings; signature `1e08a903…5953`; sims 4/4 sections, 13/13, buffer
   numbers as above.
+
+## mod11: Equalizer in Quick Settings, car's bottom bar kept
+
+* Quick Settings is `QuickSettingsFragment` (opened from the "Exit Android Auto" dialog over the projection). In
+  `updateSettingsList` (`v0` this, `v1` the list) `SettingsHook.addEqualizer(list, this)` runs right after the Audio
+  section's last row (`audioQueueCapacity`). The row opens `SoundPanel.showDialog`: the sound controls in a dialog,
+  so Android Auto keeps running behind it. `SoundPanel` also builds the Sound card of Picture & sound (one copy of
+  the controls).
+* The bar: DiAuto's `fullscreen-mode` already has "Hide status bar only" (2: hides the status bar, shows the
+  navigation bar). Its default is 1 (immersive, both hidden). mod11 sets 2 once (`car_defaults_v4`) and Picture &
+  sound has a "Car bars over Android Auto" row (bottom bar only / no bars / both bars).
+* Checks: `tools/verify.sh` 71,641 methods, 0 findings; signature `1e08a903…5953`; sims unchanged.
