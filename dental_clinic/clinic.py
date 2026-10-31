@@ -48,7 +48,7 @@ class Clinic:
         if time.time() - s['last'] > limit:
             self.sessions.pop(tok, None)
             return None
-        r = db.execute('SELECT id,username,full_name,role,active FROM users WHERE id=?', (s['uid'],)).fetchone()
+        r = db.execute('SELECT id,username,full_name,role,active,doctor FROM users WHERE id=?', (s['uid'],)).fetchone()
         if not r or not r['active']:
             self.sessions.pop(tok, None)
             return None

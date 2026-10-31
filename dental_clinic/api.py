@@ -87,7 +87,7 @@ def session_info(c):
 def _login_response(c, user_row):
     tok = c.clinic.new_session(user_row['id'])
     cookie = 'sid=%s; HttpOnly; SameSite=Strict; Path=/' % tok
-    u = {k: user_row[k] for k in ('id', 'username', 'full_name', 'role')}
+    u = {k: user_row[k] for k in ('id', 'username', 'full_name', 'role', 'doctor')}
     p = ROLE_PERMS[u['role']]
     return Response({'ok': True, 'user': u, 'perms': ['*'] if '*' in p else sorted(p)}, headers=[('Set-Cookie', cookie)])
 

@@ -560,6 +560,21 @@ class T12_Doctors(Base):
         lst = self.c.ok('GET', '/api/patients')['patients']
         self.assertIn('doctor', lst[0])
 
+    def test_user_default_doctor(self):
+        """كل مستخدم يُربط بطبيب افتراضي من الإعدادات؛ يظهر مع بيانات الدخول ويمكن تغييره أو إزالته"""
+        self.c.ok('POST', '/api/users', {'username': 'reca', 'password': PW, 'role': 'reception', 'doctor': 'د. منتظر'})
+        u = [x for x in self.c.ok('GET', '/api/users')['users'] if x['username'] == 'reca'][0]
+        self.assertEqual(u['doctor'], 'د. منتظر')
+        a = Client(self.srv.server_address[1]); s, d = a.login('reca')
+        self.assertEqual((s, d['user']['doctor']), (200, 'د. منتظر'))
+        self.assertEqual(a.ok('GET', '/api/session')['user']['doctor'], 'د. منتظر')
+        self.c.ok('PUT', '/api/users/%d' % u['id'], {'role': 'reception', 'full_name': 'استقبال', 'active': 1})   # بدون الحقل: يبقى
+        self.assertEqual(a.ok('GET', '/api/session')['user']['doctor'], 'د. منتظر')
+        self.c.ok('PUT', '/api/users/%d' % u['id'], {'role': 'reception', 'active': 1, 'doctor': 'د. مرتضى'})
+        self.assertEqual(a.ok('GET', '/api/session')['user']['doctor'], 'د. مرتضى')
+        self.c.ok('PUT', '/api/users/%d' % u['id'], {'role': 'reception', 'active': 1, 'doctor': ''})
+        self.assertIsNone(a.ok('GET', '/api/session')['user']['doctor'])
+
     def test_report_by_doctor(self):
         """تقرير عمل كل طبيب يطابق مجاميع التقرير العام"""
         a = self.patient('مراجع أول', '07701111111', doctor='د. علي')

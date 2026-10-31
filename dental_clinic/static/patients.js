@@ -60,7 +60,7 @@ const newPatientValues = q => { q = (q || '').trim(); const digits = toLatin(q).
 const addNewItem = q => `<a class="add-new" role="button" tabindex="0" data-action="new-patient" data-q="${esc(q)}" data-pick><span class="add-ic">${icon('plus', 16)}</span><span>إضافة «<b>${esc(q)}</b>» كمراجع جديد</span></a>`;
 ACTIONS['new-patient'] = b => {
   const m = formModal({
-    title: 'إضافة مراجع جديد', fields: patientFields(), values: { first_visit_date: today(), ...newPatientValues(b && b.dataset && b.dataset.q) }, submit: 'حفظ وفتح الملف',
+    title: 'إضافة مراجع جديد', fields: patientFields(S.user && S.user.doctor), values: { first_visit_date: today(), doctor: (S.user && S.user.doctor) || '', ...newPatientValues(b && b.dataset && b.dataset.q) }, submit: 'حفظ وفتح الملف',
     onSubmit: async (v, force, m) => { const r = await api('POST', '/api/patients', { ...v, force }); m.close(); toast('تم إنشاء ملف رقم ' + r.patient.file_no); location.hash = '#/patient/' + r.patient.id; },
   });
   watchExisting(m);

@@ -149,6 +149,9 @@ def migrate(db):
     if 'rc_steps' not in cols:   # مراحل حشوة الجذر (access,obturation,buildup) وقياسات الجذور
         db.execute('ALTER TABLE procedures ADD COLUMN rc_steps TEXT')
         db.execute('ALTER TABLE procedures ADD COLUMN rc_measure TEXT')
+    cols = {r['name'] for r in db.execute('PRAGMA table_info(users)')}
+    if 'doctor' not in cols:   # الطبيب الافتراضي للمستخدم: المراجع الجديد يُسجَّل باسمه ما لم يُختر غيره
+        db.execute('ALTER TABLE users ADD COLUMN doctor TEXT')
     cols = {r['name'] for r in db.execute('PRAGMA table_info(payments)')}
     if 'doctor' not in cols:   # الطبيب الذي تُنسب له الدفعة (من شيت الطبيب عند الاستيراد)
         db.execute('ALTER TABLE payments ADD COLUMN doctor TEXT')

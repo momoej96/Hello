@@ -12,7 +12,14 @@ ROLES = tuple(ROLE_PERMS.keys())
 # ---------- المستخدمون ----------
 @route('GET', '/api/users', perm='users', tx=False)
 def users_list(c):
-    return {'users': [dict(r) for r in c.db.execute('SELECT id,username,full_name,role,active,created_at FROM users ORDER BY id')]}
+    return {'users': [dict(r) for r in c.db.execute('SELECT id,username,full_name,role,active,doctor,created_at FROM users ORDER BY id')]}
+
+
+def user_doctor(b, old=None):
+    """الطبيب الافتراضي للمستخدم («» = بدون)"""
+    if 'doctor' not in b:
+        return old
+    return v_text(b, 'doctor', 'الطبيب', maxlen=100) or None
 
 
 @route('POST', '/api/users', perm='users')
@@ -26,8 +33,8 @@ def user_create(c):
     if c.db.execute('SELECT 1 FROM users WHERE username=?', (username,)).fetchone():
         raise ApiError('اسم المستخدم مستخدم مسبقاً')
     h, s = hash_pw(b['password'])
-    cur = c.db.execute('INSERT INTO users(username,full_name,role,pw_hash,salt,active,created_at) VALUES(?,?,?,?,?,1,?)',
-                       (username, v_text(b, 'full_name', 'الاسم', maxlen=100) or username, role, h, s, now_iso()))
+    cur = c.db.execute('INSERT INTO users(username,full_name,role,pw_hash,salt,active,created_at,doctor) VALUES(?,?,?,?,?,1,?,?)',
+                       (username, v_text(b, 'full_name', 'الاسم', maxlen=100) or username, role, h, s, now_iso(), user_doctor(b)))
     audit(c.db, c.user['username'], 'user', cur.lastrowid, 'create', None, {'username': username, 'role': role})
     return {'id': cur.lastrowid}
 
@@ -44,8 +51,8 @@ def user_update(c, uid):
         others = c.db.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND active=1 AND id!=?", (uid,)).fetchone()[0]
         if others == 0:
             raise ApiError('لا يمكن تعطيل أو تخفيض صلاحية آخر مدير في النظام')
-    c.db.execute('UPDATE users SET role=?, active=?, full_name=? WHERE id=?',
-                 (role, active, v_text(b, 'full_name', 'الاسم', maxlen=100) or r['full_name'], uid))
+    c.db.execute('UPDATE users SET role=?, active=?, full_name=?, doctor=? WHERE id=?',
+                 (role, active, v_text(b, 'full_name', 'الاسم', maxlen=100) or r['full_name'], user_doctor(b, r['doctor']), uid))
     if b.get('new_password'):
         check_password_strength(b['new_password'])
         h, s = hash_pw(b['new_password'])
@@ -53,8 +60,8 @@ def user_update(c, uid):
     if not active or role != r['role'] or b.get('new_password'):
         for tok in [t for t, v in c.clinic.sessions.items() if v['uid'] == uid]:
             c.clinic.drop_session(tok)
-    audit(c.db, c.user['username'], 'user', uid, 'update', {'role': r['role'], 'active': r['active']},
-          {'role': role, 'active': active, 'password_reset': bool(b.get('new_password'))})
+    audit(c.db, c.user['username'], 'user', uid, 'update', {'role': r['role'], 'active': r['active'], 'doctor': r['doctor']},
+          {'role': role, 'active': active, 'doctor': user_doctor(b, r['doctor']), 'password_reset': bool(b.get('new_password'))})
     return {'ok': True}
 
 

@@ -130,7 +130,7 @@ const visitPaysHTML = v => { const ps = visitPays(v); return ps.length ? `<div c
 function openVisitModal(v) {
   const isNew = !v, p = PT.patient, money = can('payments');
   const docs = doctorList();
-  v = v || { visit_date: today(), visit_time: nowTime(), doctor: p.doctor || '', procedures: [{}] };
+  v = v || { visit_date: today(), visit_time: nowTime(), doctor: p.doctor || (S.user && S.user.doctor) || '', procedures: [{}] };
   const docField = docs.length || v.doctor
     ? `<label class="fld"><span>الطبيب</span><select name="doctor">${doctorOptions(v.doctor).map(o => `<option value="${esc(o.v)}" ${o.v === (v.doctor || '') ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select></label>`
     : null;
