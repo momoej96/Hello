@@ -5,9 +5,9 @@ const fmtBytes = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(
 
 async function pageSettings(main, tab) {
   tab = tab || 'clinic';
-  const tabs = [['clinic', 'بيانات العيادة'], ['account', 'حسابي'], ['users', 'المستخدمون'], ['import', 'استيراد من Excel'], ['network', 'لابتوبات وموبايل'], ['backup', 'النسخ الاحتياطي'], ['audit', 'سجل التدقيق']];
+  const tabs = [['clinic', 'بيانات العيادة'], ['account', 'حسابي'], ['users', 'المستخدمون'], ['import', 'استيراد من Excel'], ['network', 'لابتوبات وموبايل'], ['sync', 'المزامنة'], ['backup', 'النسخ الاحتياطي'], ['audit', 'سجل التدقيق']];
   main.innerHTML = `<div class="page-head"><h1>الإعدادات والنسخ الاحتياطي</h1></div><nav class="tabs">${tabs.map(t => `<a href="#/settings/${t[0]}" class="${t[0] === tab ? 'on' : ''}">${t[1]}</a>`).join('')}</nav><div id="st"></div>`;
-  ({ clinic: stClinic, account: stAccount, users: stUsers, import: stImport, network: stNetwork, backup: stBackup, audit: stAudit }[tab] || stClinic)($('#st'));
+  ({ clinic: stClinic, account: stAccount, users: stUsers, import: stImport, network: stNetwork, sync: stSync, backup: stBackup, audit: stAudit }[tab] || stClinic)($('#st'));
 }
 
 /* حجم العرض على هذا الجهاز */
@@ -195,6 +195,47 @@ ACTIONS['imp-commit'] = async () => {
 };
 
 /* ====== لابتوبات وموبايل داخل العيادة ====== */
+/* المزامنة بين لابتوبين: كل لابتوب يعمل وحده ويتبادلان التغييرات كل 5 ثوانٍ */
+async function stSync(host) {
+  const s = await api('GET', '/api/sync/status');
+  if (!s.enabled) {
+    host.innerHTML = `<section class="card"><h3>المزامنة بين لابتوبين</h3>
+      <p>كل لابتوب يشتغل وحده بنسخة كاملة من البيانات، حتى لو الثاني مطفي. ومن يكونون على نفس شبكة العيادة يتبادلون كل التغييرات كل 5 ثوانٍ: المراجعين، الزيارات، الدفعات، صور الأشعة والإعدادات.</p>
+      ${s.lan ? '' : '<div class="alert warn">البرنامج شغّال بدون وضع الشبكة. افتحه من أيقونة سطح المكتب حتى يصل له اللابتوب الآخر.</div>'}</section>
+      <div class="sync-steps"><section class="card"><h3>١. اللابتوب اللي بيه البيانات</h3><p class="muted">اضغط هنا في اللابتوب اللي بيه بيانات العيادة الحالية. يطلعلك رمز ربط وعنوان تكتبهم باللابتوب الثاني.</p>
+        <button type="button" class="btn primary" data-action="sync-enable">تفعيل المزامنة في هذا اللابتوب</button></section>
+      <section class="card"><h3>٢. اللابتوب الثاني</h3><p class="muted">اكتب عنوان اللابتوب الأول ورمز الربط. <b>بيانات هذا اللابتوب تُستبدل ببيانات الأول</b> (تُحفظ نسخة احتياطية منها قبل).</p>
+        <form id="sjf" class="form-grid c2" novalidate><label class="fld"><span>عنوان اللابتوب الأول</span><input name="host" dir="ltr" placeholder="192.168.1.10:8765" autocomplete="off"></label>
+        <label class="fld"><span>رمز الربط</span><input name="key" dir="ltr" placeholder="ABCD-EFGH" autocomplete="off"></label>
+        <div class="form-err full" role="alert"></div><div class="full"><button type="submit" class="btn primary">ربط هذا اللابتوب</button></div></form></section></div>`;
+    $('#sjf').onsubmit = async e => {
+      e.preventDefault(); const f = e.target, err = $('.form-err', f); err.textContent = '';
+      if (!await confirmBox('راح تنمسح بيانات هذا اللابتوب وتنستبدل ببيانات اللابتوب الأول (مع نسخة احتياطية منها). متأكد؟', { title: 'ربط هذا اللابتوب', ok: 'ربط', danger: true })) return;
+      const b = $('button[type=submit]', f); b.disabled = true; b.textContent = 'جارِ نسخ البيانات من اللابتوب الأول…';
+      try { await api('POST', '/api/sync/join', { host: f.host.value, key: f.key.value }); toast('تم الربط. سجّل الدخول بحسابك من اللابتوب الأول'); setTimeout(() => location.reload(), 1200); }
+      catch (er) { err.textContent = er.message; b.disabled = false; b.textContent = 'ربط هذا اللابتوب'; }
+    };
+    return;
+  }
+  const state = s.connected ? '<span class="sync-st ok">● متصل ومتزامن</span>' : `<span class="sync-st off">● غير متصل</span> <span class="muted small">${esc(s.error || '')}</span>`;
+  host.innerHTML = `<section class="card"><h3>المزامنة مفعّلة ${state}</h3>
+    <table class="kv"><tr><th>هذا اللابتوب</th><td>جهاز رقم ${s.device + 1}${s.addresses && s.addresses.length ? ` · عنوانه <bdi dir="ltr">${s.addresses.map(esc).join(' / ')}</bdi>` : ''}</td></tr>
+    <tr><th>اللابتوب الآخر</th><td>${s.peer ? `<bdi dir="ltr">${esc(s.peer.host)}:${s.peer.port}</bdi>` : 'لم يتصل بعد'} <button type="button" class="btn sm" data-action="sync-peer">تغيير العنوان</button></td></tr>
+    ${s.key ? `<tr><th>رمز الربط</th><td><b dir="ltr" class="num">${esc(s.key)}</b></td></tr>` : ''}
+    <tr><th>آخر مزامنة</th><td>${s.last_ok_ago === null ? '—' : s.last_ok_ago < 60 ? 'قبل ' + s.last_ok_ago + ' ثانية' : 'قبل ' + Math.round(s.last_ok_ago / 60) + ' دقيقة'}${s.pending_files ? ` · صور أشعة بانتظار النسخ: ${fmt(s.pending_files)}` : ''}</td></tr></table>
+    <p class="muted small">لربط لابتوب ثاني: افتح عليه «الإعدادات ← المزامنة ← ٢. اللابتوب الثاني» واكتب العنوان والرمز أعلاه.</p>
+    <button type="button" class="btn danger-o" data-action="sync-disable">إيقاف المزامنة في هذا اللابتوب</button></section>`;
+}
+ACTIONS['sync-enable'] = async () => { try { await api('POST', '/api/sync/enable', {}); toast('تم تفعيل المزامنة'); pageSettings($('#main'), 'sync'); } catch (e) { toast(e.message, 'err'); } };
+ACTIONS['sync-disable'] = async () => {
+  if (!await confirmBox('هذا اللابتوب راح يبطل يتبادل التغييرات ويه الثاني. البيانات تبقى بيه. متأكد؟', { title: 'إيقاف المزامنة', ok: 'إيقاف', danger: true })) return;
+  try { await api('POST', '/api/sync/disable', {}); toast('تم إيقاف المزامنة'); pageSettings($('#main'), 'sync'); } catch (e) { toast(e.message, 'err'); }
+};
+ACTIONS['sync-peer'] = async () => {
+  const v = await promptBox('عنوان اللابتوب الآخر', 'مثل 192.168.1.11:8765', { ok: 'حفظ' }); if (!v) return;
+  try { await api('PUT', '/api/sync/peer', { host: v }); toast('تم'); pageSettings($('#main'), 'sync'); } catch (e) { toast(e.message, 'err'); }
+};
+
 function stNetwork(host) {
   const urls = S.lan_urls || [];
   host.innerHTML = urls.length ? `<section class="card"><h3>وضع الشبكة شغّال</h3><p>افتح أحد هذه العناوين من أي لابتوب أو موبايل متصل بنفس شبكة العيادة (نفس الواي فاي أو الراوتر)، ثم سجّل الدخول بحسابك:</p>

@@ -7,13 +7,26 @@ let routeSeq = 0, lockMsg = '';
 window.onSessionLost = () => { if (S.user) { S.user = null; lockMsg = 'انتهت الجلسة. سجّل الدخول من جديد.'; showLogin(); } };
 window.refreshPage = () => route();
 
+/* علامة المزامنة في القائمة الجانبية (تتحدث كل 10 ثوانٍ) */
+let syncTimer = null;
+async function refreshSyncDot() {
+  clearTimeout(syncTimer);
+  const el = $('#syncDot'); if (!el || !S.user) return;
+  try {
+    const s = await api('GET', '/api/sync/status');
+    el.hidden = !s.enabled;
+    if (s.enabled) el.innerHTML = s.connected ? '<span class="sync-st ok">● متزامن مع اللابتوب الآخر</span>' : `<span class="sync-st off" title="${esc(s.error || '')}">● اللابتوب الآخر غير متصل</span>`;
+  } catch (e) { }
+  syncTimer = setTimeout(refreshSyncDot, 10000);
+}
 function renderSide() {
   const side = $('#side'); if (!side) return;
   const h = location.hash || '#/dashboard';
   side.innerHTML = `<div class="brand">${icon('tooth', 30)}<div><b>${esc(S.settings.clinic_name)}</b><small>نظام إدارة العيادة</small></div></div>
   <nav>${NAV.filter(n => can(n[3])).map(n => `<a href="${n[0]}" class="${h.startsWith(n[0]) ? 'on' : ''}">${icon(n[1], 19)}<span>${n[2]}</span></a>`).join('')}</nav>
-  <div class="side-foot"><div class="who">${icon('user', 16)} <span>${esc(S.user.full_name || S.user.username)}<small>${ROLE_AR[S.user.role]}</small></span></div>
+  <div class="side-foot"><div id="syncDot" hidden></div><div class="who">${icon('user', 16)} <span>${esc(S.user.full_name || S.user.username)}<small>${ROLE_AR[S.user.role]}</small></span></div>
   <button type="button" class="btn sm block" data-action="lock">${icon('lock', 15)} قفل البرنامج</button><button type="button" class="btn sm block" data-action="logout">${icon('logout', 15)} تسجيل الخروج</button></div>`;
+  refreshSyncDot();
 }
 ACTIONS.logout = async () => { try { await api('POST', '/api/logout', {}); } catch (e) { } S.user = null; lockMsg = ''; showLogin(); };
 ACTIONS.lock = async () => { try { await api('POST', '/api/logout', {}); } catch (e) { } S.user = null; lockMsg = 'تم قفل البرنامج. أدخل كلمة المرور للمتابعة.'; showLogin(); };

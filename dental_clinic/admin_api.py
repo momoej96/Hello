@@ -151,6 +151,8 @@ def backup_download(c):
 
 @route('POST', '/api/restore', perm='backup', tx=False)
 def backup_restore(c):
+    if getattr(c.clinic, 'sync', None) and c.clinic.sync['cfg'].get('enabled'):
+        raise ApiError('المزامنة مفعّلة: أوقفها أولاً من «الإعدادات ← المزامنة»، لأن الاستعادة في لابتوب واحد تخالف بيانات الآخر')
     if not c.raw:
         raise ApiError('لم يتم إرسال ملف')
     fd, tmp = tempfile.mkstemp(suffix='.db', dir=c.clinic.data_dir)

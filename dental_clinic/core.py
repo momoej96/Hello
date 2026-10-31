@@ -111,8 +111,46 @@ FDI = {q * 10 + t for q in (1, 2, 3, 4) for t in range(1, 9)} | \
       {q * 10 + t for q in (5, 6, 7, 8) for t in range(1, 6)}
 
 
+# ---------- المزامنة بين لابتوبين: أرقام السجلات الجديدة ----------
+# كل جهاز يعطي السجلات الجديدة أرقاماً من مجاله (الجهاز 0: من 1، الجهاز 1: من 5,000,001…) حتى لا تتكرر الأرقام بين الجهازين.
+# يُفعَّل فقط عند تشغيل المزامنة؛ بدونها يبقى الترقيم كما هو.
+ID_RANGE = 5_000_000
+FILE_NO_SPLIT = 90_000            # أرقام الملفات: الجهاز 0 تحت 90000، الجهاز 1 من 90001
+ID_TABLES = {'users', 'patients', 'visits', 'procedures', 'payments', 'adjustments', 'expenses',
+             'appointments', 'audit_log', 'import_batches', 'xrays'}
+SYNC_DEVICE = {}                  # مسار قاعدة البيانات ← رقم الجهاز (عند تفعيل المزامنة)
+_INSERT_RX = re.compile(r'^\s*INSERT\s+INTO\s+(\w+)\s*\(([^)]*)\)\s*VALUES\s*\(', re.I)
+
+
+class SyncConn(sqlite3.Connection):
+    """اتصال يضيف رقم السجل من مجال هذا الجهاز لكل INSERT في الجداول المرقّمة (عند تفعيل المزامنة)"""
+    _dev = None
+
+    def execute(self, sql, params=()):
+        if self._dev is not None:
+            m = _INSERT_RX.match(sql)
+            if m and m.group(1) in ID_TABLES and 'id' not in [c.strip() for c in m.group(2).split(',')]:
+                lo = self._dev * ID_RANGE
+                nxt = super().execute('SELECT MAX(id) FROM %s WHERE id > ? AND id <= ?' % m.group(1), (lo, lo + ID_RANGE)).fetchone()[0]
+                sql = sql[:m.start(2)] + 'id,' + sql[m.start(2):m.end()] + '?,' + sql[m.end():]
+                params = ((nxt or lo) + 1,) + tuple(params)
+        return super().execute(sql, params)
+
+
+def next_file_no(db):
+    """رقم الملف التالي لمراجع جديد (من مجال هذا الجهاز عند المزامنة)"""
+    dev = getattr(db, '_dev', None)
+    if dev is None:
+        return db.execute('SELECT COALESCE(MAX(file_no),1000)+1 FROM patients').fetchone()[0]
+    if dev == 0:
+        return db.execute('SELECT COALESCE(MAX(file_no),1000)+1 FROM patients WHERE file_no < ?', (FILE_NO_SPLIT,)).fetchone()[0]
+    lo = FILE_NO_SPLIT + (dev - 1) * 1_000_000
+    return db.execute('SELECT COALESCE(MAX(file_no),?)+1 FROM patients WHERE file_no > ? AND file_no <= ?', (lo, lo, lo + 1_000_000)).fetchone()[0]
+
+
 def connect(path):
-    db = sqlite3.connect(path, timeout=30, isolation_level=None)
+    db = sqlite3.connect(path, timeout=30, isolation_level=None, factory=SyncConn)
+    db._dev = SYNC_DEVICE.get(os.path.realpath(path))
     db.row_factory = sqlite3.Row
     db.execute('PRAGMA foreign_keys=ON')
     db.execute('PRAGMA journal_mode=WAL')
@@ -149,6 +187,12 @@ def migrate(db):
     if 'rc_steps' not in cols:   # مراحل حشوة الجذر (access,obturation,buildup) وقياسات الجذور
         db.execute('ALTER TABLE procedures ADD COLUMN rc_steps TEXT')
         db.execute('ALTER TABLE procedures ADD COLUMN rc_measure TEXT')
+    # سجل التغييرات للمزامنة (يُملأ بمشغّلات تُنشأ فقط عند تفعيل المزامنة — sync.py)
+    db.execute('CREATE TABLE IF NOT EXISTS sync_changes(seq INTEGER PRIMARY KEY AUTOINCREMENT, tbl TEXT NOT NULL, key TEXT NOT NULL)')
+    db.execute('CREATE TABLE IF NOT EXISTS sync_meta(tbl TEXT NOT NULL, key TEXT NOT NULL, ts INTEGER NOT NULL, dev INTEGER NOT NULL, PRIMARY KEY(tbl, key))')
+    db.execute('CREATE TABLE IF NOT EXISTS sync_flag(applying INTEGER NOT NULL, dev INTEGER NOT NULL)')
+    if not db.execute('SELECT 1 FROM sync_flag').fetchone():
+        db.execute('INSERT INTO sync_flag(applying, dev) VALUES(0, 0)')
     cols = {r['name'] for r in db.execute('PRAGMA table_info(users)')}
     if 'doctor' not in cols:   # الطبيب الافتراضي للمستخدم: المراجع الجديد يُسجَّل باسمه ما لم يُختر غيره
         db.execute('ALTER TABLE users ADD COLUMN doctor TEXT')

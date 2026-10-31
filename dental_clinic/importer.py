@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """استيراد سجل العيادة من Excel/CSV: تنظيف، دمج الأسماء، إزالة التكرار، تصحيح التواريخ، حساب الأرصدة."""
 import re, json, hashlib, datetime, statistics, collections
-from core import norm_ar, AR_DIGITS, FDI, now_iso, audit, today_iso
+from core import norm_ar, AR_DIGITS, FDI, now_iso, audit, today_iso, next_file_no
 
 HEADER_KEYS = [('name', ['اسم']), ('date', ['تاريخ']), ('work', ['عمل']), ('tooth', ['سن']),
                ('paid', ['مدفوع']), ('remaining', ['متبق', 'باقي']), ('notes', ['ملاحظ'])]
@@ -450,7 +450,7 @@ def commit_plan(db, plan, user, filename, backup_name=None):
     for x in plan['recs']:
         if x.get('doctor'):
             first_doc.setdefault(x['pkey'], x['doctor'])
-    max_file = db.execute('SELECT COALESCE(MAX(file_no),1000) FROM patients').fetchone()[0]
+    max_file = next_file_no(db) - 1
     batch = db.execute('INSERT INTO import_batches(ts,filename,user,backup_name) VALUES(?,?,?,?)', (now, filename, user, backup_name)).lastrowid
     pid_of, visit_of = {}, {}
     new_patients = n_visits = n_proc = n_pay = n_adj = 0

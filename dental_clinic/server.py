@@ -9,7 +9,7 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, APP_DIR)
 from core import ApiError, connect
 from clinic import Clinic
-import api, reports, admin_api, import_api, xray_api   # تسجيل المسارات
+import api, reports, admin_api, import_api, xray_api, sync   # تسجيل المسارات
 import ipaddress
 from netutil import lan_ips, host_allowed
 from api import ROUTES, Ctx, Response, can
@@ -117,6 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ApiError('ليست لديك صلاحية لهذه العملية', 403, 'forbidden')
                 ctx = Ctx(clinic, db, user, q, body, raw)
                 ctx.raw_cookie = tok
+                ctx.headers, ctx.ip = self.headers, self.client_address[0]
                 use_tx = tx and method != 'GET'
                 if use_tx:
                     db.execute('BEGIN IMMEDIATE')
@@ -173,6 +174,7 @@ def make_server(data_dir, port=0, demo=False, lan=False):
     srv.clinic = Clinic(data_dir, demo=demo)
     srv.clinic.lan = lan
     srv.clinic.port = srv.server_address[1]
+    sync.attach(srv.clinic)          # المزامنة مع اللابتوب الآخر (إن كانت مفعّلة)
     return srv
 
 

@@ -240,4 +240,6 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
 .proc-btn:hover,.proc-btn:focus-visible{border-color:var(--teal)}.proc-btn .ic,.proc-btn .pic{color:var(--teal);flex:none}
 .proc-btn .pbn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.proc-btn.empty{color:var(--muted);font-weight:600;border-style:dashed;border-color:var(--teal)}
 @media (max-width:760px){.pp-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sync-st{font-weight:700;font-size:.85rem}.sync-st.ok{color:#1a8f5a}.sync-st.off{color:var(--rose)}#syncDot{margin-bottom:.4rem}#syncDot[hidden]{display:none}
+.sync-steps{display:grid;grid-template-columns:1fr 1fr;gap:1rem}@media (max-width:900px){.sync-steps{grid-template-columns:1fr}}
 .main-act{font-size:1.12rem;font-weight:800;letter-spacing:.2px}

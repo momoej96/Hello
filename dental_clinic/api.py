@@ -263,7 +263,7 @@ def patient_create(c):
     f = clean_patient(c.body)
     check_duplicate(c, f)
     now = now_iso()
-    file_no = c.db.execute('SELECT COALESCE(MAX(file_no),1000)+1 FROM patients').fetchone()[0]
+    file_no = next_file_no(c.db)
     cur = c.db.execute(
         'INSERT INTO patients(file_no,full_name,name_norm,phone,phone_norm,birth_date,age,gender,first_visit_date,notes,doctor,created_at,updated_at) '
         'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
