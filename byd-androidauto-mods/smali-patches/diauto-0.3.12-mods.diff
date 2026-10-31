@@ -1,0 +1,469 @@
+diff -ruN orig/AndroidManifest.xml project/AndroidManifest.xml
+--- orig/AndroidManifest.xml	2026-10-28 11:35:34.113160779 +0000
++++ project/AndroidManifest.xml	2026-10-29 08:12:06.155760050 +0000
+@@ -50,7 +50,10 @@
+     <permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature"/>
+     <uses-permission android:name="com.andrerinas.headunitrevived.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"/>
+     <uses-permission android:name="moe.shizuku.manager.permission.API_V23"/>
+-    <application android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
++    <uses-permission android:name="android.permission.BYDAUTO_AC_COMMON"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_GET"/>
++    <uses-permission android:name="android.permission.BYDAUTO_AC_SET"/>
++    <application android:requestLegacyExternalStorage="true" android:appComponentFactory="androidx.core.app.CoreComponentFactory" android:extractNativeLibs="true" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="@string/title" android:largeHeap="true" android:localeConfig="@xml/locales_config" android:name="com.andrerinas.openheadunit.App" android:supportsRtl="true">
+         <service android:exported="false" android:name="com.andrerinas.openheadunit.aap.DummyVpnService" android:permission="android.permission.BIND_VPN_SERVICE">
+             <intent-filter>
+                 <action android:name="android.net.VpnService"/>
+@@ -222,5 +225,13 @@
+             </intent-filter>
+         </receiver>
+         <meta-data android:name="moe.shizuku.client.V3_SUPPORT" android:value="true"/>
++        <activity android:excludeFromRecents="true" android:exported="false" android:name="com.andrerinas.openheadunit.byd.HotspotActivity" android:noHistory="true" android:taskAffinity="" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
++        <activity android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:exported="false" android:label="@string/byd_car_controls" android:name="com.andrerinas.openheadunit.byd.CarControlsActivity" android:theme="@style/AppTheme"/>
++        <service android:exported="true" android:label="@string/byd_wheel_keys" android:name="com.andrerinas.openheadunit.byd.WheelKeyService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
++            <intent-filter>
++                <action android:name="android.accessibilityservice.AccessibilityService"/>
++            </intent-filter>
++            <meta-data android:name="android.accessibilityservice" android:resource="@xml/byd_wheel_keys"/>
++        </service>
+     </application>
+ </manifest>
+\ No newline at end of file
+diff -ruN orig/res/values/strings.xml project/res/values/strings.xml
+--- orig/res/values/strings.xml	2026-10-28 11:35:34.086765073 +0000
++++ project/res/values/strings.xml	2026-10-28 11:35:48.967838605 +0000
+@@ -1053,4 +1053,7 @@
+     <string name="wireless_mode_helper">Wireless Helper</string>
+     <string name="wireless_mode_native">Native</string>
+     <string name="wireless_mode_server">Headunit Server</string>
++    <string name="byd_car_controls">BYD car controls</string>
++    <string name="byd_wheel_keys">DiAuto wheel keys</string>
++    <string name="byd_wheel_keys_desc">Lets DiAuto see the steering-wheel and console keys so they can run car actions (AC, climate screen), and start DiAuto again when the car wakes.</string>
+ </resources>
+diff -ruN orig/res/xml/byd_wheel_keys.xml project/res/xml/byd_wheel_keys.xml
+--- orig/res/xml/byd_wheel_keys.xml	1970-01-01 00:00:00.000000000 +0000
++++ project/res/xml/byd_wheel_keys.xml	2026-10-28 11:35:48.967986162 +0000
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
++    android:accessibilityEventTypes="typeWindowStateChanged"
++    android:accessibilityFeedbackType="feedbackGeneric"
++    android:accessibilityFlags="flagRequestFilterKeyEvents"
++    android:canRequestFilterKeyEvents="true"
++    android:canRetrieveWindowContent="false"
++    android:description="@string/byd_wheel_keys_desc"
++    android:notificationTimeout="100" />
+diff -ruN orig/smali/c1/s.smali project/smali/c1/s.smali
+--- orig/smali/c1/s.smali	2026-10-28 11:35:33.452265671 +0000
++++ project/smali/c1/s.smali	2026-10-29 06:23:55.907093918 +0000
+@@ -1276,6 +1276,10 @@
+     .line 34
+     mul-int v9, v8, p5
+ 
++    invoke-static {v9, p2, v0}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->audioBufferSize(III)I
++
++    move-result v9
++
+     .line 35
+     .line 36
+     goto :goto_2
+@@ -2876,7 +2880,7 @@
+ 
+     .line 27
+     .line 28
+-    invoke-virtual {v0, p1, v1, p2}, Landroid/media/AudioTrack;->write([BII)I
++    invoke-static {v0, p1, p2}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->audioWrite(Landroid/media/AudioTrack;[BI)I
+ 
+     .line 29
+     .line 30
+diff -ruN orig/smali/com/andrerinas/openheadunit/App.smali project/smali/com/andrerinas/openheadunit/App.smali
+--- orig/smali/com/andrerinas/openheadunit/App.smali	2026-10-28 11:35:33.456877292 +0000
++++ project/smali/com/andrerinas/openheadunit/App.smali	2026-10-29 06:23:55.908771312 +0000
+@@ -277,6 +277,8 @@
+     .line 1
+     invoke-super {p0}, Landroid/app/Application;->onCreate()V
+ 
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/CarDefaults;->apply(Landroid/content/Context;)V
++
+     .line 2
+     .line 3
+     .line 4
+diff -ruN orig/smali/com/andrerinas/openheadunit/aap/AapService.smali project/smali/com/andrerinas/openheadunit/aap/AapService.smali
+--- orig/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-28 11:35:33.465943761 +0000
++++ project/smali/com/andrerinas/openheadunit/aap/AapService.smali	2026-10-29 08:12:06.154383738 +0000
+@@ -4127,6 +4127,8 @@
+     .line 359
+     invoke-virtual {p1, v0}, Lg1/a;->n(Ljava/lang/String;)V
+ 
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/LocalHotspot;->ensure(Landroid/content/Context;)V
++
+     .line 360
+     .line 361
+     .line 362
+@@ -13066,6 +13068,8 @@
+ .method private final t0()V
+     .locals 3
+ 
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/AapGuard;->sessionStarted()V
++
+     .line 1
+     iget-object v0, p0, Lcom/andrerinas/openheadunit/aap/AapService;->M:Landroid/net/wifi/WifiManager$WifiLock;
+ 
+@@ -13773,6 +13777,8 @@
+ .method private final u1()V
+     .locals 2
+ 
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/AapGuard;->sessionEnded()V
++
+     .line 1
+     iget-object v0, p0, Lcom/andrerinas/openheadunit/aap/AapService;->M:Landroid/net/wifi/WifiManager$WifiLock;
+ 
+@@ -17521,6 +17527,8 @@
+     .line 47
+     invoke-virtual {v0, v1}, Lg1/a;->n(Ljava/lang/String;)V
+ 
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/LocalHotspot;->ensure(Landroid/content/Context;)V
++
+     .line 48
+     .line 49
+     .line 50
+@@ -21042,6 +21050,15 @@
+ 
+     .line 609
+     :cond_1d
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/AapGuard;->skipPoke()Z
++
++    move-result p2
++
++    if-eqz p2, :byd_poke_ok
++
++    goto/16 :goto_e
++
++    :byd_poke_ok
+     if-eqz p1, :cond_1e
+ 
+     .line 610
+diff -ruN orig/smali/com/andrerinas/openheadunit/decoder/g.smali project/smali/com/andrerinas/openheadunit/decoder/g.smali
+--- orig/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-28 11:35:33.548611177 +0000
++++ project/smali/com/andrerinas/openheadunit/decoder/g.smali	2026-10-29 06:23:55.908261963 +0000
+@@ -4905,6 +4905,18 @@
+ .method private static final X(Lc1/n0;Lcom/andrerinas/openheadunit/decoder/g;Landroid/media/MediaCodec;I)Z
+     .locals 3
+ 
++    invoke-static {p2, p3}, Lcom/andrerinas/openheadunit/byd/AvBuffer;->videoRelease(Landroid/media/MediaCodec;I)I
++
++    move-result v0
++
++    if-ltz v0, :byd_off
++
++    const/4 v0, 0x1
++
++    return v0
++
++    :byd_off
++
+     .line 1
+     const/4 v0, 0x1
+ 
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-28 11:35:33.557167940 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2$result$1.smali	2026-10-29 05:53:48.975854544 +0000
+@@ -210,137 +210,20 @@
+     .line 20
+     .line 21
+     :try_start_0
+-    sget-object v2, La5/k;->f:La5/k$a;
++    invoke-static {p1, v0, v1}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->save(Landroid/content/Context;Landroid/net/Uri;Ljava/lang/String;)Landroid/net/Uri;
+ 
+-    .line 22
+-    .line 23
+-    sget-object v2, Lg1/z;->a:Lg1/z;
+-
+-    .line 24
+-    .line 25
+-    invoke-static {p1}, Ln5/l;->c(Ljava/lang/Object;)V
+-
+-    .line 26
+-    .line 27
+-    .line 28
+-    invoke-virtual {v2, p1}, Lg1/z;->a(Landroid/content/Context;)Ljava/lang/String;
+-
+-    .line 29
+-    .line 30
+-    .line 31
+-    move-result-object v2
+-    :try_end_0
+-    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+-
+-    .line 32
+-    const-string v3, "getContentResolver(...)"
+-
+-    .line 33
+-    .line 34
+-    if-eqz v0, :cond_0
+-
+-    .line 35
+-    .line 36
+-    :try_start_1
+-    sget-object v1, Lg1/w;->a:Lg1/w;
+-
+-    .line 37
+-    .line 38
+-    invoke-virtual {p1}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
+-
+-    .line 39
+-    .line 40
+-    .line 41
+-    move-result-object p1
+-
+-    .line 42
+-    invoke-static {p1, v3}, Ln5/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+-
+-    .line 43
+-    .line 44
+-    .line 45
+-    invoke-virtual {v1, p1, v0, v2}, Lg1/w;->b(Landroid/content/ContentResolver;Landroid/net/Uri;Ljava/lang/String;)V
+-
+-    .line 46
+-    .line 47
+-    .line 48
+-    goto :goto_0
+-
+-    .line 49
+-    :catchall_0
+-    move-exception p1
+-
+-    .line 50
+-    goto :goto_1
+-
+-    .line 51
+-    :cond_0
+-    sget v0, Landroid/os/Build$VERSION;->SDK_INT:I
+-
+-    .line 52
+-    .line 53
+-    const/16 v4, 0x1d
+-
+-    .line 54
+-    .line 55
+-    if-lt v0, v4, :cond_1
+-
+-    .line 56
+-    .line 57
+-    sget-object v0, Lg1/w;->a:Lg1/w;
+-
+-    .line 58
+-    .line 59
+-    invoke-virtual {p1}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;
+-
+-    .line 60
+-    .line 61
+-    .line 62
+-    move-result-object p1
+-
+-    .line 63
+-    invoke-static {p1, v3}, Ln5/l;->e(Ljava/lang/Object;Ljava/lang/String;)V
+-
+-    .line 64
+-    .line 65
+-    .line 66
+-    invoke-virtual {v0, p1, v1, v2}, Lg1/w;->a(Landroid/content/ContentResolver;Ljava/lang/String;Ljava/lang/String;)Landroid/net/Uri;
+-
+-    .line 67
+-    .line 68
+-    .line 69
+     move-result-object v0
+ 
+-    .line 70
+-    :goto_0
+     invoke-static {v0}, La5/k;->b(Ljava/lang/Object;)Ljava/lang/Object;
+ 
+-    .line 71
+-    .line 72
+-    .line 73
+     move-result-object p1
++    :try_end_0
++    .catchall {:try_start_0 .. :try_end_0} :catchall_0
+ 
+-    .line 74
+     goto :goto_2
+ 
+-    .line 75
+-    :cond_1
+-    const-string p1, "Check failed."
+-
+-    .line 76
+-    .line 77
+-    new-instance v0, Ljava/lang/IllegalStateException;
+-
+-    .line 78
+-    .line 79
+-    invoke-direct {v0, p1}, Ljava/lang/IllegalStateException;-><init>(Ljava/lang/String;)V
+-
+-    .line 80
+-    .line 81
+-    .line 82
+-    throw v0
+-    :try_end_1
+-    .catchall {:try_start_1 .. :try_end_1} :catchall_0
++    :catchall_0
++    move-exception p1
+ 
+     .line 83
+     :goto_1
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-28 11:35:33.556062361 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment$export$2.smali	2026-10-29 05:59:54.207597924 +0000
+@@ -779,7 +779,9 @@
+     .line 175
+     .line 176
+     .line 177
+-    const-string v7, "Downloads/DiAuto/"
++    invoke-static {}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->wherePrefix()Ljava/lang/String;
++
++    move-result-object v7
+ 
+     .line 178
+     .line 179
+@@ -950,6 +952,10 @@
+     .line 263
+     move-result-object v1
+ 
++    invoke-static {v1}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->withFailure(Ljava/lang/String;)Ljava/lang/String;
++
++    move-result-object v1
++
+     .line 264
+     invoke-virtual {p1, v1}, Lb4/b;->K(Ljava/lang/CharSequence;)Lb4/b;
+ 
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-28 11:35:33.556146387 +0000
++++ project/smali/com/andrerinas/openheadunit/main/DiagnosticsFragment.smali	2026-10-29 05:59:54.207143565 +0000
+@@ -176,44 +176,12 @@
+     .line 34
+     if-eqz v0, :cond_0
+ 
+-    .line 35
+-    .line 36
+     invoke-virtual {p0}, Landroidx/fragment/app/Fragment;->requireContext()Landroid/content/Context;
+ 
+-    .line 37
+-    .line 38
+-    .line 39
+     move-result-object v0
+ 
+-    .line 40
+-    sget v1, Lu0/s;->a2:I
++    invoke-static {v0}, Lcom/andrerinas/openheadunit/byd/ReportSaver;->noPicker(Landroid/content/Context;)V
+ 
+-    .line 41
+-    .line 42
+-    invoke-virtual {p0, v1}, Landroidx/fragment/app/Fragment;->getString(I)Ljava/lang/String;
+-
+-    .line 43
+-    .line 44
+-    .line 45
+-    move-result-object v1
+-
+-    .line 46
+-    const/4 v2, 0x1
+-
+-    .line 47
+-    invoke-static {v0, v1, v2}, Landroid/widget/Toast;->makeText(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;
+-
+-    .line 48
+-    .line 49
+-    .line 50
+-    move-result-object v0
+-
+-    .line 51
+-    invoke-virtual {v0}, Landroid/widget/Toast;->show()V
+-
+-    .line 52
+-    .line 53
+-    .line 54
+     :cond_0
+     return-void
+ .end method
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-28 11:35:33.557085593 +0000
++++ project/smali/com/andrerinas/openheadunit/main/HomeFragment.smali	2026-10-29 06:33:34.719442527 +0000
+@@ -556,6 +556,10 @@
+ 
+     .line 12
+     :catch_0
++    invoke-static {p0}, Lcom/andrerinas/openheadunit/byd/AapGuard;->openBluetoothFallback(Ljava/lang/Object;)V
++
++    return-void
++
+     new-instance v0, Landroid/content/Intent;
+ 
+     .line 13
+diff -ruN orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali
+--- orig/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:35:33.575391979 +0000
++++ project/smali/com/andrerinas/openheadunit/main/SettingsFragment.smali	2026-10-28 11:36:01.371129058 +0000
+@@ -344,7 +344,7 @@
+ 
+     .line 17
+     .line 18
+-    const/16 v0, 0xf
++    const/16 v0, 0x10
+ 
+     .line 19
+     .line 20
+@@ -522,6 +522,12 @@
+     .line 102
+     aput-object v1, v0, v2
+ 
++    const-string v1, "bydCarControls"
++
++    const/16 v2, 0xf
++
++    aput-object v1, v0, v2
++
+     .line 103
+     .line 104
+     invoke-static {v0}, Lb5/k0;->g([Ljava/lang/Object;)Ljava/util/Set;
+@@ -33702,6 +33708,8 @@
+ 
+     invoke-interface {v0, v2}, Ljava/util/List;->add(Ljava/lang/Object;)Z
+ 
++    invoke-static {v0, v1}, Lcom/andrerinas/openheadunit/byd/SettingsHook;->addEntry(Ljava/util/List;Ljava/lang/Object;)V
++
+     .line 362
+     new-instance v29, Lcom/andrerinas/openheadunit/main/settings/SettingItem$ToggleSettingEntry;
+ 
+diff -ruN orig/smali/y0/i0$e.smali project/smali/y0/i0$e.smali
+--- orig/smali/y0/i0$e.smali	2026-10-28 11:35:33.823427813 +0000
++++ project/smali/y0/i0$e.smali	2026-10-29 07:27:59.089790671 +0000
+@@ -1096,6 +1096,8 @@
+ 
+     invoke-virtual {v0, v1}, Lg1/a;->w(Ljava/lang/String;)V
+ 
++    invoke-static {v1}, Lcom/andrerinas/openheadunit/byd/CarP2p;->handshakeFailed(Ljava/lang/String;)V
++
+     .line 37
+     invoke-virtual {v4}, Lv0/j4$c;->b()Z
+ 
+diff -ruN orig/smali/y0/l2.smali project/smali/y0/l2.smali
+--- orig/smali/y0/l2.smali	2026-10-28 11:35:33.827077605 +0000
++++ project/smali/y0/l2.smali	2026-10-29 07:27:59.085707246 +0000
+@@ -5372,7 +5372,7 @@
+ 
+     .line 13
+     .line 14
+-    return-void
++    goto :goto_0
+ 
+     .line 15
+     :cond_0
+@@ -8885,6 +8885,10 @@
+     .line 561
+     move-result v0
+ 
++    invoke-static {v0, v1}, Lcom/andrerinas/openheadunit/byd/CarP2p;->channel(ILjava/lang/Object;)I
++
++    move-result v0
++
+     .line 562
+     if-nez v0, :cond_f
+ 
