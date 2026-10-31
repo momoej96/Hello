@@ -190,6 +190,13 @@ class T05_Search(Base):
         self.assertEqual(len(full['payments']), 1)
         self.assertEqual(full['visits'][0]['visit_date'], '2025-06-15')   # الأحدث أولاً
 
+    def test_quick_search_recent_first(self):
+        """البحث السريع: تاريخ آخر مراجعة بدل رقم الملف، الأحدث أولاً، ومن بلا زيارات في الآخر"""
+        a = self.patient('علي كريم', '07701110001'); b = self.patient('علي جاسم', '07701110002'); n = self.patient('علي بلا زيارة', '07701110003')
+        self.visit(a['id'], '2025-01-05', []); self.visit(a['id'], '2025-03-01', []); self.visit(b['id'], '2025-06-10', [])
+        r = self.c.ok('GET', '/api/patients?q=%D8%B9%D9%84%D9%8A&limit=7&sort=recent')['patients']
+        self.assertEqual([(x['id'], x['last_visit']) for x in r], [(b['id'], '2025-06-10'), (a['id'], '2025-03-01'), (n['id'], None)])
+
     def test_arabic_variants(self):
         a = self.patient('أحمد إبراهيم', '07700000001')
         b = self.patient('فاطمة الزهراء', '07700000002')

@@ -191,15 +191,20 @@ def patients_list(c):
         limit = max(1, min(int(c.q.get('limit') or 100), 100000))
     except ValueError:
         limit = 100
-    sql = ("SELECT p.*, (b.total_cost - b.discounts + b.debits - (b.paid - b.refunded)) AS remaining "
-           "FROM patients p JOIN v_balances b ON b.patient_id=p.id WHERE p.deleted=0")
+    recent = c.q.get('sort') == 'recent'     # البحث السريع: تاريخ آخر مراجعة، الأحدث أولاً
+    sql = ("SELECT p.*, (b.total_cost - b.discounts + b.debits - (b.paid - b.refunded)) AS remaining"
+           + (", (SELECT MAX(v.visit_date) FROM visits v WHERE v.patient_id=p.id AND v.deleted=0) AS last_visit" if recent else '')
+           + " FROM patients p JOIN v_balances b ON b.patient_id=p.id WHERE p.deleted=0")
     args = []
     cond, a = search_cond(q)
     if cond:
         sql += ' AND ' + cond
         args += a
     digits = re.sub(r'\D', '', norm_ar(q))
-    if q:
+    if recent:
+        sql += ' ORDER BY last_visit IS NULL, last_visit DESC, p.name_norm LIMIT ?'     # بدون زيارات: في الآخر
+        args.append(limit)
+    elif q:
         sql += ' ORDER BY (p.file_no = ?) DESC, p.name_norm LIMIT ?'
         args += [int(digits) if digits and len(digits) < 12 else -1, limit]
     else:

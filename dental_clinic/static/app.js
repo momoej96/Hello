@@ -53,8 +53,8 @@ function showApp() {
     const my = ++seq;
     if (!q) { tres.innerHTML = ''; tres.dataset.q = ''; return; }
     try {
-      const d = await api('GET', '/api/patients?' + qs({ q, limit: 7 })); if (my !== seq) return;
-      tres.innerHTML = d.patients.map(p => `<a href="#/patient/${p.id}" data-pick><b>${esc(p.full_name)}</b><span class="muted"> ملف <bdi>${p.file_no}</bdi> · <bdi>${esc(p.phone || '')}</bdi></span></a>`).join('') + (can('patients') ? addNewItem(q) : '');   // مثل جهات الاتصال: آخر سطر «إضافة … كمراجع جديد»
+      const d = await api('GET', '/api/patients?' + qs({ q, limit: 7, sort: 'recent' })); if (my !== seq) return;
+      tres.innerHTML = d.patients.map(p => `<a href="#/patient/${p.id}" data-pick><b>${esc(p.full_name)}</b><span class="muted"> ${p.last_visit ? `آخر مراجعة <bdi class="num">${p.last_visit}</bdi>` : 'بدون زيارات'}${p.phone ? ` · <bdi>${esc(p.phone)}</bdi>` : ''}</span></a>`).join('') + (can('patients') ? addNewItem(q) : '');   // مثل جهات الاتصال: آخر سطر «إضافة … كمراجع جديد»
       tres.dataset.q = q;
     } catch (e) { }
   }
