@@ -51,7 +51,8 @@ const PROC_TILES = [
   { n: 'قلع سن', types: [['عادي', 'قلع سن'], ['جراحي', 'قلع جراحي']], def: 'عادي' },
   { n: 'حشوة جذر (عصب)' },
   { n: 'حشوة مؤقتة', types: ['اعتيادية', 'علاجية (GIC)'], def: 'اعتيادية' },
-  { n: 'تقويم أسنان', types: ['حديد', 'شفاف', 'متحرك'] },
+  // التقويم: «تقويم جديد» بنوعه وسعره الكلي، أو «زيارة شهرية» بلا كلفة يُكتب فيها المبلغ المسدد
+  { n: 'تقويم أسنان', types: [['حديد', 'تقويم أسنان - حديد', 'تقويم جديد'], ['شفاف', 'تقويم أسنان - شفاف', 'تقويم جديد'], ['متحرك', 'تقويم أسنان - متحرك', 'تقويم جديد'], ['زيارة شهرية', 'تقويم أسنان - زيارة شهرية', '']] },
   { n: 'فحص وتشخيص' }, { n: 'تنظيف الأسنان' }, { n: 'تبييض الأسنان' }, { n: 'معالجة بعد القلع' }, { n: 'زراعة سن' },
   { n: 'تاج (تلبيس)', types: ['زركون', 'سيراميك', 'Emax'] }, { n: 'جسر أسنان', types: ['زركون', 'سيراميك', 'Emax'] }, { n: 'طقم أسنان' },
 ].map(t => ({ ...t, types: t.types && t.types.map(x => Array.isArray(x) ? x : [x, t.n + ' - ' + x]) }));
@@ -68,7 +69,12 @@ const procParent = n => {
     || typed.find(t => first(t.n) === n && typed.filter(q => first(q.n) === n).length === 1) || null;
 };
 const procType = n => { const t = procParent(n); if (!t) return ''; const m = t.types.find(([, full]) => full === (n || '').trim()); return m ? m[0] : ''; };
-const needsLab = n => { const t = procParent(n), ty = procType(n); return !!ty && (/^(تاج|جسر)/.test(t.n) || (/^تقويم/.test(t.n) && ty !== 'حديد')); };
+const needsLab = n => { const t = procParent(n), ty = procType(n); return !!ty && (/^(تاج|جسر)/.test(t.n) || (/^تقويم/.test(t.n) && ty !== 'حديد' && ty !== 'زيارة شهرية')); };
+/* زيارة التقويم الشهرية (بلا كلفة)، وتقويم جديد (سعر كلي، والدفع مقدّم يُكتب) */
+const isOrthoMonthly = n => (n || '').trim() === 'تقويم أسنان - زيارة شهرية';
+const isOrthoNew = n => { const t = procParent(n); return !!t && t.n === 'تقويم أسنان' && !isOrthoMonthly(n); };
+/* أزرار الأنواع، مع عنوان لكل مجموعة (مثل «تقويم جديد:») */
+const typeBtns = (types, cur, action, cls = '') => { let g = null; return types.map(([ty, full, grp]) => { const h = grp !== undefined && grp !== g ? `<span class="tgrp">${grp ? esc(grp) + ':' : 'أو'}</span>` : ''; g = grp; return h + `<button type="button" class="btn ${cls} ${full === cur ? 'primary' : ''}" data-action="${action}" data-v="${esc(full)}">${esc(ty)}</button>`; }).join(''); };
 /* رسمة بسيطة لكل مربع إجراء (بنفس ترتيب PROC_TILES) */
 const TOOTH_D = 'M7 3C4.5 3 3 5 3 7.5c0 2 .8 3.4 1.5 5 .8 1.9 1 5.3 2 7.8.4 1 1.6 1 2-.1.6-1.7.8-4 1.5-5 .6-.8 3.4-.8 4 0 .7 1 .9 3.3 1.5 5 .4 1.1 1.6 1.1 2 .1 1-2.5 1.2-5.9 2-7.8.7-1.6 1.5-3 1.5-5C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z';
 const toothD = (tf = '') => `<path d="${TOOTH_D}" ${tf ? `transform="${tf}"` : ''}/>`;

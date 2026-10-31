@@ -611,6 +611,22 @@ class T12_Doctors(Base):
         self.assertEqual(d['by_doctor'][-1]['doctor'], 'غير محدد')
         self.assertEqual(d['by_doctor'][-1]['executed'], 10000)
 
+    def test_ortho_total_then_monthly_visits(self):
+        """تقويم جديد بسعر كلي ومقدّم، ثم زيارات شهرية بلا كلفة يُسجَّل فيها المسدد: الحساب لا يزيد والزيارة تظهر في زيارات اليوم"""
+        p = self.patient('مراجع التقويم', '07705556666', doctor='د منتظر')
+        self.visit(p['id'], '2025-08-01', [{'name': 'تقويم أسنان - حديد', 'cost': 2000000, 'status': 'in_progress', 'paid_now': 500000}])
+        s = self.c.ok('GET', '/api/patients/%d' % p['id'])['summary']
+        self.assertEqual((s['total_cost'], s['net_paid'], s['remaining']), (2000000, 500000, 1500000))
+        r = self.visit(p['id'], '2025-09-01', [{'name': 'تقويم أسنان - زيارة شهرية', 'cost': 0, 'details': 'تبديل سلك'}], account_payment=100000)
+        self.assertEqual((r['account_payment']['amount'], r['account_payment']['visit_id']), (100000, r['visit']['id']))
+        self.assertEqual((r['summary']['total_cost'], r['summary']['remaining']), (2000000, 1400000))
+        self.visit(p['id'], '2025-10-01', [{'name': 'تقويم أسنان - زيارة شهرية', 'cost': 0}])                 # لم يدفع: زيارة فقط
+        s = self.c.ok('GET', '/api/patients/%d' % p['id'])['summary']
+        self.assertEqual((s['total_cost'], s['remaining']), (2000000, 1400000))
+        d = self.c.ok('GET', '/api/visits_by_date?from=2025-09-01&to=2025-09-01')
+        self.assertEqual((len(d['visits']), d['receipts_total']), (1, 100000))
+        self.assertEqual(self.c.call('POST', '/api/patients/%d/visits' % p['id'], {'visit_date': '2025-10-02', 'procedures': [], 'account_payment': -5})[0], 400)
+
     def test_bydate_grouped_by_doctor(self):
         """مراجعو يوم/فترة: مجموعة لكل طبيب بترتيب الإعدادات ومجموع المدفوع له، والفلترة تُظهر كل مراجعيه"""
         st = self.c.ok('GET', '/api/settings')['settings']

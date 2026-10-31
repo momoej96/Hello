@@ -486,6 +486,15 @@ def visit_create(c, pid):
         pay = pay_with_visit(c, pid, vid, f['visit_date'], procs, 'visit:%d' % vid, full=bool(c.body.get('paid_cash')))
         if pay:
             out['payment'] = pay
+    acct = v_money(c.body, 'account_payment', 'الدفعة على الحساب', required=False) if c.body.get('account_payment') not in (None, '', 0, '0') else None
+    if acct and can(c.user, 'payments'):
+        # المبلغ المسدد في الزيارة الشهرية للتقويم: دفعة مربوطة بالزيارة لا تضيف كلفة (السعر الكلي سُجّل مع «تقويم جديد»)
+        cur = c.db.execute("INSERT INTO payments(patient_id,visit_id,pay_date,amount,kind,method,notes,idem_key,created_by,created_at) "
+                           "VALUES(?,?,?,?, 'payment','cash',?,?,?,?)",
+                           (pid, vid, f['visit_date'], acct, 'مسدد في الزيارة الشهرية للتقويم', 'visit:%d:acct' % vid, c.user['username'], now_iso()))
+        row = dict(c.db.execute('SELECT * FROM payments WHERE id=?', (cur.lastrowid,)).fetchone())
+        audit(c.db, c.user['username'], 'payment', row['id'], 'create', None, row)
+        out['account_payment'] = row
     if can(c.user, 'payments'):
         out['summary'] = balance(c.db, pid)
     return out

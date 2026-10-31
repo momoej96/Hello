@@ -216,12 +216,13 @@ select.b-completed,select.a-completed,select.a-confirmed{background:var(--leaf-b
 .pext{display:flex;flex-wrap:wrap;gap:.5rem 1.4rem;align-items:center;padding:0 .75rem .6rem;margin-inline-start:calc(28px + .6rem)}
 .pext:not(:has(> :not([hidden]))){display:none}
 .ptype,.plab,.rc{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem}
-.ptype[hidden],.plab[hidden],.rc[hidden],.ppay[hidden],.prem[hidden]{display:none}
+.ptype[hidden],.plab[hidden],.rc[hidden],.ppay[hidden],.prem[hidden],.pmain .pf[hidden]{display:none}
 .plab input{width:220px}.rcm{display:inline-flex;align-items:center;gap:.4rem}.rcm input{width:240px}
 .pext .chk,.ppay .chk{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer;font-size:.9rem}
 .prow input[type=checkbox]{width:1.05rem;height:1.05rem;accent-color:var(--teal)}
 .ppay{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1rem;padding:.45rem .75rem;background:var(--mint);border-top:1px solid var(--line);font-size:.9rem}
-.prem{display:inline-flex;align-items:center;gap:.4rem}.prem input{width:110px}
+.prem,.padv{display:inline-flex;align-items:center;gap:.4rem}.prem input,.padv input{width:110px}.prem[hidden],.padv[hidden]{display:none}
+.tgrp{font-size:.82rem;color:var(--muted);font-weight:700;margin-inline-start:.3rem}.psinfo[hidden]{display:none}
 .pmain input,.pmain select,.pext input{height:2.5rem;box-sizing:border-box}.pmain .tooth-in .btn{height:2.5rem}
 .pmain{align-items:start}.pmain .prm{align-self:end;margin-bottom:0}
 /* قائمة الإجراءات: مربعات كبيرة */

@@ -22,19 +22,22 @@ function procRowHTML(p = {}) {
       <div class="pf pname"><span class="pl">الإجراء</span><input type="hidden" name="name" value="${esc(p.name || '')}"><button type="button" class="proc-btn ${p.name ? '' : 'empty'}" data-action="proc-pick" title="اختيار الإجراء">${procBtnHTML(p.name)}</button></div>
       <div class="pf"><span class="pl">السن (Palmer)</span><div class="tooth-in"><input name="tooth_no" placeholder="مثل UR6" value="${esc(teethInput(p.tooth_no))}" dir="ltr" title="سن واحد أو أكثر بنظام Palmer، مثل: UR6 أو UR1, UL1"><button type="button" class="btn sm" data-action="tooth-pick" title="اختيار السن">${icon('tooth', 15)}</button></div></div>
       <div class="pf"><span class="pl">الحالة</span><select name="status">${Object.entries(PROC_ST).map(([k, t]) => `<option value="${k}" ${(p.status || 'completed') === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-      ${money ? `<div class="pf"><span class="pl">التكلفة${MONEY_UNIT()}</span><input name="cost" data-money inputmode="decimal" placeholder="0" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off"></div>` : ''}
+      ${money ? `<div class="pf pcost"><span class="pl pcl">التكلفة${MONEY_UNIT()}</span><input name="cost" data-money inputmode="decimal" placeholder="0" value="${p.cost ? moneyIn(p.cost) : ''}" autocomplete="off"></div>` : ''}
+      ${money && !p.id ? `<div class="pf psess" hidden><span class="pl">المبلغ المسدد هذه الجلسة${MONEY_UNIT()}</span><input name="session_paid" data-money inputmode="decimal" placeholder="0" autocomplete="off"></div>` : ''}
       <button type="button" class="btn sm danger-o prm" data-action="rm-proc" title="حذف الإجراء">${icon('trash', 15)}</button>
       <div class="pf pdetf"><span class="pl">تفاصيل العلاج</span><input name="details" class="pdet" placeholder="اختياري" value="${esc(p.details || '')}"></div>
     </div>
     <div class="pext">
       <div class="ptype" hidden></div>
+      <div class="psinfo muted small" hidden></div>
       <div class="plab" ${needsLab(p.name) ? '' : 'hidden'}><span class="pl">المختبر</span><input name="lab" list="dl-labs" value="${esc(p.lab || '')}" placeholder="اسم المختبر" autocomplete="off"></div>
       <div class="rc" ${isRootCanal(p.name) ? '' : 'hidden'}><span class="pl">مراحل حشوة الجذر</span>
         ${RC_STEPS.map(([k, t]) => `<label class="chk"><input type="checkbox" name="rc_${k}" ${(p.rc_steps || '').split(',').includes(k) ? 'checked' : ''}> <bdi dir="ltr">${t}</bdi></label>`).join('')}
         <label class="rcm"><span class="pl">القياسات</span><input name="rc_measure" dir="ltr" value="${esc(p.rc_measure || '')}" placeholder="MB 21mm · DB 20.5mm · P 22mm"></label></div>
     </div>
     ${money && !p.id ? `<div class="ppay"><label class="chk"><input type="checkbox" name="pay_cash" checked> <b>تم الدفع نقداً</b></label>
-      <label class="prem" hidden>المتبقي${MONEY_UNIT()} <input name="remain" data-money inputmode="decimal" autocomplete="off"></label><span class="pinfo muted small"></span></div>` : ''}
+      <label class="prem" hidden>المتبقي${MONEY_UNIT()} <input name="remain" data-money inputmode="decimal" autocomplete="off"></label>
+      <label class="padv" hidden>المقدّم المدفوع اليوم${MONEY_UNIT()} <input name="advance" data-money inputmode="decimal" placeholder="0" autocomplete="off"></label><span class="pinfo muted small"></span></div>` : ''}
   </div>`;
 }
 /* إظهار مراحل حشوة الجذر حسب اسم الإجراء، وحقل «المتبقي» عند إزالة «تم الدفع نقداً» */
@@ -45,22 +48,41 @@ function syncProcRow(r) {
   const pt = $('.ptype', r); pt.hidden = !par;
   if (par && pt.dataset.for !== nm) {
     pt.dataset.for = nm;
-    pt.innerHTML = `<span class="pl">النوع</span>` + par.types.map(([t, full]) => `<button type="button" class="btn sm ${t === typ ? 'primary' : ''}" data-action="proc-type" data-v="${esc(full)}">${esc(t)}</button>`).join('');
+    pt.innerHTML = `<span class="pl">النوع</span>` + typeBtns(par.types, nm.trim(), 'proc-type', 'sm');
   }
   $('.plab', r).hidden = !needsLab(nm);
+  // زيارة التقويم الشهرية: لا كلفة، وبمكانها «المبلغ المسدد هذه الجلسة»؛ وتقويم جديد: الكلفة = السعر الكلي
+  const monthly = isOrthoMonthly(nm), ortho = isOrthoNew(nm), costEl = $('[name=cost]', r);
+  if (costEl) {
+    $('.pcost', r).hidden = monthly && !(+r.dataset.cost > 0);   // (زيارة قديمة لها كلفة تبقى ظاهرة)
+    if (monthly && !r.dataset.id) costEl.value = '';
+    $('.pcl', r).textContent = (ortho ? 'السعر الكلي للتقويم' : 'التكلفة') + MONEY_UNIT();
+  }
+  const sess = $('.psess', r); if (sess) sess.hidden = !monthly;
+  const si = $('.psinfo', r), due = PT && PT.summary ? PT.summary.remaining : null;
+  si.hidden = !sess || !monthly || due === null;
+  if (!si.hidden) { const paid = parseMoney($('[name=session_paid]', r).value) || 0; si.innerHTML = `المتبقي على المراجع: <b>${moneyH(due)}</b>` + (paid ? ` ← بعد هذه الجلسة: <b>${moneyH(due - paid)}</b>` : ''); }
   const pay = $('.ppay', r); if (!pay) return;
   const st = $('[name=status]', r).value, counted = st === 'in_progress' || st === 'completed';
-  pay.hidden = !counted;
-  const chk = $('[name=pay_cash]', r), rem = $('[name=remain]', r), cost = parseMoney($('[name=cost]', r).value) || 0;
-  $('.prem', r).hidden = chk.checked;
-  if (!chk.checked && rem.value === '' && !rem._touched) { rem.value = cost ? moneyIn(cost) : ''; }
-  const left = chk.checked ? 0 : Math.min(cost, parseMoney(rem.value) || 0);
+  pay.hidden = !counted || monthly;
+  const chk = $('[name=pay_cash]', r), rem = $('[name=remain]', r), cost = parseMoney(costEl.value) || 0;
+  // التقويم الجديد: «تم الدفع نقداً» غير مؤشرة افتراضياً ويُكتب المقدّم (ما لم يغيّرها المستخدم)
+  if (r.dataset.ortho !== String(ortho)) { r.dataset.ortho = String(ortho); if (!chk._touched) chk.checked = !ortho; }
+  const adv = ortho && !chk.checked;
+  $('.prem', r).hidden = chk.checked || adv; $('.padv', r).hidden = !adv;
+  if (!chk.checked && !adv && rem.value === '' && !rem._touched) { rem.value = cost ? moneyIn(cost) : ''; }
+  const left = chk.checked ? 0 : adv ? Math.max(0, cost - Math.min(cost, parseMoney($('[name=advance]', r).value) || 0)) : Math.min(cost, parseMoney(rem.value) || 0);
   $('.pinfo', r).innerHTML = cost ? (chk.checked ? `يُسجَّل مدفوعاً ${moneyH(cost)}` : `المدفوع الآن ${moneyH(cost - left)} · يبقى ديناً ${moneyH(left)}`) : '';
 }
 function procPaidNow(r) {
   const pay = $('.ppay', r); if (!pay || pay.hidden) return undefined;
   const cost = parseMoney($('[name=cost]', r).value) || 0;
   if ($('[name=pay_cash]', r).checked) return cost;
+  if (!$('.padv', r).hidden) {
+    const adv = parseMoney($('[name=advance]', r).value) || 0;
+    if (adv > cost) throw new Error('المقدّم أكبر من السعر الكلي للتقويم');
+    return adv;
+  }
   const left = parseMoney($('[name=remain]', r).value) || 0;
   if (left > cost) throw new Error('المتبقي أكبر من تكلفة الإجراء: ' + $('[name=name]', r).value);
   return cost - left;
@@ -87,7 +109,7 @@ ACTIONS['tooth-set'] = b => {
 };
 ACTIONS['tooth-done'] = b => b.closest('.tooth-panel').remove();
 /* قائمة الإجراءات: مربعات كبيرة؛ المربع الذي له أنواع يُظهر سطر «النوع» (مع اختيار النوع الافتراضي إن وُجد) */
-const typesRow = (t, cur) => `<span class="pl">نوع ${esc(t.n)}:</span>` + t.types.map(([ty, full]) => `<button type="button" class="btn ${full === cur ? 'primary' : ''}" data-action="proc-set" data-v="${esc(full)}">${esc(ty)}</button>`).join('')
+const typesRow = (t, cur) => `<span class="pl">نوع ${esc(t.n)}:</span>` + typeBtns(t.types, cur, 'proc-set')
   + `<button type="button" class="btn sm pp-done" data-action="proc-done">تم</button>`;
 const procPanel = cur => {
   const sel = procParent(cur), selN = sel ? sel.n : (cur || '').trim();
@@ -153,18 +175,19 @@ function openVisitModal(v) {
   });
   const root = m.body, form = $('form', root);
   api('GET', '/api/labs').then(d => { $('#dl-labs', root).innerHTML = d.labs.map(l => `<option value="${esc(l)}">`).join(''); }).catch(() => { });
-  const onEdit = e => { const r = e && e.target.closest && e.target.closest('.prow'); if (r) { if (e.target.name === 'remain') e.target._touched = true; syncProcRow(r); } procTotal(root); };
+  const onEdit = e => { const r = e && e.target.closest && e.target.closest('.prow'); if (r) { if (e.target.name === 'remain' || e.target.name === 'pay_cash') e.target._touched = true; syncProcRow(r); } procTotal(root); };
   root.addEventListener('input', onEdit); root.addEventListener('change', onEdit); $$('.prow', root).forEach(syncProcRow); procTotal(root);
   let busy = false;
   async function save() {
     if (busy) return;
     const err = $('.form-err', root); err.textContent = '';
-    const procs = [];
+    const procs = []; let sessPaid = 0;
     try {
       $$('.prow', root).forEach(r => {
         const g = n => { const e = $(`[name=${n}]`, r); return e ? e.value.trim() : ''; };
         if (!g('name') && !g('tooth_no') && !g('details') && !(parseMoney(g('cost')) > 0) && !r.dataset.id) return;
         const costEl = $('[name=cost]', r), rc = isRootCanal(g('name'));
+        if (isOrthoMonthly(g('name')) && !r.dataset.id) { sessPaid += parseMoney(g('session_paid')) || 0; if (costEl) costEl.value = ''; }
         const pr = { id: r.dataset.id ? +r.dataset.id : undefined, name: g('name'), tooth_no: g('tooth_no'), status: g('status'), details: g('details'), cost: costEl ? (parseMoney(costEl.value) || 0) : +r.dataset.cost,
           rc_steps: rc ? RC_STEPS.filter(([k]) => $(`[name=rc_${k}]`, r).checked).map(([k]) => k) : [], rc_measure: rc ? g('rc_measure') : '', lab: needsLab(g('name')) ? g('lab') : '' };
         const paid = procPaidNow(r); if (paid !== undefined) pr.paid_now = paid;
@@ -173,6 +196,7 @@ function openVisitModal(v) {
     } catch (e2) { err.textContent = e2.message; return; }
     const body = { visit_date: $('[name=visit_date]', root).value, visit_time: $('[name=visit_time]', root).value, doctor: $('[name=doctor]', root).value.trim(), notes: $('[name=notes]', root).value.trim(),
       next_appointment: $('[name=next_appointment]', root).value, next_time: $('[name=next_time]', root).value, procedures: procs };
+    if (sessPaid > 0) body.account_payment = sessPaid;      // المسدد في الزيارة الشهرية: دفعة بلا كلفة
     const payEls = $$('[data-pay]', root);
     if (payEls.length) body.payments = payEls.map(e => ({ id: +e.dataset.pay, amount: parseMoney(e.value) === '' ? 0 : parseMoney(e.value) }));
     if (!body.visit_date) { err.textContent = 'تاريخ الزيارة مطلوب'; return; }
@@ -181,7 +205,8 @@ function openVisitModal(v) {
       let r;
       if (isNew) r = await api('POST', `/api/patients/${p.id}/visits`, body);
       else r = await withForce(force => api('PUT', '/api/visits/' + v.id, { ...body, force }));
-      m.close(); toast(r && r.payment ? `تم حفظ الزيارة وتسجيل دفعة نقدية ${fmtMoney(r.payment.amount)}` : 'تم حفظ الزيارة'); reloadPatient();
+      const paidAll = ((r && r.payment && r.payment.amount) || 0) + ((r && r.account_payment && r.account_payment.amount) || 0);
+      m.close(); toast(paidAll ? `تم حفظ الزيارة وتسجيل دفعة نقدية ${fmtMoney(paidAll)}` : 'تم حفظ الزيارة'); reloadPatient();
     } catch (e) { if (e) err.textContent = e.message; busy = false; $('[data-save]', m.el).disabled = false; }
   }
   $('[data-save]', m.el).onclick = save;
